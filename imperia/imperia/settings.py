@@ -1,5 +1,10 @@
 # imperia/settings.py
 from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -11,14 +16,53 @@ ALLOWED_HOSTS = []
 
 
 INSTALLED_APPS = [
+    "jazzmin",                 # ← ДОЛЖЕН быть выше admin
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "core.apps.CoreConfig",
     "django.contrib.staticfiles",
-    "core",  # наше приложение
+    #"core",  # наше приложение
 ]
+# === Jazzmin: внешний вид и меню ===
+JAZZMIN_SETTINGS = {
+    "site_title": "KlonMone Admin",
+    "site_header": "Imperia • Панель управления",
+    "site_brand": "Imperia",
+    "welcome_sign": "Добро пожаловать в DarkSide",
+    "show_sidebar": True,
+    "navigation_expanded": True,
+
+    # Иконки для моделей (app_label.ModelName)
+    "icons": {
+        "auth.User": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "core.SitePolicy": "fas fa-shield-alt",
+    },
+
+    # Верхнее меню: можно указывать name+url (имя URL из urls.py или внешний линк)
+    "topmenu_links": [
+        {"name": "Админ-главная", "url": "admin:index"},
+        {"name": "Склад", "url": "warehouse_dashboard"},
+        {"name": "Оператор", "url": "operator_dashboard"},
+        {"name": "Менеджер", "url": "manager_dashboard"},
+        {"name": "Управляющий", "url": "director_dashboard"},
+        # Пример внешней ссылки:
+        # {"name": "Docs", "url": "https://docs.example.com", "new_window": True},
+    ],
+
+    # Доп. улучшения
+    "related_modal_active": True,   # редактирование связанных объектов в модалке
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "theme": "cosmo",      # варианты: cosmo, lumen, etc.
+    "navbar": "navbar-dark",
+    "sidebar_fixed": True,
+    "actions_sticky_top": True,
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

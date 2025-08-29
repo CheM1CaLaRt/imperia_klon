@@ -4,6 +4,11 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group
 from django.shortcuts import redirect, render
 from django.http import HttpRequest
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from .forms import UserUpdateForm, ProfileForm
+from .models import Profile
 
 ROLE_TO_URL = {
     "warehouse": "warehouse_dashboard",
@@ -35,6 +40,30 @@ def login_view(request: HttpRequest):
         context["error"] = "Неверный логин или пароль"
     return render(request, "login.html", context)
 
+
+@login_required
+def profile_view(request):
+    user = request.user
+    profile, _ = Profile.objects.get_or_create(user=user)
+
+    if request.method == "POST":
+        u_form = UserUpdateForm(request.POST, instance=user)
+        p_form = ProfileForm(request.POST, request.FILES, instance=profile)
+        if u_form.is_valid() and p_form.is_valid():
+            u_form.save()
+            p_form.save()
+            messages.success(request, "Профиль обновлён.")
+            return redirect("profile")
+    else:
+        u_form = UserUpdateForm(instance=user)
+        p_form = ProfileForm(instance=profile)
+
+    return render(request, "profile.html", {
+        "u_form": u_form,
+        "p_form": p_form,
+        "username": user.username,         # показываем, но не редактируем
+        "roles": list(user.groups.values_list("name", flat=True)),  # только для отображения
+    })
 @login_required
 def post_login_router(request: HttpRequest):
     """

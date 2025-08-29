@@ -1,0 +1,112 @@
+<!doctype html><meta charset="utf-8">
+<title>Профиль</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  body{font-family:system-ui,Arial,sans-serif;background:#f6f7fb;margin:0;padding:24px}
+  .wrap{max-width:860px;margin:0 auto}
+  .card{background:#fff;padding:20px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.06);margin-bottom:16px}
+  h1{margin:0 0 12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .field label{display:block;font-size:12px;color:#555;margin-bottom:6px}
+  .field input[type="text"], .field input[type="email"], .field input[type="date"]{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px}
+  .row{display:flex;align-items:center;gap:16px}
+  .avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#e5e7eb;display:grid;place-items:center;font-weight:700;color:#374151}
+  .badges span{display:inline-block;background:#eef2ff;color:#3730a3;font-weight:600;border-radius:999px;padding:4px 10px;margin:2px 6px 0 0}
+  .actions{display:flex;gap:10px;margin-top:12px}
+  .btn{padding:10px 14px;border:0;border-radius:10px;cursor:pointer}
+  .btn-primary{background:#1e66f5;color:#fff}
+  .btn-link{background:transparent;color:#1e66f5;text-decoration:none}
+  .note{font-size:12px;color:#666}
+  .flash{margin-bottom:12px}
+  .msg{padding:10px;border-radius:8px;background:#e9f7ef}
+</style>
+
+<div class="wrap">
+  {% if messages %}
+    <div class="flash">
+      {% for message in messages %}
+        <div class="msg {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <h1>Профиль</h1>
+    <p class="note">Логин и роли редактируются только администратором.</p>
+
+    <div class="row" style="margin:12px 0 20px">
+      {% if p_form.instance.avatar %}
+        <img src="{{ p_form.instance.avatar.url }}" class="avatar" alt="avatar">
+      {% else %}
+        <div class="avatar">
+          {% firstof request.user.first_name|slice:":1"|upper request.user.username|slice:":1"|upper %}
+        </div>
+      {% endif %}
+
+      <div>
+        <div><b>Логин:</b> {{ username }}</div>
+        <div class="badges"><b>Роли:</b>
+          {% if roles %}
+            {% for r in roles %}<span>{{ r }}</span>{% endfor %}
+          {% else %}
+            <span>нет</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="grid">
+      {% csrf_token %}
+
+      <div class="card">
+        <h3>Данные пользователя</h3>
+        <div class="field">
+          <label>Имя</label>
+          {{ u_form.first_name }}
+        </div>
+        <div class="field">
+          <label>Фамилия</label>
+          {{ u_form.last_name }}
+        </div>
+        <div class="field">
+          <label>E-mail</label>
+          {{ u_form.email }}
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Контакты и аватар</h3>
+        <div class="field">
+          <label>Аватар</label>
+          {{ p_form.avatar }}  <!-- ClearableFileInput позволит удалить текущий -->
+        </div>
+        <div class="field">
+          <label>Телефон</label>
+          {{ p_form.phone }}
+        </div>
+        <div class="field">
+          <label>WhatsApp</label>
+          {{ p_form.whatsapp }}
+        </div>
+        <div class="field">
+          <label>Telegram</label>
+          {{ p_form.telegram }}
+        </div>
+        <div class="field">
+          <label>VK</label>
+          {{ p_form.vk }}
+        </div>
+        <div class="field">
+          <label>Дата рождения</label>
+          {{ p_form.birth_date }}
+        </div>
+      </div>
+
+      <div class="actions" style="grid-column:1/-1">
+        <button class="btn btn-primary" type="submit">Сохранить</button>
+        <a class="btn btn-link" href="{% url 'post_login_router' %}">Отмена</a>
+      </div>
+    </form>
+  </div>
+</div>
