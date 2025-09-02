@@ -76,6 +76,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "imperia.urls"
 
+FORM_RENDERER = "django.forms.renderers.DjangoTemplates"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",

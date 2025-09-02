@@ -1,0 +1,18 @@
+{% load i18n %}
+<div class="dj-avatar-input">
+  {% if widget.is_initial and widget.file_name %}
+    <div class="current">
+      <span class="label">{{ widget.initial_text }}:</span>
+      <span class="name">{{ widget.file_name }}</span>
+    </div>
+    {% if not widget.required %}
+      <div class="clear">
+        <input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}">
+        <label for="{{ widget.checkbox_id }}">{{ widget.clear_checkbox_label }}</label>
+      </div>
+    {% endif %}
+  {% endif %}
+  <div class="input">
+    <input type="{{ widget.type }}" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>
+  </div>
+</div>

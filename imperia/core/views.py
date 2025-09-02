@@ -9,6 +9,8 @@ from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import UserUpdateForm, ProfileForm
 from .models import Profile
+from .widgets import AvatarInput
+from os.path import basename
 
 ROLE_TO_URL = {
     "warehouse": "warehouse_dashboard",
@@ -46,23 +48,25 @@ def profile_view(request):
     user = request.user
     profile, _ = Profile.objects.get_or_create(user=user)
 
+    u_form = UserUpdateForm(request.POST or None, instance=user)
+    p_form = ProfileForm(request.POST or None, request.FILES or None, instance=profile)
+
+    # на случай, если Meta не подхватилась — жёстко заменим:
+    p_form.fields["avatar"].widget = AvatarInput()
+
     if request.method == "POST":
-        u_form = UserUpdateForm(request.POST, instance=user)
-        p_form = ProfileForm(request.POST, request.FILES, instance=profile)
         if u_form.is_valid() and p_form.is_valid():
             u_form.save()
             p_form.save()
-            messages.success(request, "Профиль обновлён.")
+            messages.success(request, "Профиль сохранён.")
+            # при автосабмите вернёмся на эту же страницу
             return redirect("profile")
-    else:
-        u_form = UserUpdateForm(instance=user)
-        p_form = ProfileForm(instance=profile)
 
     return render(request, "profile.html", {
         "u_form": u_form,
         "p_form": p_form,
-        "username": user.username,         # показываем, но не редактируем
-        "roles": list(user.groups.values_list("name", flat=True)),  # только для отображения
+        "username": user.username,
+        "roles": [g.name for g in user.groups.all()],
     })
 @login_required
 def post_login_router(request: HttpRequest):

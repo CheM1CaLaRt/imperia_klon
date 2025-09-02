@@ -6,6 +6,7 @@ import re
 from datetime import date
 
 from .models import Profile
+from .widgets import AvatarInput
 
 User = get_user_model()
 
@@ -17,6 +18,7 @@ class UserUpdateForm(forms.ModelForm):
         model = User
         fields = ["first_name", "last_name", "email"]  # логин НЕ редактируем
         widgets = {
+            "avatar": AvatarInput(),
             "first_name": forms.TextInput(attrs={"placeholder": "Имя"}),
             "last_name": forms.TextInput(attrs={"placeholder": "Фамилия"}),
             "email": forms.EmailInput(attrs={"placeholder": "you@example.com"}),
@@ -27,6 +29,7 @@ class ProfileForm(forms.ModelForm):
         model = Profile
         fields = ["avatar", "phone", "whatsapp", "telegram", "vk", "birth_date"]
         widgets = {
+            "avatar": AvatarInput(),
             "phone": forms.TextInput(attrs={
                 "placeholder": "+79990001122",
                 "pattern": r"^\+?\d{7,15}$",

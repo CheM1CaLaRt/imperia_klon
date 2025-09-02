@@ -1,0 +1,33 @@
+<input type="{{ widget.type }}" name="{{ widget.name }}"
+       accept="image/*" class="file-hidden"
+       {% include "django/forms/widgets/attrs.html" %}>
+
+<style>
+  .file-hidden{
+    position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%);
+  }
+</style>
+
+<script>
+(function(){
+  const input = document.currentScript.previousElementSibling;  // наш скрытый <input type=file>
+  const form  = input.closest('form');
+
+  input.addEventListener('change', function(){
+    const f = this.files && this.files[0];
+    if (!f) return;
+
+    // моментальное превью: меняем все картинки с классом js-avatar-preview
+    const url = URL.createObjectURL(f);
+    document.querySelectorAll('.js-avatar-preview').forEach(img => img.src = url);
+
+    // автосохранение профиля
+    if (form && typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else if (form) {
+      form.submit();
+    }
+  });
+})();
+</script>

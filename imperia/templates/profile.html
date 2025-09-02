@@ -1,27 +1,42 @@
-<!doctype html><meta charset="utf-8">
-<title>Профиль</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Профиль</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<style>
-  body{font-family:system-ui,Arial,sans-serif;background:#f6f7fb;margin:0;padding:24px}
-  .wrap{max-width:860px;margin:0 auto}
-  .card{background:#fff;padding:20px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.06);margin-bottom:16px}
-  h1{margin:0 0 12px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .field label{display:block;font-size:12px;color:#555;margin-bottom:6px}
-  .field input[type="text"], .field input[type="email"], .field input[type="date"]{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px}
-  .row{display:flex;align-items:center;gap:16px}
-  .avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#e5e7eb;display:grid;place-items:center;font-weight:700;color:#374151}
-  .badges span{display:inline-block;background:#eef2ff;color:#3730a3;font-weight:600;border-radius:999px;padding:4px 10px;margin:2px 6px 0 0}
-  .actions{display:flex;gap:10px;margin-top:12px}
-  .btn{padding:10px 14px;border:0;border-radius:10px;cursor:pointer}
-  .btn-primary{background:#1e66f5;color:#fff}
-  .btn-link{background:transparent;color:#1e66f5;text-decoration:none}
-  .note{font-size:12px;color:#666}
-  .flash{margin-bottom:12px}
-  .msg{padding:10px;border-radius:8px;background:#e9f7ef}
-</style>
-
+  <style>
+    :root{--bg:#f6f7fb;--card:#fff;--text:#111827;--border:#e5e7eb;--shadow:0 8px 30px rgba(0,0,0,.06);--primary:#1e66f5}
+    *{box-sizing:border-box}
+    body{font-family:system-ui,Arial,sans-serif;background:var(--bg);margin:0;color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto;padding:24px}
+    .topbar{display:flex;justify-content:flex-start;margin-bottom:12px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:0;border-radius:10px;cursor:pointer;text-decoration:none}
+    .btn-primary{background:var(--primary);color:#fff}
+    .btn-link{background:transparent;color:var(--primary)}
+    .btn-secondary{background:#fff;border:1px solid #ddd;color:#111}
+    .btn-secondary:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .card{background:var(--card);padding:20px;border-radius:16px;box-shadow:var(--shadow);margin-bottom:16px}
+    h1{margin:0 0 12px} h3{margin:0 0 12px;font-size:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width:800px){.grid{grid-template-columns:1fr}}
+    .row{display:flex;align-items:center;gap:16px}
+    .avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#e5e7eb;display:grid;place-items:center;font-weight:700;color:#374151}
+    .avatar-lg{width:96px;height:96px}
+    .avatar-wrap{position:relative;width:96px}
+    .avatar-edit{position:absolute;right:-6px;bottom:-6px;width:32px;height:32px;border-radius:50%;
+      background:var(--primary);box-shadow:0 4px 12px rgba(0,0,0,.18);cursor:pointer;display:grid;place-items:center;color:#fff;font-weight:700}
+    .field{margin:10px 0}
+    .field label{display:block;font-size:12px;color:#555;margin-bottom:6px}
+    .field input[type="text"],.field input[type="email"],.field input[type="date"]{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px}
+    .badges span{display:inline-block;background:#eef2ff;color:#3730a3;font-weight:600;border-radius:999px;padding:4px 10px;margin:2px 6px 0 0}
+    .note{font-size:12px;color:#666}
+    .flash{margin-bottom:12px}.msg{padding:10px;border-radius:8px;background:#e9f7ef}
+    /* скрываем стандартный input файла, если внезапно отрендерится в шаблоне */
+    input[type="file"][name$="avatar"]{position:absolute;left:-9999px}
+  </style>
+</head>
+<body>
 <div class="wrap">
   {% if messages %}
     <div class="flash">
@@ -31,15 +46,20 @@
     </div>
   {% endif %}
 
+  <div class="topbar">
+    <a class="btn btn-secondary" href="{% url 'post_login_router' %}">← Назад</a>
+  </div>
+
   <div class="card">
     <h1>Профиль</h1>
     <p class="note">Логин и роли редактируются только администратором.</p>
 
+    <!-- Верхний аватар БЕЗ клика -->
     <div class="row" style="margin:12px 0 20px">
       {% if p_form.instance.avatar %}
-        <img src="{{ p_form.instance.avatar.url }}" class="avatar" alt="avatar">
+        <img src="{{ p_form.instance.avatar.url }}" class="avatar js-avatar-preview" alt="avatar">
       {% else %}
-        <div class="avatar">
+        <div class="avatar js-avatar-preview">
           {% firstof request.user.first_name|slice:":1"|upper request.user.username|slice:":1"|upper %}
         </div>
       {% endif %}
@@ -47,11 +67,7 @@
       <div>
         <div><b>Логин:</b> {{ username }}</div>
         <div class="badges"><b>Роли:</b>
-          {% if roles %}
-            {% for r in roles %}<span>{{ r }}</span>{% endfor %}
-          {% else %}
-            <span>нет</span>
-          {% endif %}
+          {% if roles %}{% for r in roles %}<span>{{ r }}</span>{% endfor %}{% else %}<span>нет</span>{% endif %}
         </div>
       </div>
     </div>
@@ -61,46 +77,34 @@
 
       <div class="card">
         <h3>Данные пользователя</h3>
-        <div class="field">
-          <label>Имя</label>
-          {{ u_form.first_name }}
-        </div>
-        <div class="field">
-          <label>Фамилия</label>
-          {{ u_form.last_name }}
-        </div>
-        <div class="field">
-          <label>E-mail</label>
-          {{ u_form.email }}
-        </div>
+        <div class="field"><label>Имя</label>{{ u_form.first_name }}</div>
+        <div class="field"><label>Фамилия</label>{{ u_form.last_name }}</div>
+        <div class="field"><label>E-mail</label>{{ u_form.email }}</div>
       </div>
 
       <div class="card">
         <h3>Контакты и аватар</h3>
-        <div class="field">
-          <label>Аватар</label>
-          {{ p_form.avatar }}  <!-- ClearableFileInput позволит удалить текущий -->
+
+        <div class="avatar-wrap" style="margin-bottom:12px">
+          {% if p_form.instance.avatar %}
+            <img src="{{ p_form.instance.avatar.url }}" class="avatar avatar-lg js-avatar-preview" alt="avatar">
+          {% else %}
+            <div class="avatar avatar-lg js-avatar-preview">
+              {% firstof request.user.first_name|slice:":1"|upper request.user.username|slice:":1"|upper %}
+            </div>
+          {% endif %}
+          <!-- ТОЛЬКО карандаш кликается -->
+          <label for="{{ p_form.avatar.id_for_label }}" class="avatar-edit" title="Заменить">✎</label>
         </div>
-        <div class="field">
-          <label>Телефон</label>
-          {{ p_form.phone }}
-        </div>
-        <div class="field">
-          <label>WhatsApp</label>
-          {{ p_form.whatsapp }}
-        </div>
-        <div class="field">
-          <label>Telegram</label>
-          {{ p_form.telegram }}
-        </div>
-        <div class="field">
-          <label>VK</label>
-          {{ p_form.vk }}
-        </div>
-        <div class="field">
-          <label>Дата рождения</label>
-          {{ p_form.birth_date }}
-        </div>
+
+        <!-- скрытый input + JS от виджета AvatarInput -->
+        {{ p_form.avatar }}
+
+        <div class="field"><label>Телефон</label>{{ p_form.phone }}</div>
+        <div class="field"><label>WhatsApp</label>{{ p_form.whatsapp }}</div>
+        <div class="field"><label>Telegram</label>{{ p_form.telegram }}</div>
+        <div class="field"><label>VK</label>{{ p_form.vk }}</div>
+        <div class="field"><label>Дата рождения</label>{{ p_form.birth_date }}</div>
       </div>
 
       <div class="actions" style="grid-column:1/-1">
@@ -110,3 +114,5 @@
     </form>
   </div>
 </div>
+</body>
+</html>
