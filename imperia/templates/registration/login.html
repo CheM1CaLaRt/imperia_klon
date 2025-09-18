@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Вход — Imperia{% endblock %}
+{% block content %}
+  <div class="card" style="max-width:520px;margin:40px auto">
+    <h1 style="margin-top:0">Вход</h1>
+    {% if form.non_field_errors %}
+      <div class="msg" style="padding:10px;border-radius:8px;background:#fee2e2;color:#7f1d1d;margin-bottom:12px">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+      <div class="field">
+        <label for="{{ form.username.id_for_label }}">Логин</label>
+        {{ form.username }}
+        {{ form.username.errors }}
+      </div>
+
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">Пароль</label>
+        {{ form.password }}
+        {{ form.password.errors }}
+      </div>
+
+      <div style="margin-top:12px">
+        <button type="submit" class="btn btn-primary">Войти</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Imperia{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  /* iOS light look — принудительно светлая тема */
+  :root{
+    color-scheme: light;                  /* отключаем авто-тёмную */
+    --bg:#F2F2F7;                         /* grouped background */
+    --card:#FFFFFF;
+    --text:#1C1C1E;
+    --muted:#6E6E73;
+    --border:rgba(60,60,67,.12);
+    --primary:#0A84FF; --primary-600:#0077ED;
+    --ring:rgba(10,132,255,.22);
+    --shadow:0 8px 18px rgba(0,0,0,.06);
+    --r-md:14px; --r-lg:18px; --pad:20px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:ui-sans-serif,-apple-system,"SF Pro Text","Segoe UI",Roboto,Arial}
+  a{color:inherit;text-decoration:none}
+
+  /* topbar — светлая, читабельная */
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:saturate(180%) blur(18px);
+    -webkit-backdrop-filter:saturate(180%) blur(18px);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-inner{display:flex;align-items:center;justify-content:space-between;
+                max-width:1100px;margin:0 auto;padding:12px 16px;gap:12px}
+  .brand{font-weight:800}
+  .brand a{color:var(--primary)}
+
+  /* аватар и чип */
+  .avatar-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;
+             background:#E9E9EB;display:grid;place-items:center;font-weight:700;
+             color:#374151;pointer-events:none;box-shadow:inset 0 0 0 1px var(--border)}
+  .userbox{position:relative;display:flex;align-items:center;gap:10px}
+  .hello{font-size:13px;color:var(--muted)} .name{font-weight:700}
+  .userbtn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
+           background:#fff;border:1px solid var(--border);cursor:pointer;
+           transition:box-shadow .15s,border-color .15s,transform .05s}
+  .userbtn:hover{border-color:rgba(60,60,67,.18)}
+  .userbtn:active{transform:translateY(1px)}
+  .userbtn:focus{outline:none;box-shadow:0 0 0 6px var(--ring)}
+  .caret{font-size:12px;opacity:.6}
+
+  /* выпадающее меню — высокая читаемость и чёткий hover */
+  .menu{
+    position:absolute;right:0;top:calc(100% + 8px);
+    background:#fff;border:1px solid var(--border);border-radius:18px;
+    box-shadow:var(--shadow);min-width:220px;display:none;overflow:hidden;
+  }
+  .menu.open{display:block}
+  .menu a,.menu button{
+    display:flex;align-items:center;gap:10px;width:100%;
+    padding:12px 14px;background:transparent;border:0;cursor:pointer;font-size:14px;
+    color:var(--text);
+  }
+  .menu a:hover,.menu button:hover{
+    background:#EAF2FF;                   /* светло-голубой hover */
+    color:#0A84FF;
+  }
+  .menu a:active,.menu button:active{background:#DDEBFF}
+
+  /* карточки/контент */
+  .wrap{max-width:1100px;margin:0 auto;padding:var(--pad)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
+        box-shadow:var(--shadow);padding:var(--pad)}
+  .card h1,.card h2{margin:0 0 14px}
+  .muted{color:var(--muted)}
+
+  /* формы — воздух и iOS-бордеры */
+  .field{margin:12px 0}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  input[type="text"],input[type="email"],input[type="url"],input[type="tel"],
+  input[type="date"],input[type="number"],input[type="password"],textarea,select{
+    width:100%;padding:12px 14px;background:#fff;border:1px solid var(--border);
+    border-radius:12px;font-size:15px;line-height:1.35;
+    transition:border-color .15s,box-shadow .15s,background .15s;
+  }
+  textarea{min-height:120px;resize:vertical}
+  input:focus,textarea:focus,select:focus{
+    outline:none;border-color:rgba(10,132,255,.45);box-shadow:0 0 0 6px var(--ring);
+  }
+
+  /* кнопки */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;
+       padding:0 16px;border-radius:12px;border:1px solid transparent;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn-primary:hover{background:var(--primary-600)}
+  .btn-secondary{background:#F2F3F5;color:#1C1C1E;border:1px solid var(--border)}
+  .btn-link{background:transparent;border:0;color:var(--primary);height:auto;padding:0}
+
+  /* сетки */
+  .grid{display:grid;gap:16px}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:940px){.grid-2{grid-template-columns:1fr}.wrap{padding:16px}.topbar-inner{padding:10px 12px}}
+
+  /* --- profile helpers --- */
+.profile-header{display:flex;align-items:center;gap:16px;margin:12px 0 20px}
+.avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#E9E9EB;
+        box-shadow:inset 0 0 0 1px var(--border);flex:0 0 88px}
+.avatar--placeholder{display:grid;place-items:center;color:var(--muted);font-weight:700}
+.badges span{display:inline-block;background:#EAF2FF;color:#0A84FF;border-radius:999px;
+             padding:4px 10px;margin-right:6px;font-weight:600}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:940px){.form-grid{grid-template-columns:1fr}}
+
+  /* ---------- Profile layout ---------- */
+.profile-header{display:flex;align-items:center;gap:16px;margin:12px 0 20px}
+.avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#E9E9EB;
+        box-shadow:inset 0 0 0 1px var(--border);flex:0 0 88px}
+.avatar--placeholder{display:grid;place-items:center;color:var(--muted);font-weight:700}
+
+/* превью большого аватара рядом с кнопкой "Изменить" */
+.avatar-lg{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#E9E9EB;
+           box-shadow:inset 0 0 0 1px var(--border);flex:0 0 120px}
+
+/* чипы ролей */
+.badges span{display:inline-block;background:#EAF2FF;color:#0A84FF;border-radius:999px;
+             padding:4px 10px;margin-right:6px;font-weight:600}
+
+/* сетка формы 2 колонки */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:940px){.grid-2{grid-template-columns:1fr}}
+
+/* спрятать "На данный момент / Очистить" у стандартного ClearableFileInput */
+.clearable-file-input a,
+.clearable-file-input label[for$="-clear_id"],
+.clearable-file-input input[type="checkbox"]{display:none !important}
+
+/* скрыть сам <input type="file">, но оставить кликабельным через JS */
+#id_avatar{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
+</style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <a href="{% url 'post_login_router' %}">Imperia</a>
+      </div>
+
+      <div class="userbox">
+        {% if request.user.is_authenticated %}
+          {% if profile.avatar %}
+            <img src="{{ profile.avatar.url }}" class="avatar-sm" alt="avatar">
+          {% else %}
+            <div class="avatar-sm">
+              {% firstof request.user.first_name|slice:":1"|upper request.user.username|slice:":1"|upper %}
+            </div>
+          {% endif %}
+
+          <!-- Кнопка с именем (аватар не кликабелен) -->
+          <button class="userbtn" id="userMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="hello">Здравствуйте,</span>
+            <span class="name">{% firstof request.user.first_name request.user.username %}</span>
+            <span class="caret">▾</span>
+          </button>
+
+          <div class="menu" id="userMenu">
+            <a href="{% url 'profile' %}">👤 Профиль</a>
+            <a href="{% url 'password_change' %}">🔒 Сменить пароль</a>
+            <a href="{% url 'logout' %}">↪ Выйти</a>
+          </div>
+        {% else %}
+          <a href="{% url 'login' %}">Войти</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    (function(){
+      const btn = document.getElementById('userMenuBtn');
+      const menu = document.getElementById('userMenu');
+      if(!btn || !menu) return;
+      const toggle = () => { menu.classList.toggle('open'); };
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggle(); });
+      document.addEventListener('click', (e)=>{
+        if(menu.classList.contains('open')) menu.classList.remove('open');
+      });
+      // Закрывать по Esc
+      document.addEventListener('keydown', (e)=>{
+        if(e.key === 'Escape') menu.classList.remove('open');
+      });
+    })();
+  </script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

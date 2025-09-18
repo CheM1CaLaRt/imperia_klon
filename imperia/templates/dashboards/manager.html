@@ -1,5 +1,9 @@
-<!-- templates/dashboards/manager.html -->
-<!doctype html><meta charset="utf-8">
-<h1>Менеджер — дашборд</h1>
-<p>Доступно только группе <b>manager</b>.</p>
-<a href="{% url 'logout' %}">Выйти</a>
+{% extends "base.html" %}
+{% block title %}Менеджер — Imperia{% endblock %}
+{% block content %}
+  <div class="card">
+    <h1>Менеджер — дашборд</h1>
+    <h2>Здравствуйте, {% firstof request.user.first_name request.user.username %}!</h2>
+    <p>Доступно только группе <b>manager</b>.</p>
+  </div>
+{% endblock %}

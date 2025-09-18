@@ -1,5 +1,14 @@
-<!doctype html><meta charset="utf-8">
-<title>Нет роли</title>
-<h2>Нет назначенных ролей</h2>
-<p>Обратитесь к администратору, чтобы выдали доступ (роль).</p>
-<p><a href="{% url 'logout' %}">Выйти</a></p>
+{% extends "base.html" %}
+{% block title %}Нет роли — Imperia{% endblock %}
+{% block content %}
+  <div class="card">
+    <h1>Доступ не настроен</h1>
+    <p>У вашей учётной записи ещё не назначена роль (склад, оператор, менеджер или управляющий).</p>
+    <p>Обратитесь к администратору, чтобы выдать вам доступ.</p>
+
+    <div style="margin-top:12px;display:flex;gap:10px">
+      <a class="btn btn-secondary" href="{% url 'logout' %}">Выйти</a>
+      <a class="btn btn-primary" href="{% url 'profile' %}">Открыть профиль</a>
+    </div>
+  </div>
+{% endblock %}

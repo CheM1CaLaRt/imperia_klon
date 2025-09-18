@@ -8,6 +8,10 @@ from datetime import date
 from .models import Profile
 from .widgets import AvatarInput
 
+from django import forms
+from django.contrib.auth.models import User
+from .models import Profile
+
 User = get_user_model()
 
 PHONE_RE = re.compile(r"^\+?\d{7,15}$")
@@ -16,12 +20,33 @@ TG_RE = re.compile(r"^[A-Za-z0-9_]{5,32}$")
 class UserUpdateForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email"]  # логин НЕ редактируем
+        fields = ("first_name", "last_name", "email")
         widgets = {
-            "avatar": AvatarInput(),
-            "first_name": forms.TextInput(attrs={"placeholder": "Имя"}),
-            "last_name": forms.TextInput(attrs={"placeholder": "Фамилия"}),
-            "email": forms.EmailInput(attrs={"placeholder": "you@example.com"}),
+            "first_name": forms.TextInput(attrs={"class": "input"}),
+            "last_name": forms.TextInput(attrs={"class": "input"}),
+            "email": forms.EmailInput(attrs={"class": "input"}),
+        }
+
+class ProfileUpdateForm(forms.ModelForm):
+    # чистый FileInput, без clearable-блоков
+    avatar = forms.ImageField(
+        required=False,
+        widget=forms.FileInput(attrs={
+            "id": "id_avatar",
+            "accept": "image/*",
+            "style": "position:absolute;left:-9999px;width:1px;height:1px;opacity:0;"
+        })
+    )
+
+    class Meta:
+        model = Profile
+        fields = ("avatar", "phone", "whatsapp", "telegram", "vk", "birth_date")
+        widgets = {
+            "phone": forms.TextInput(attrs={"class": "input"}),
+            "whatsapp": forms.TextInput(attrs={"class": "input"}),
+            "telegram": forms.TextInput(attrs={"class": "input"}),
+            "vk": forms.URLInput(attrs={"class": "input"}),
+            "birth_date": forms.DateInput(attrs={"type": "date", "class": "input"}),
         }
 
 class ProfileForm(forms.ModelForm):

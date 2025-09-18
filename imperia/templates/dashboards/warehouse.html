@@ -1,44 +1,9 @@
-<!doctype html><meta charset="utf-8">
-
-<!-- User bar (top-right) -->
-<div class="userbar">
-  {% with display_name=request.user.first_name|default:request.user.username %}
-    {% if request.user.profile.avatar %}
-      <img src="{{ request.user.profile.avatar.url }}" alt="{{ display_name }}" class="avatar">
-    {% else %}
-      <div class="avatar placeholder">{{ display_name|slice:":1"|upper }}</div>
-    {% endif %}
-    <span class="name">{{ display_name }}</span>
-  {% endwith %}
-</div>
-
-<h1>Склад — дашборд</h1>
-
-<h2>Здравствуйте,
-  {% if request.user.first_name %}{{ request.user.first_name }}{% else %}{{ request.user.username }}{% endif %}!
-</h2>
-
-<p>Доступно только группе <b>warehouse</b>.</p>
-<a href="{% url 'logout' %}">Выйти</a>
-
-<a class="userbar" href="{% url 'profile' %}" title="Открыть профиль">
-  {% with display_name=request.user.first_name|default:request.user.username %}
-    {% if request.user.profile.avatar %}
-      <img src="{{ request.user.profile.avatar.url }}" alt="{{ display_name }}" class="avatar">
-    {% else %}
-      <div class="avatar placeholder">{{ display_name|slice:":1"|upper }}</div>
-    {% endif %}
-    <span class="name">{{ display_name }}</span>
-  {% endwith %}
-</a>
-
-<style>
-.userbar{position:fixed;top:12px;right:12px;display:flex;align-items:center;gap:10px;
-  background:#fff;padding:6px 10px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.08);
-  z-index:1000;text-decoration:none;color:inherit}
-.userbar .avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:0 0 34px}
-.userbar .avatar.placeholder{display:grid;place-items:center;background:#e5e7eb;color:#374151;font-weight:700}
-.userbar .name{font-weight:600;color:#111827}
-</style>
-
-
+{% extends "base.html" %}
+{% block title %}Склад — Imperia{% endblock %}
+{% block content %}
+  <div class="card">
+    <h1>Склад — дашборд</h1>
+    <h2>Здравствуйте, {% firstof request.user.first_name request.user.username %}!</h2>
+    <p>Доступно только группе <b>warehouse</b>.</p>
+  </div>
+{% endblock %}
