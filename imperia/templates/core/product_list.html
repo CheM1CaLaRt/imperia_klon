@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% block title %}Товары — Imperia{% endblock %}
+
+{% block content %}
+  <h1 class="text-3xl font-semibold mb-4">Каталог товаров</h1>
+
+  <!-- Панель поиска и сортировки -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div class="md:col-span-2">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Поиск (мин. 3 символа)</label>
+      <input id="searchInput" type="search"
+             placeholder="Название, штрихкод, артикул, бренд..."
+             value="{{ q|default:'' }}"
+             class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
+      <p class="text-xs text-gray-500 mt-1">Введите 3+ символа — фильтр применится автоматически.</p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Сортировка</label>
+      <div class="flex gap-2">
+        <select id="sortSelect" class="flex-1 rounded-xl border border-gray-300 px-3 py-2 bg-white">
+          <option value="price" {% if sort == 'price' %}selected{% endif %}>По цене</option>
+        </select>
+        <button id="orderBtn" type="button"
+                class="rounded-xl border border-gray-300 px-3 py-2 bg-white hover:bg-gray-50"
+                title="Изменить направление">
+          {% if order == 'desc' %}⬇️{% else %}⬆️{% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Сетка карточек -->
+  <div class="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    {% for p in page_obj.object_list %}
+      <div class="rounded-2xl bg-white shadow hover:shadow-md transition overflow-hidden cursor-pointer js-product-card"
+           data-id="{{ p.id }}">
+        <div class="aspect-[4/3] bg-gray-100">
+          {% with p.images.all|first as img %}
+            {% if img %}
+              <img src="{{ img.url }}" alt="{{ p.name|default:'product image' }}"
+                   class="w-full h-full object-contain" loading="lazy">
+            {% else %}
+              <div class="w-full h-full flex items-center justify-center text-gray-400">нет фото</div>
+            {% endif %}
+          {% endwith %}
+        </div>
+        <div class="p-4">
+          <div class="text-sm text-gray-500">
+            {{ p.brand }}{% if p.brand and p.vendor_code %} · {% endif %}{{ p.vendor_code }}
+          </div>
+          <div class="mt-1 font-medium line-clamp-2">{{ p.name }}</div>
+          <div class="mt-2 text-sm text-gray-600">
+            Штрихкод: <span class="font-mono">{{ p.barcode|default:"—" }}</span>
+          </div>
+          <div class="mt-1 text-sm text-gray-600">Поставщик: {{ p.supplier.code }}</div>
+          <div class="mt-2">
+            {% if p.min_price %}
+              <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-sm px-2 py-1">
+                от {{ p.min_price }} ₽
+              </span>
+            {% else %}
+              <span class="inline-flex items-center rounded-full bg-gray-100 text-gray-600 text-sm px-2 py-1">
+                цена не указана
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="md:col-span-3 text-gray-600">Ничего не найдено</div>
+    {% endfor %}
+  </div>
+
+  <!-- Пагинация -->
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div class="mt-6 flex items-center justify-center gap-2">
+      {% if page_obj.has_previous %}
+        <a class="px-3 py-2 rounded-xl border bg-white hover:bg-gray-50"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ sort }}&order={{ order }}&page={{ page_obj.previous_page_number }}&per_page={{ per_page }}">Назад</a>
+      {% else %}
+        <span class="px-3 py-2 rounded-xl border bg-gray-100 text-gray-400 cursor-not-allowed">Назад</span>
+      {% endif %}
+      <span class="px-3 py-2 text-sm text-gray-600">Стр. {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a class="px-3 py-2 rounded-xl border bg-white hover:bg-gray-50"
+           href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ sort }}&order={{ order }}&page={{ page_obj.next_page_number }}&per_page={{ per_page }}">Вперёд</a>
+      {% else %}
+        <span class="px-3 py-2 rounded-xl border bg-gray-100 text-gray-400 cursor-not-allowed">Вперёд</span>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- MODAL -->
+  <div id="productModal" class="fixed inset-0 z-50 hidden">
+    <!-- overlay -->
+    <div class="absolute inset-0 bg-black/50"></div>
+
+    <!-- dialog -->
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-[min(900px,95vw)] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-gray-200 relative">
+        <!-- header -->
+        <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b px-5 py-3 flex items-center justify-between">
+          <h3 id="mTitle" class="text-xl font-semibold line-clamp-1">Карточка товара</h3>
+          <button id="mClose" class="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-gray-100" aria-label="Закрыть">✕</button>
+        </div>
+
+        <!-- body -->
+        <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div id="mImageWrap" class="aspect-[4/3] bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden">
+              <div id="mSpinner" class="text-sm text-gray-500">Загрузка…</div>
+            </div>
+            <div id="mThumbs" class="mt-3 flex gap-2 overflow-x-auto"></div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="text-sm text-gray-500" id="mBrand"></div>
+            <div class="text-lg font-medium" id="mName"></div>
+            <div class="text-sm text-gray-600">Штрихкод: <span class="font-mono" id="mBarcode"></span></div>
+            <div class="text-sm text-gray-600">Поставщик: <span id="mSupplier"></span></div>
+
+            <div id="mPrice" class="mt-2 hidden">
+              <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-sm px-2 py-1">
+                от <span id="mMinPrice"></span>
+              </span>
+            </div>
+
+            <div class="mt-3">
+              <div class="text-sm text-gray-900 font-medium mb-1">Описание</div>
+              <div class="text-sm text-gray-700" id="mDesc"></div>
+              <div class="text-sm text-gray-700 mt-1" id="mDescExt"></div>
+            </div>
+
+            <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <div class="bg-gray-50 rounded-lg p-2 border">
+                <div class="text-gray-500">Страна</div>
+                <div id="mCountry" class="font-medium">—</div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-2 border">
+                <div class="text-gray-500">Вес, кг</div>
+                <div id="mWeight" class="font-medium">—</div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-2 border">
+                <div class="text-gray-500">Объём, м³</div>
+                <div id="mVol" class="font-medium">—</div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-2 border col-span-3">
+                <div class="text-gray-500">Габариты, см</div>
+                <div id="mPkg" class="font-medium">—</div>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <details class="group">
+                <summary class="cursor-pointer select-none text-sm font-medium text-gray-900">Сертификаты</summary>
+                <div id="mCerts" class="mt-2 space-y-1"></div>
+              </details>
+            </div>
+
+            <div class="mt-3">
+              <details>
+                <summary class="cursor-pointer select-none text-sm font-medium text-gray-900">Все цены</summary>
+                <div id="mPricesAll" class="mt-2 text-sm text-gray-700"></div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- footer -->
+        <div class="px-5 pb-5">
+          <button id="mClose2" class="btn btn-secondary">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Поиск и сортировка
+  (function(){
+    const params = new URLSearchParams(window.location.search);
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const orderBtn   = document.getElementById('orderBtn');
+
+    let timer;
+    function applySearch() {
+      const q = searchInput.value.trim();
+      if (q.length >= 3 || q.length === 0) {
+        params.set('page', '1');
+        if (q.length === 0) params.delete('q'); else params.set('q', q);
+        window.location.search = params.toString();
+      }
+    }
+    if (searchInput){
+      searchInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(applySearch, 300); });
+      searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(timer); applySearch(); } });
+    }
+    if (sortSelect){
+      sortSelect.addEventListener('change', () => {
+        params.set('sort', sortSelect.value);
+        params.set('page', '1');
+        window.location.search = params.toString();
+      });
+    }
+    if (orderBtn){
+      orderBtn.addEventListener('click', () => {
+        const current = (params.get('order') || '{{ order }}').toLowerCase();
+        params.set('order', current === 'desc' ? 'asc' : 'desc');
+        params.set('page', '1');
+        window.location.search = params.toString();
+      });
+    }
+  })();
+
+  // Модалка с карточкой товара
+  (function(){
+    const modal   = document.getElementById('productModal');
+    const overlay = modal.querySelector('.absolute.inset-0');
+    const closeBtn= document.getElementById('mClose');
+    const closeBtn2= document.getElementById('mClose2');
+
+    const title   = document.getElementById('mTitle');
+    const brandEl = document.getElementById('mBrand');
+    const nameEl  = document.getElementById('mName');
+    const barcode = document.getElementById('mBarcode');
+    const supplier= document.getElementById('mSupplier');
+    const desc    = document.getElementById('mDesc');
+    const descExt = document.getElementById('mDescExt');
+    const minPriceWrap = document.getElementById('mPrice');
+    const minPrice = document.getElementById('mMinPrice');
+    const weight  = document.getElementById('mWeight');
+    const volume  = document.getElementById('mVol');
+    const pkg     = document.getElementById('mPkg');
+    const country = document.getElementById('mCountry');
+
+    const imgWrap = document.getElementById('mImageWrap');
+    const thumbs  = document.getElementById('mThumbs');
+    const certs   = document.getElementById('mCerts');
+    const pricesAll = document.getElementById('mPricesAll');
+
+    function openModal(){ modal.classList.remove('hidden'); document.body.style.overflow='hidden'; }
+    function closeModal(){ modal.classList.add('hidden'); document.body.style.overflow=''; }
+
+    overlay.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', closeModal);
+    closeBtn2.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(); });
+
+    document.querySelectorAll('.js-product-card').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        const id = card.dataset.id;
+        if(!id) return;
+
+        // очистка
+        title.textContent = 'Карточка товара';
+        brandEl.textContent = '';
+        nameEl.textContent = '';
+        barcode.textContent = '';
+        supplier.textContent = '';
+        desc.textContent = '';
+        descExt.textContent = '';
+        minPriceWrap.classList.add('hidden');
+        minPrice.textContent = '';
+        weight.textContent = '—';
+        volume.textContent = '—';
+        pkg.textContent = '—';
+        country.textContent = '—';
+        imgWrap.innerHTML = '<div class="text-sm text-gray-500">Загрузка…</div>';
+        thumbs.innerHTML = '';
+        certs.innerHTML = '';
+        pricesAll.innerHTML = '';
+
+        openModal();
+
+        fetch(`/products/${id}/json/`, {headers:{'X-Requested-With':'XMLHttpRequest'}})
+          .then(r=>r.ok ? r.json() : Promise.reject(r.status))
+          .then(d=>{
+            title.textContent = d.name || 'Карточка товара';
+            brandEl.textContent = [d.brand, d.vendor_code].filter(Boolean).join(' · ');
+            nameEl.textContent = d.name || '';
+            barcode.textContent = d.barcode || '—';
+            supplier.textContent = d.supplier || '—';
+            desc.textContent = d.description || '';
+            descExt.textContent = d.description_ext || '';
+
+            if (d.min_price){ minPriceWrap.classList.remove('hidden'); minPrice.textContent = d.min_price + ' ₽'; }
+
+            country.textContent = d.country || '—';
+            weight.textContent  = d.weight_kg || '—';
+            volume.textContent  = d.volume_m3 || '—';
+            const H = d.pkg?.h_cm, W = d.pkg?.w_cm, D = d.pkg?.d_cm;
+            if (H || W || D) pkg.textContent = [H, W, D].filter(Boolean).join(' × ');
+
+            // изображения
+            imgWrap.innerHTML = '';
+            if (Array.isArray(d.images) && d.images.length){
+              const main = document.createElement('img');
+              main.src = d.images[0]; main.className='w-full h-full object-contain';
+              imgWrap.appendChild(main);
+              d.images.forEach((u)=>{
+                const t = document.createElement('img');
+                t.src = u; t.className='w-16 h-16 object-contain bg-gray-100 rounded-md border cursor-pointer';
+                t.addEventListener('click', ()=>{ main.src = u; });
+                thumbs.appendChild(t);
+              });
+            } else {
+              const ph = document.createElement('div');
+              ph.className='w-full h-full flex items-center justify-center text-gray-400';
+              ph.textContent='нет фото';
+              imgWrap.appendChild(ph);
+            }
+
+            // сертификаты
+            if (Array.isArray(d.certificates) && d.certificates.length){
+              d.certificates.forEach(c=>{
+                const a = document.createElement('a');
+                a.href = c.url; a.target = '_blank'; a.rel='noopener';
+                a.className='block text-blue-600 hover:underline';
+                a.textContent = [c.name, c.issued_by, c.active_to].filter(Boolean).join(' · ') || c.url;
+                certs.appendChild(a);
+              });
+            } else {
+              certs.innerHTML = '<div class="text-sm text-gray-500">Нет данных</div>';
+            }
+
+            // все цены
+            if (Array.isArray(d.prices) && d.prices.length){
+              const tbl = document.createElement('div');
+              d.prices.forEach(p=>{
+                const row = document.createElement('div');
+                row.className='flex justify-between gap-3';
+                row.innerHTML = `<span class="text-gray-500">${p.type}</span><span class="font-medium">${p.value} ${p.currency}</span>`;
+                tbl.appendChild(row);
+              });
+              pricesAll.appendChild(tbl);
+            } else {
+              pricesAll.innerHTML = '<div class="text-sm text-gray-500">Нет цен</div>';
+            }
+          })
+          .catch(()=>{ title.textContent='Ошибка загрузки'; });
+      });
+    });
+  })();
+</script>
+{% endblock %}

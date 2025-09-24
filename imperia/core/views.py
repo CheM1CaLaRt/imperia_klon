@@ -2,15 +2,25 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group
-from django.shortcuts import redirect, render
 from django.http import HttpRequest
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import UserUpdateForm, ProfileForm
 from .models import Profile
 from .widgets import AvatarInput
 from os.path import basename
+from django.db.models import Q, Min, F
+from django.db.models.expressions import OrderBy
+from django.core.paginator import Paginator
+from django.shortcuts import render
+from .models import Product
+from .permissions import warehouse_or_director_required
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse, Http404
+from django.forms.models import model_to_dict
+from django.db.models import Min
+from .models import Product, ProductImage, ProductCertificate, ProductPrice
+from .permissions import warehouse_or_director_required
 
 ROLE_TO_URL = {
     "warehouse": "warehouse_dashboard",
@@ -104,3 +114,100 @@ def manager_dashboard(request):
 @group_required("director")
 def director_dashboard(request):
     return render(request, "dashboards/director.html")
+
+@warehouse_or_director_required
+def product_list(request):
+    q = (request.GET.get("q") or "").strip()
+    sort = (request.GET.get("sort") or "name").lower()  # name | price
+    order = (request.GET.get("order") or "asc").lower()     # asc | desc
+    page = int(request.GET.get("page") or 1)
+    per_page = int(request.GET.get("per_page") or 24)
+
+    qs = Product.objects.all().select_related("supplier").prefetch_related("images", "prices")
+
+    # фильтр применяется при вводе (минимум 3 символа)
+    if len(q) >= 3:
+        qs = qs.filter(
+            Q(name__icontains=q) |
+            Q(barcode__startswith=q) |
+            Q(sku__icontains=q) |
+            Q(brand__icontains=q) |
+            Q(vendor_code__icontains=q)
+        )
+
+    # посчитаем минимальную цену по товару
+    qs = qs.annotate(min_price=Min("prices__value"))
+
+    # сортировки
+    if sort == "price":
+        # аккуратно сортируем по цене: NULLы в конец
+        qs = qs.order_by(
+            OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True),
+            "id"
+        )
+    else:
+        sort_map = {"name": "name"}
+        sort_field = sort_map.get(sort, "name")
+        if order == "desc":
+            sort_field = "-" + sort_field
+        qs = qs.order_by(sort_field, "id")
+
+    paginator = Paginator(qs, per_page)
+    page_obj = paginator.get_page(page)
+
+    return render(request, "core/product_list.html", {
+        "page_obj": page_obj,
+        "q": q,
+        "sort": sort,
+        "order": order,
+        "per_page": per_page,
+    })
+@login_required
+def home(request):
+    # можешь использовать уже существующий шаблон дашборда склада
+    return render(request, "home.html")
+
+@warehouse_or_director_required
+def product_detail_json(request, pk: int):
+    try:
+        p = Product.objects.annotate(min_price=Min("prices__value")).get(pk=pk)
+    except Product.DoesNotExist:
+        raise Http404
+
+    images = list(p.images.order_by("position", "id").values_list("url", flat=True))
+    certs = [
+        {
+            "name": c.name, "issued_by": c.issued_by,
+            "active_to": c.active_to, "url": c.url
+        }
+        for c in p.certificates.all()
+    ]
+    prices = [
+        {"type": pr.price_type, "value": str(pr.value), "currency": pr.currency}
+        for pr in p.prices.all().order_by("price_type")
+    ]
+
+    data = {
+        "id": p.id,
+        "name": p.name,
+        "name_1c": p.name_1c,
+        "brand": p.brand,
+        "vendor_code": p.vendor_code,
+        "barcode": p.barcode,
+        "supplier": getattr(p.supplier, "code", None),
+        "country": p.manufacturer_country,
+        "description": p.description,
+        "description_ext": p.description_ext,
+        "weight_kg": str(p.weight_kg) if p.weight_kg is not None else None,
+        "volume_m3": str(p.volume_m3) if p.volume_m3 is not None else None,
+        "pkg": {
+            "h_cm": str(p.pkg_height_cm) if p.pkg_height_cm is not None else None,
+            "w_cm": str(p.pkg_width_cm) if p.pkg_width_cm is not None else None,
+            "d_cm": str(p.pkg_depth_cm) if p.pkg_depth_cm is not None else None,
+        },
+        "min_price": str(p.min_price) if p.min_price is not None else None,
+        "images": images,
+        "certificates": certs,
+        "prices": prices,
+    }
+    return JsonResponse(data)

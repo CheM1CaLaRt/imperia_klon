@@ -3,6 +3,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from django.utils.html import format_html
 import re
+from django.contrib import admin
+from .models import Supplier, Product, ProductImage, ProductCertificate, ProductPrice, ImportBatch
 
 from .models import Profile
 try:
@@ -79,3 +81,33 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ("user", "phone", "telegram", "vk", "birth_date")
     search_fields = ("user__username", "user__first_name", "user__last_name", "phone", "telegram", "vk")
     list_filter = ("birth_date",)
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ("code", "name")
+    search_fields = ("code", "name")
+
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 0
+
+class ProductCertificateInline(admin.TabularInline):
+    model = ProductCertificate
+    extra = 0
+
+class ProductPriceInline(admin.TabularInline):
+    model = ProductPrice
+    extra = 0
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ("name", "barcode", "supplier", "sku", "brand", "manufacturer_country", "is_active")
+    list_filter = ("supplier", "brand", "manufacturer_country", "is_active")
+    search_fields = ("name", "barcode", "sku", "vendor_code", "brand")
+    inlines = [ProductImageInline, ProductCertificateInline, ProductPriceInline]
+    readonly_fields = ("created_at", "updated_at", "last_import_batch")
+
+@admin.register(ImportBatch)
+class ImportBatchAdmin(admin.ModelAdmin):
+    list_display = ("supplier", "source_name", "started_at", "finished_at", "items_total", "items_upserted")
+    list_filter = ("supplier",)

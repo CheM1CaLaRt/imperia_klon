@@ -5,11 +5,11 @@
   <title>{% block title %}Imperia{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+
 <style>
-  /* iOS light look — принудительно светлая тема */
   :root{
-    color-scheme: light;                  /* отключаем авто-тёмную */
-    --bg:#F2F2F7;                         /* grouped background */
+    color-scheme: light;
+    --bg:#F2F2F7;
     --card:#FFFFFF;
     --text:#1C1C1E;
     --muted:#6E6E73;
@@ -24,7 +24,7 @@
        font-family:ui-sans-serif,-apple-system,"SF Pro Text","Segoe UI",Roboto,Arial}
   a{color:inherit;text-decoration:none}
 
-  /* topbar — светлая, читабельная */
+  /* topbar */
   .topbar{
     position:sticky; top:0; z-index:40;
     background:rgba(255,255,255,.86);
@@ -37,7 +37,15 @@
   .brand{font-weight:800}
   .brand a{color:var(--primary)}
 
-  /* аватар и чип */
+  /* NAV */
+  .nav{display:flex;align-items:center;gap:6px;margin-left:10px}
+  .nav a{
+    padding:8px 12px;border-radius:10px;font-weight:600;font-size:14px;
+  }
+  .nav a:hover{background:#F4F7FF}
+  .nav a.active{background:#EAF2FF;color:#0A84FF}
+
+  /* user box */
   .avatar-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;
              background:#E9E9EB;display:grid;place-items:center;font-weight:700;
              color:#374151;pointer-events:none;box-shadow:inset 0 0 0 1px var(--border)}
@@ -51,7 +59,6 @@
   .userbtn:focus{outline:none;box-shadow:0 0 0 6px var(--ring)}
   .caret{font-size:12px;opacity:.6}
 
-  /* выпадающее меню — высокая читаемость и чёткий hover */
   .menu{
     position:absolute;right:0;top:calc(100% + 8px);
     background:#fff;border:1px solid var(--border);border-radius:18px;
@@ -63,20 +70,17 @@
     padding:12px 14px;background:transparent;border:0;cursor:pointer;font-size:14px;
     color:var(--text);
   }
-  .menu a:hover,.menu button:hover{
-    background:#EAF2FF;                   /* светло-голубой hover */
-    color:#0A84FF;
-  }
+  .menu a:hover,.menu button:hover{background:#EAF2FF;color:#0A84FF}
   .menu a:active,.menu button:active{background:#DDEBFF}
 
-  /* карточки/контент */
+  /* content */
   .wrap{max-width:1100px;margin:0 auto;padding:var(--pad)}
   .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
         box-shadow:var(--shadow);padding:var(--pad)}
   .card h1,.card h2{margin:0 0 14px}
   .muted{color:var(--muted)}
 
-  /* формы — воздух и iOS-бордеры */
+  /* forms */
   .field{margin:12px 0}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
   input[type="text"],input[type="email"],input[type="url"],input[type="tel"],
@@ -90,7 +94,6 @@
     outline:none;border-color:rgba(10,132,255,.45);box-shadow:0 0 0 6px var(--ring);
   }
 
-  /* кнопки */
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;
        padding:0 16px;border-radius:12px;border:1px solid transparent;font-weight:600;cursor:pointer}
   .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
@@ -98,22 +101,10 @@
   .btn-secondary{background:#F2F3F5;color:#1C1C1E;border:1px solid var(--border)}
   .btn-link{background:transparent;border:0;color:var(--primary);height:auto;padding:0}
 
-  /* сетки */
   .grid{display:grid;gap:16px}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
   @media (max-width:940px){.grid-2{grid-template-columns:1fr}.wrap{padding:16px}.topbar-inner{padding:10px 12px}}
-
-  /* --- profile helpers --- */
-.profile-header{display:flex;align-items:center;gap:16px;margin:12px 0 20px}
-.avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#E9E9EB;
-        box-shadow:inset 0 0 0 1px var(--border);flex:0 0 88px}
-.avatar--placeholder{display:grid;place-items:center;color:var(--muted);font-weight:700}
-.badges span{display:inline-block;background:#EAF2FF;color:#0A84FF;border-radius:999px;
-             padding:4px 10px;margin-right:6px;font-weight:600}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media (max-width:940px){.form-grid{grid-template-columns:1fr}}
-
-  /* ---------- Profile layout ---------- */
+  /* --- Profile helpers --- */
 .profile-header{display:flex;align-items:center;gap:16px;margin:12px 0 20px}
 .avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#E9E9EB;
         box-shadow:inset 0 0 0 1px var(--border);flex:0 0 88px}
@@ -127,35 +118,58 @@
 .badges span{display:inline-block;background:#EAF2FF;color:#0A84FF;border-radius:999px;
              padding:4px 10px;margin-right:6px;font-weight:600}
 
-/* сетка формы 2 колонки */
+/* сетка формы 2 колонки (у тебя уже есть .grid-2, оставляем на всякий случай) */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media (max-width:940px){.grid-2{grid-template-columns:1fr}}
+
+/* мелкие подписи */
+.note{color:var(--muted)}
 
 /* спрятать "На данный момент / Очистить" у стандартного ClearableFileInput */
 .clearable-file-input a,
 .clearable-file-input label[for$="-clear_id"],
 .clearable-file-input input[type="checkbox"]{display:none !important}
 
-/* скрыть сам <input type="file">, но оставить кликабельным через JS */
+/* спрятать сам <input type="file">, клик по кнопке pickAvatar */
 #id_avatar{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
-
 </style>
+  <script>
+  // отключаем reset от Tailwind, чтобы не сбивать существующие стили
+  tailwind = { config: { corePlugins: { preflight: false } } };
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
 
   {% block extra_head %}{% endblock %}
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">
-        <a href="{% url 'post_login_router' %}">Imperia</a>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="brand">
+          <a href="{% url 'post_login_router' %}">Imperia</a>
+        </div>
+
+        <!-- NAV: Главная / Товары -->
+        {% with current=request.resolver_match.url_name %}
+          <nav class="nav">
+            <a href="{% url 'post_login_router' %}"
+               class="{% if current == 'post_login_router' or current == 'home' %}active{% endif %}">
+              Главная
+            </a>
+            <a href="{% url 'product-list' %}"
+               class="{% if current == 'product-list' %}active{% endif %}">
+              Товары
+            </a>
+          </nav>
+        {% endwith %}
       </div>
 
       <div class="userbox">
         {% if request.user.is_authenticated %}
-          {% if profile.avatar %}
+          {% if profile and profile.avatar %}
             <img src="{{ profile.avatar.url }}" class="avatar-sm" alt="avatar">
           {% else %}
             <div class="avatar-sm">
@@ -163,7 +177,6 @@
             </div>
           {% endif %}
 
-          <!-- Кнопка с именем (аватар не кликабелен) -->
           <button class="userbtn" id="userMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">
             <span class="hello">Здравствуйте,</span>
             <span class="name">{% firstof request.user.first_name request.user.username %}</span>
@@ -193,13 +206,8 @@
       if(!btn || !menu) return;
       const toggle = () => { menu.classList.toggle('open'); };
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggle(); });
-      document.addEventListener('click', (e)=>{
-        if(menu.classList.contains('open')) menu.classList.remove('open');
-      });
-      // Закрывать по Esc
-      document.addEventListener('keydown', (e)=>{
-        if(e.key === 'Escape') menu.classList.remove('open');
-      });
+      document.addEventListener('click', ()=>{ if(menu.classList.contains('open')) menu.classList.remove('open'); });
+      document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') menu.classList.remove('open'); });
     })();
   </script>
 

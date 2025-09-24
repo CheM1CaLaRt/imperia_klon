@@ -1,8 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Главная — Imperia{% endblock %}
 {% block content %}
-  <div class="card">
-    <h1>Главная</h1>
-    <p>Это главная страница.</p>
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h1 class="text-2xl font-semibold mb-2">Склад — дашборд</h1>
+    <h2 class="text-lg">Здравствуйте, {% firstof request.user.first_name request.user.username %}!</h2>
+    <p class="text-gray-600">Доступно только группе <b>warehouse</b>.</p>
+
+    {% if is_wh_or_director %}
+      <div class="mt-4">
+        <a href="{% url 'product-list' %}" class="inline-flex items-center px-4 py-2 rounded-xl shadow bg-blue-600 text-white hover:bg-blue-700">
+          Просмотр товаров
+        </a>
+      </div>
+    {% endif %}
   </div>
 {% endblock %}

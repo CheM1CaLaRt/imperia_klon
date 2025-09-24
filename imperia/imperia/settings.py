@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "core.apps.CoreConfig",
     "django.contrib.staticfiles",
+    'rest_framework',
     #"core",  # наше приложение
 ]
 # === Jazzmin: внешний вид и меню ===
@@ -94,6 +95,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.user_profile",  # ← добавить
+                "core.context_processors.nav_flags",
             ],
         },
     },
