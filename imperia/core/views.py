@@ -118,14 +118,17 @@ def director_dashboard(request):
 @warehouse_or_director_required
 def product_list(request):
     q = (request.GET.get("q") or "").strip()
-    sort = (request.GET.get("sort") or "name").lower()  # name | price
-    order = (request.GET.get("order") or "asc").lower()     # asc | desc
+    sort = (request.GET.get("sort") or "name").lower()   # name | price | supplier
+    order = (request.GET.get("order") or "asc").lower()  # asc | desc
     page = int(request.GET.get("page") or 1)
     per_page = int(request.GET.get("per_page") or 24)
 
-    qs = Product.objects.all().select_related("supplier").prefetch_related("images", "prices")
+    qs = (Product.objects
+          .all()
+          .select_related("supplier")
+          .prefetch_related("images", "prices"))
 
-    # фильтр применяется при вводе (минимум 3 символа)
+    # фильтр при вводе (минимум 3 символа)
     if len(q) >= 3:
         qs = qs.filter(
             Q(name__icontains=q) |
@@ -135,19 +138,24 @@ def product_list(request):
             Q(vendor_code__icontains=q)
         )
 
-    # посчитаем минимальную цену по товару
+    # минимальная цена по товару
     qs = qs.annotate(min_price=Min("prices__value"))
 
     # сортировки
     if sort == "price":
-        # аккуратно сортируем по цене: NULLы в конец
         qs = qs.order_by(
             OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True),
             "id"
         )
+    elif sort == "supplier":
+        # сортируем по названию поставщика
+        qs = qs.order_by(
+            OrderBy(F("supplier__name"), descending=(order == "desc")),
+            "id"
+        )
     else:
-        sort_map = {"name": "name"}
-        sort_field = sort_map.get(sort, "name")
+        # по умолчанию — по названию
+        sort_field = "name"
         if order == "desc":
             sort_field = "-" + sort_field
         qs = qs.order_by(sort_field, "id")
