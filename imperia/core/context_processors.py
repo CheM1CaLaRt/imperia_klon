@@ -1,3 +1,4 @@
+from .permissions import user_in_allowed_groups
 def user_profile(request):
     """
     Возвращает объект профиля в шаблоны.

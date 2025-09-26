@@ -21,6 +21,16 @@ from django.forms.models import model_to_dict
 from django.db.models import Min
 from .models import Product, ProductImage, ProductCertificate, ProductPrice
 from .permissions import warehouse_or_director_required
+from decimal import Decimal
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, permission_required
+from core.models import Warehouse
+from core.forms import PutAwayForm, MoveForm
+from core.services.inventory import put_away, move_between_bins
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.db.models import Sum, Count
+from core.utils.auth import group_required
 
 ROLE_TO_URL = {
     "warehouse": "warehouse_dashboard",
@@ -31,11 +41,11 @@ ROLE_TO_URL = {
 
 def in_group(group_name):
     def check(user):
-        return user.is_authenticated and user.groups.filter(name=group_name).exists()
+       return user.is_authenticated and user.groups.filter(name=group_name).exists()
     return check
 
-def group_required(group_name):
-    return user_passes_test(in_group(group_name), login_url="login")
+#def group_required(group_name):
+ #   return user_passes_test(in_group(group_name), login_url="login")
 
 def login_view(request: HttpRequest):
     if request.user.is_authenticated:
@@ -98,7 +108,55 @@ def logout_view(request: HttpRequest):
 @login_required
 @group_required("warehouse")
 def warehouse_dashboard(request):
-    return render(request, "dashboards/warehouse.html")
+    from core.models import Warehouse, StorageBin, Inventory, StockMovement
+
+    # Склады + аннотации, чтобы в шаблоне не лазить по словарям
+    warehouses = (
+        Warehouse.objects.filter(is_active=True)
+        .order_by("code")
+        .annotate(
+            bins_count=Count("bins", distinct=True),
+            inv_positions=Count("inventory", distinct=True),
+            inv_qty=Sum("inventory__quantity"),
+        )
+    )
+
+    # Последние движения
+    recent_moves = (
+        StockMovement.objects.select_related("warehouse", "bin_from", "bin_to", "product", "actor")
+        .order_by("-timestamp")[:20]
+    )
+
+    ctx = {
+        "warehouses": warehouses,
+        "recent_moves": recent_moves,
+    }
+    # ВАЖНО: рендерим СТАРЫЙ шаблон
+    return render(request, "dashboards/warehouse.html", ctx)
+
+@login_required
+@group_required("warehouse", "director")
+def warehouse_new_dashboard(request):
+    from core.models import Warehouse, StockMovement
+
+    warehouses = (
+        Warehouse.objects.filter(is_active=True)
+        .order_by("code")
+        .annotate(
+            bins_count=Count("bins", distinct=True),
+            inv_positions=Count("inventory", distinct=True),
+            inv_qty=Sum("inventory__quantity"),
+        )
+    )
+
+    recent_moves = (
+        StockMovement.objects.select_related("warehouse", "bin_from", "bin_to", "product", "actor")
+        .order_by("-timestamp")[:20]
+    )
+
+    ctx = {"warehouses": warehouses, "recent_moves": recent_moves}
+    # ВАЖНО: новый шаблон
+    return render(request, "core/warehouse_dashboard.html", ctx)
 
 @login_required
 @group_required("operator")
@@ -219,3 +277,65 @@ def product_detail_json(request, pk: int):
         "prices": prices,
     }
     return JsonResponse(data)
+
+@login_required
+def warehouse_list(request):
+    warehouses = Warehouse.objects.filter(is_active=True)
+    return render(request, "core/warehouse_list.html", {"warehouses": warehouses})
+
+@login_required
+def warehouse_detail(request, pk: int):
+    from core.models import StorageBin, Inventory
+    wh = get_object_or_404(Warehouse, pk=pk)
+    bins = StorageBin.objects.filter(warehouse=wh).order_by("code")
+    inv = Inventory.objects.select_related("bin", "product").filter(warehouse=wh).order_by("bin__code", "product__name")
+    return render(request, "core/warehouse_detail.html", {"warehouse": wh, "bins": bins, "inventory": inv})
+
+@login_required
+@permission_required("core.add_inventory", raise_exception=True)
+def put_away_view(request, pk: int):
+    wh = get_object_or_404(Warehouse, pk=pk)
+    if request.method == "POST":
+        form = PutAwayForm(request.POST)
+        if form.is_valid():
+            try:
+                inv = put_away(
+                    warehouse=wh,
+                    bin_code=form.cleaned_data["bin_code"],
+                    barcode=form.cleaned_data["barcode"],
+                    qty=Decimal(form.cleaned_data["quantity"]),
+                    actor=request.user,
+                    create_bin_if_missing=form.cleaned_data.get("create_bin", True),
+                )
+                messages.success(request, f"Добавлено в {inv.bin.code if inv.bin else 'склад'}: {inv.product} x{form.cleaned_data['quantity']}")
+                return redirect("warehouse_detail", pk=wh.pk)
+            except Exception as e:
+                messages.error(request, str(e))
+    else:
+        form = PutAwayForm()
+    return render(request, "core/put_away.html", {"warehouse": wh, "form": form})
+
+@login_required
+@permission_required("core.change_inventory", raise_exception=True)
+def move_view(request, pk: int):
+    wh = get_object_or_404(Warehouse, pk=pk)
+    if request.method == "POST":
+        form = MoveForm(request.POST)
+        if form.is_valid():
+            try:
+                move_between_bins(
+                    warehouse=wh,
+                    barcode=form.cleaned_data["barcode"],
+                    qty=Decimal(form.cleaned_data["quantity"]),
+                    bin_from_code=form.cleaned_data["bin_from"],
+                    bin_to_code=form.cleaned_data["bin_to"],
+                    actor=request.user,
+                    create_bin_if_missing=form.cleaned_data.get("create_bin", True),
+                )
+                messages.success(request, "Перемещение выполнено")
+                return redirect("warehouse_detail", pk=wh.pk)
+            except Exception as e:
+                messages.error(request, str(e))
+    else:
+        form = MoveForm()
+    return render(request, "core/move.html", {"warehouse": wh, "form": form})

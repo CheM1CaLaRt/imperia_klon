@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Склад — панель{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Складской дашборд</h1>
+
+<h2 class="text-xl font-semibold mb-2">Склады</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+  {% for w in warehouses %}
+    {% with totals=totals_map.w.id bins=bins_count_map.w.id %}
+    <a href="{% url 'warehouse_detail' w.pk %}" class="block rounded-xl border p-4 hover:bg-gray-50">
+      <div class="text-lg font-medium mb-1">{{ w.code }} — {{ w.name }}</div>
+      <div class="text-sm text-gray-500 mb-2">{{ w.address }}</div>
+      <div class="text-sm">
+        Ячеек: {{ bins_count_map.w.id|default:0 }} |
+        Позиции: {{ totals_map.w.id.positions|default:0 }} |
+        Кол-во: {{ totals_map.w.id.qty|default:"0" }}
+      </div>
+      <div class="mt-3 flex gap-2">
+        <span class="px-2 py-1 rounded bg-gray-100 text-sm">Открыть</span>
+      </div>
+    </a>
+    {% endwith %}
+  {% empty %}
+    <p>Нет складов</p>
+  {% endfor %}
+</div>
+
+<h2 class="text-xl font-semibold mb-2">Недавние движения</h2>
+<table class="min-w-full rounded-xl overflow-hidden">
+  <thead>
+    <tr class="text-left bg-gray-100">
+      <th class="p-2">Время</th>
+      <th class="p-2">Тип</th>
+      <th class="p-2">Склад</th>
+      <th class="p-2">Из</th>
+      <th class="p-2">В</th>
+      <th class="p-2">Товар</th>
+      <th class="p-2">Кол-во</th>
+      <th class="p-2">Кто</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in recent_moves %}
+      <tr class="border-t">
+        <td class="p-2 text-xs text-gray-500">{{ m.timestamp|date:"d.m.Y H:i" }}</td>
+        <td class="p-2">{{ m.get_movement_type_display }}</td>
+        <td class="p-2">{{ m.warehouse.code }}</td>
+        <td class="p-2">{% if m.bin_from %}{{ m.bin_from.code }}{% else %}—{% endif %}</td>
+        <td class="p-2">{% if m.bin_to %}{{ m.bin_to.code }}{% else %}—{% endif %}</td>
+        <td class="p-2">
+          <div class="font-mono text-sm">{{ m.product.barcode }}</div>
+          <div class="text-xs text-gray-600">{{ m.product.name }}</div>
+        </td>
+        <td class="p-2">{{ m.quantity }}</td>
+        <td class="p-2 text-xs">{{ m.actor|default:"—" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="p-3 text-gray-500">Движений ещё нет</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

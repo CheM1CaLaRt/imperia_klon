@@ -4,9 +4,13 @@ from django.core.files.storage import default_storage
 from django.db.models.signals import pre_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
+from django.conf import settings
+from django.core.validators import MinValueValidator
+
 
 def avatar_upload_to(instance, filename):
     return f"avatars/user_{instance.user_id}/{filename}"
+
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
@@ -24,6 +28,7 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"Профиль {self.user.username}"
+
 
 @receiver(pre_save, sender=Profile)
 def delete_old_avatar_on_change(sender, instance: Profile, **kwargs):
@@ -45,11 +50,13 @@ def delete_old_avatar_on_change(sender, instance: Profile, **kwargs):
         if old_avatar.name and default_storage.exists(old_avatar.name):
             default_storage.delete(old_avatar.name)
 
+
 @receiver(post_delete, sender=Profile)
 def delete_avatar_file_on_profile_delete(sender, instance: Profile, **kwargs):
     """При удалении профиля удаляем файл аватара."""
     if instance.avatar and instance.avatar.name and default_storage.exists(instance.avatar.name):
         default_storage.delete(instance.avatar.name)
+
 
 class Supplier(models.Model):
     # Примеры: "samson", "1c", "other_vendor"
@@ -58,6 +65,7 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class ImportBatch(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT)
@@ -69,6 +77,7 @@ class ImportBatch(models.Model):
 
     def __str__(self):
         return f"{self.supplier.code} — {self.source_name} — {self.started_at:%Y-%m-%d %H:%M}"
+
 
 class Product(models.Model):
     # уникальность: если есть barcode -> по нему глобально; иначе по (supplier, sku)
@@ -87,8 +96,8 @@ class Product(models.Model):
 
     # Габариты упаковки (см)
     pkg_height_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    pkg_width_cm  = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    pkg_depth_cm  = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    pkg_width_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    pkg_depth_cm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     # Управление жизненным циклом
     is_active = models.BooleanField(default=True)
@@ -113,6 +122,7 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
     url = models.URLField()
@@ -121,12 +131,14 @@ class ProductImage(models.Model):
     class Meta:
         ordering = ["position", "id"]
 
+
 class ProductCertificate(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="certificates")
     issued_by = models.CharField(max_length=300, blank=True, default="")
     name = models.CharField(max_length=300, blank=True, default="")
     active_to = models.CharField(max_length=100, blank=True, default="")  # храним как строку (форматы разнятся)
     url = models.URLField()
+
 
 class ProductPrice(models.Model):
     CONTRACT = "contract"
@@ -145,3 +157,85 @@ class ProductPrice(models.Model):
 
     class Meta:
         unique_together = [("product", "price_type")]
+
+
+class Warehouse(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True)
+    is_active = models.BooleanField(default=True)
+    address = models.CharField(max_length=255, blank=True)
+    comment = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Склад"
+        verbose_name_plural = "Склады"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.code} — {self.name}"
+
+
+class StorageBin(models.Model):
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="bins")
+    code = models.CharField(max_length=40)
+    description = models.CharField(max_length=200, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Ячейка хранения"
+        verbose_name_plural = "Ячейки хранения"
+        unique_together = ("warehouse", "code")
+        ordering = ["warehouse__name", "code"]
+
+    def __str__(self):
+        return f"{self.warehouse.code}:{self.code}"
+
+
+class Inventory(models.Model):
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="inventory")
+    bin = models.ForeignKey(StorageBin, on_delete=models.SET_NULL, null=True, blank=True, related_name="inventory")
+    product = models.ForeignKey("core.Product", on_delete=models.CASCADE, related_name="inventory")
+    quantity = models.DecimalField(max_digits=14, decimal_places=3, validators=[MinValueValidator(0)])
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Остаток"
+        verbose_name_plural = "Остатки"
+        unique_together = ("warehouse", "bin", "product")
+
+    def __str__(self):
+        place = self.bin.code if self.bin else "—"
+        return f"{self.product} @ {self.warehouse.code}/{place}: {self.quantity}"
+
+
+class StockMovement(models.Model):
+    INBOUND = "IN"
+    OUTBOUND = "OUT"
+    MOVE = "MOVE"
+    ADJUST = "ADJ"
+
+    MOVEMENT_TYPES = [
+        (INBOUND, "Поступление"),
+        (OUTBOUND, "Списание/Отгрузка"),
+        (MOVE, "Перемещение"),
+        (ADJUST, "Корректировка"),
+    ]
+
+    timestamp = models.DateTimeField(default=timezone.now)
+    movement_type = models.CharField(max_length=4, choices=MOVEMENT_TYPES)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)
+    bin_from = models.ForeignKey(StorageBin, on_delete=models.SET_NULL, null=True, blank=True, related_name="moves_from")
+    bin_to = models.ForeignKey(StorageBin, on_delete=models.SET_NULL, null=True, blank=True, related_name="moves_to")
+    product = models.ForeignKey("core.Product", on_delete=models.CASCADE)
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    note = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Движение товара"
+        verbose_name_plural = "Движения товара"
+        ordering = ["-timestamp", "id"]
+
+    def __str__(self):
+        return f"{self.timestamp:%Y-%m-%d %H:%M} {self.movement_type} {self.product} x{self.quantity}"
+

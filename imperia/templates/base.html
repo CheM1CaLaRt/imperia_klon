@@ -1,3 +1,4 @@
+{% load access %}
 <!doctype html>
 <html lang="ru">
 <head>
@@ -163,6 +164,15 @@
                class="{% if current == 'product-list' %}active{% endif %}">
               Товары
             </a>
+            {% if request.user|in_groups:"warehouse,director" %}
+                <a href="{% url 'warehouse_new_dashboard' %}"
+                    {% with n=request.resolver_match.url_name %}
+                {% if n == 'warehouse_dashboard' or n == 'warehouse_detail' or n == 'put_away' or n == 'move_between_bins' %}
+                {% endif %}
+                {% endwith %}">
+              Склад
+            </a>
+            {% endif %}
           </nav>
         {% endwith %}
       </div>

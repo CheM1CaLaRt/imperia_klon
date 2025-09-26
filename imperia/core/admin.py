@@ -3,9 +3,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from django.utils.html import format_html
 import re
-from django.contrib import admin
 from .models import Supplier, Product, ProductImage, ProductCertificate, ProductPrice, ImportBatch
-
+from .models import Warehouse, StorageBin, Inventory, StockMovement
 from .models import Profile
 try:
     from .forms import ProfileForm  # если делали форму с валидацией
@@ -111,3 +110,28 @@ class ProductAdmin(admin.ModelAdmin):
 class ImportBatchAdmin(admin.ModelAdmin):
     list_display = ("supplier", "source_name", "started_at", "finished_at", "items_total", "items_upserted")
     list_filter = ("supplier",)
+
+@admin.register(Warehouse)
+class WarehouseAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("code", "name", "address")
+
+@admin.register(StorageBin)
+class StorageBinAdmin(admin.ModelAdmin):
+    list_display = ("code", "warehouse", "is_active", "description")
+    list_filter = ("warehouse", "is_active")
+    search_fields = ("code", "description", "warehouse__code", "warehouse__name")
+
+@admin.register(Inventory)
+class InventoryAdmin(admin.ModelAdmin):
+    list_display = ("warehouse", "bin", "product", "quantity", "updated_at")
+    list_filter = ("warehouse", "bin")
+    search_fields = ("product__name", "product__barcode", "bin__code", "warehouse__code")
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    list_display = ("timestamp", "movement_type", "warehouse", "bin_from", "bin_to", "product", "quantity", "actor")
+    list_filter = ("movement_type", "warehouse")
+    search_fields = ("product__name", "product__barcode", "bin_from__code", "bin_to__code")
+    date_hierarchy = "timestamp"

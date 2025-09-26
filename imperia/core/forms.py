@@ -4,11 +4,8 @@ from django.core.validators import URLValidator
 from django.contrib.auth import get_user_model
 import re
 from datetime import date
-
 from .models import Profile
 from .widgets import AvatarInput
-
-from django import forms
 from django.contrib.auth.models import User
 from .models import Profile
 
@@ -120,3 +117,16 @@ class ProfileForm(forms.ModelForm):
         if bd.year < today.year - 120:
             raise ValidationError("Слишком ранняя дата рождения.")
         return bd
+
+class PutAwayForm(forms.Form):
+    bin_code = forms.CharField(label="Ячейка", max_length=40, required=False, help_text="Можно оставить пустым")
+    barcode = forms.CharField(label="Штрихкод", max_length=64)
+    quantity = forms.DecimalField(label="Кол-во", min_value=0.001, decimal_places=3, max_digits=14)
+    create_bin = forms.BooleanField(label="Создавать ячейку, если нет", required=False, initial=True)
+
+class MoveForm(forms.Form):
+    bin_from = forms.CharField(label="Из ячейки", max_length=40)
+    bin_to = forms.CharField(label="В ячейку", max_length=40)
+    barcode = forms.CharField(label="Штрихкод", max_length=64)
+    quantity = forms.DecimalField(label="Кол-во", min_value=0.001, decimal_places=3, max_digits=14)
+    create_bin = forms.BooleanField(label="Создать ячейку-получателя, если нет", required=False, initial=True)

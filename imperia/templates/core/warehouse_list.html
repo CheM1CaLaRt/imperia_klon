@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Склады{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Склады</h1>
+<div class="grid gap-2">
+    {% for w in warehouses %}
+    <a href="{% url 'warehouse_detail' w.pk %}" class="block rounded-xl border p-3 hover:bg-gray-50">
+        <div class="font-medium">{{ w.code }} — {{ w.name }}</div>
+        <div class="text-sm text-gray-500">{{ w.address }}</div>
+    </a>
+    {% empty %}
+    <p>Нет складов</p>
+    {% endfor %}
+</div>
+{% endblock %}
