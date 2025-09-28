@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Новый склад{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Создать склад</h1>
+
+<form method="post" class="grid gap-3 max-w-xl">
+  {% csrf_token %}
+  <div>
+    <label class="block text-sm font-medium">Код склада</label>
+    {{ form.code }}
+    {% if form.code.errors %}<p class="text-red-600 text-sm">{{ form.code.errors.0 }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-sm font-medium">Название</label>
+    {{ form.name }}
+    {% if form.name.errors %}<p class="text-red-600 text-sm">{{ form.name.errors.0 }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-sm font-medium">Адрес</label>
+    {{ form.address }}
+  </div>
+  <div>
+    <label class="block text-sm font-medium">Комментарий</label>
+    {{ form.comment }}
+  </div>
+  <div class="flex items-center gap-2">
+    {{ form.is_active }} <span>Активен</span>
+  </div>
+
+  <div class="mt-3 flex gap-2">
+    <button type="submit" class="btn btn-primary">Создать</button>
+    <a href="{% url 'warehouse_dashboard' %}" class="btn">Отмена</a>
+  </div>
+</form>
+{% endblock %}

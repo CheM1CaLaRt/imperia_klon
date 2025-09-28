@@ -6,6 +6,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.db.models import Q
 
 
 def avatar_upload_to(instance, filename):
@@ -195,10 +196,13 @@ class Inventory(models.Model):
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="inventory")
     bin = models.ForeignKey(StorageBin, on_delete=models.SET_NULL, null=True, blank=True, related_name="inventory")
     product = models.ForeignKey("core.Product", on_delete=models.CASCADE, related_name="inventory")
-    quantity = models.DecimalField(max_digits=14, decimal_places=3, validators=[MinValueValidator(0)])
+    quantity = models.DecimalField(max_digits=14, decimal_places=3, default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(check=Q(quantity__gte=0), name="inventory_qty_nonneg"),
+        ]
         verbose_name = "Остаток"
         verbose_name_plural = "Остатки"
         unique_together = ("warehouse", "bin", "product")

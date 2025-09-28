@@ -24,13 +24,23 @@ from .permissions import warehouse_or_director_required
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
-from core.models import Warehouse
-from core.forms import PutAwayForm, MoveForm
-from core.services.inventory import put_away, move_between_bins
+from .models import Warehouse
+from .forms import PutAwayForm, MoveForm
+from .services.inventory import put_away, move_between_bins
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.db.models import Sum, Count
-from core.utils.auth import group_required
+from django.contrib import messages
+from django.shortcuts import redirect, render
+from django.contrib.auth.decorators import login_required
+from .forms import WarehouseCreateForm
+from .utils.auth import group_required
+from django.db.models import (
+    Count, Sum, OuterRef, Subquery, IntegerField, DecimalField, Value
+)
+from django.db.models.functions import Coalesce
+
+
 
 ROLE_TO_URL = {
     "warehouse": "warehouse_dashboard",
@@ -108,7 +118,7 @@ def logout_view(request: HttpRequest):
 @login_required
 @group_required("warehouse")
 def warehouse_dashboard(request):
-    from core.models import Warehouse, StorageBin, Inventory, StockMovement
+    from .models import Warehouse, StorageBin, Inventory, StockMovement
 
     # Склады + аннотации, чтобы в шаблоне не лазить по словарям
     warehouses = (
@@ -137,25 +147,56 @@ def warehouse_dashboard(request):
 @login_required
 @group_required("warehouse", "director")
 def warehouse_new_dashboard(request):
-    from core.models import Warehouse, StockMovement
+    from .models import Warehouse, StorageBin, Inventory, StockMovement
+
+    # Подзапросы (каждый агрегат отдельно, чтобы не было декартова произведения)
+    bins_sq = (
+        StorageBin.objects
+        .filter(warehouse=OuterRef("pk"))
+        .values("warehouse")
+        .annotate(c=Count("id"))
+        .values("c")[:1]
+    )
+
+    inv_pos_sq = (
+        Inventory.objects
+        .filter(warehouse=OuterRef("pk"))
+        .values("warehouse")
+        .annotate(c=Count("id"))
+        .values("c")[:1]
+    )
+
+    inv_qty_sq = (
+        Inventory.objects
+        .filter(warehouse=OuterRef("pk"))
+        .values("warehouse")
+        .annotate(s=Sum("quantity"))
+        .values("s")[:1]
+    )
+
+    DEC = DecimalField(max_digits=14, decimal_places=3)
+    INT = IntegerField()
 
     warehouses = (
         Warehouse.objects.filter(is_active=True)
         .order_by("code")
         .annotate(
-            bins_count=Count("bins", distinct=True),
-            inv_positions=Count("inventory", distinct=True),
-            inv_qty=Sum("inventory__quantity"),
+            bins_count=Coalesce(Subquery(bins_sq, output_field=INT), Value(0, output_field=INT)),
+            inv_positions=Coalesce(Subquery(inv_pos_sq, output_field=INT), Value(0, output_field=INT)),
+            inv_qty=Coalesce(Subquery(inv_qty_sq, output_field=DEC), Value(Decimal("0"), output_field=DEC)),
         )
     )
 
     recent_moves = (
-        StockMovement.objects.select_related("warehouse", "bin_from", "bin_to", "product", "actor")
+        StockMovement.objects
+        .select_related("warehouse", "bin_from", "bin_to", "product", "actor")
         .order_by("-timestamp")[:20]
     )
 
-    ctx = {"warehouses": warehouses, "recent_moves": recent_moves}
-    # ВАЖНО: новый шаблон
+    ctx = {
+        "warehouses": warehouses,
+        "recent_moves": recent_moves,
+    }
     return render(request, "core/warehouse_dashboard.html", ctx)
 
 @login_required
@@ -284,15 +325,32 @@ def warehouse_list(request):
     return render(request, "core/warehouse_list.html", {"warehouses": warehouses})
 
 @login_required
+@group_required("warehouse", "director")
 def warehouse_detail(request, pk: int):
-    from core.models import StorageBin, Inventory
-    wh = get_object_or_404(Warehouse, pk=pk)
-    bins = StorageBin.objects.filter(warehouse=wh).order_by("code")
-    inv = Inventory.objects.select_related("bin", "product").filter(warehouse=wh).order_by("bin__code", "product__name")
-    return render(request, "core/warehouse_detail.html", {"warehouse": wh, "bins": bins, "inventory": inv})
+    from .models import Warehouse, StorageBin, Inventory
+
+    warehouse = get_object_or_404(Warehouse, pk=pk)
+
+    bins = (
+        StorageBin.objects.filter(warehouse=warehouse, is_active=True)
+        .order_by("code")
+    )
+
+    # Показать только позиции с количеством > 0
+    inventory = (
+        Inventory.objects.filter(warehouse=warehouse, quantity__gt=0)
+        .select_related("bin", "product")
+        .order_by("bin__code", "product__barcode")
+    )
+
+    return render(
+        request,
+        "core/warehouse_detail.html",
+        {"warehouse": warehouse, "bins": bins, "inventory": inventory},
+    )
 
 @login_required
-@permission_required("core.add_inventory", raise_exception=True)
+@group_required("director", "warehouse") #@permission_required("core.add_inventory", raise_exception=True)
 def put_away_view(request, pk: int):
     wh = get_object_or_404(Warehouse, pk=pk)
     if request.method == "POST":
@@ -316,7 +374,7 @@ def put_away_view(request, pk: int):
     return render(request, "core/put_away.html", {"warehouse": wh, "form": form})
 
 @login_required
-@permission_required("core.change_inventory", raise_exception=True)
+@group_required("director", "warehouse") #@permission_required("core.change_inventory", raise_exception=True)
 def move_view(request, pk: int):
     wh = get_object_or_404(Warehouse, pk=pk)
     if request.method == "POST":
@@ -339,3 +397,34 @@ def move_view(request, pk: int):
     else:
         form = MoveForm()
     return render(request, "core/move.html", {"warehouse": wh, "form": form})
+
+@login_required
+@group_required("director")  # или: @permission_required("core.add_warehouse", raise_exception=True)
+def warehouse_create(request):
+    if request.method == "POST":
+        form = WarehouseCreateForm(request.POST)
+        if form.is_valid():
+            w = form.save()
+            messages.success(request, f"Склад {w.code} — {w.name} создан.")
+            return redirect("warehouse_detail", pk=w.pk)
+    else:
+        form = WarehouseCreateForm(initial={"is_active": True})
+    return render(request, "core/warehouse_create.html", {"form": form})
+
+@login_required
+@group_required("director")
+def warehouse_delete(request, pk: int):
+    """
+    Жёсткое удаление склада. FK в моделях настроены на CASCADE,
+    так что удалятся ячейки/остатки/движения, связанные со складом.
+    """
+    wh = get_object_or_404(Warehouse, pk=pk)
+
+    if request.method == "POST":
+        name = f"{wh.code} — {wh.name}"
+        wh.delete()
+        messages.success(request, f"Склад «{name}» удалён.")
+        return redirect("warehouse_dashboard")
+
+    # GET -> страница подтверждения
+    return render(request, "core/warehouse_confirm_delete.html", {"warehouse": wh})

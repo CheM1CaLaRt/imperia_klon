@@ -4,10 +4,11 @@ from django.core.validators import URLValidator
 from django.contrib.auth import get_user_model
 import re
 from datetime import date
-from .models import Profile
 from .widgets import AvatarInput
 from django.contrib.auth.models import User
 from .models import Profile
+from django import forms
+from .models import Warehouse
 
 User = get_user_model()
 
@@ -130,3 +131,17 @@ class MoveForm(forms.Form):
     barcode = forms.CharField(label="Штрихкод", max_length=64)
     quantity = forms.DecimalField(label="Кол-во", min_value=0.001, decimal_places=3, max_digits=14)
     create_bin = forms.BooleanField(label="Создать ячейку-получателя, если нет", required=False, initial=True)
+
+class WarehouseCreateForm(forms.ModelForm):
+    class Meta:
+        model = Warehouse
+        fields = ["code", "name", "address", "comment", "is_active"]
+        widgets = {
+            "comment": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean_code(self):
+        code = self.cleaned_data["code"].strip()
+        if not code:
+            raise forms.ValidationError("Код обязателен")
+        return code

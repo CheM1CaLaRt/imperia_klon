@@ -23,6 +23,8 @@ urlpatterns = [
     path("warehouse/", views.warehouse_dashboard, name="warehouse_dashboard"),
     # НОВЫЙ дашборд
     path("warehouse/ui/", views.warehouse_new_dashboard, name="warehouse_new_dashboard"),
+    path("warehouse/new/", views.warehouse_create, name="warehouse_create"),
+    path("warehouse/<int:pk>/delete/", views.warehouse_delete, name="warehouse_delete"),
 
     path("warehouse/<int:pk>/", views.warehouse_detail, name="warehouse_detail"),
     path("warehouse/<int:pk>/put-away/", views.put_away_view, name="put_away"),

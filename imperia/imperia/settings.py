@@ -22,6 +22,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     "jazzmin",                 # ← ДОЛЖЕН быть выше admin
+    'django.contrib.humanize',
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
