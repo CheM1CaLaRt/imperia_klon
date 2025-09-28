@@ -4,27 +4,36 @@
 {% block title %}{{ warehouse.name }}{% endblock %}
 {% block content %}
 <div class="flex items-center justify-between mb-4">
-    <h1 class="text-2xl font-semibold">{{ warehouse.code }} — {{ warehouse.name }}</h1>
-    <div class="flex gap-2">
-        <a class="btn" href="{% url 'put_away' warehouse.pk %}">Приёмка/Размещение</a>
-        <a class="btn" href="{% url 'move_between_bins' warehouse.pk %}">Перемещение</a>
-        {% if request.user|in_groups:"director" %}
-            <a class="btn btn-danger" href="{% url 'warehouse_delete' warehouse.pk %}">Удалить</a>
-        {% endif %}
-    </div>
+  <h1 class="text-2xl font-semibold">{{ warehouse.code }} — {{ warehouse.name }}</h1>
+  <div class="flex gap-2">
+    <a class="btn" href="{% url 'put_away' warehouse.pk %}">Приёмка/Размещение</a>
+    <a class="btn" href="{% url 'move_between_bins' warehouse.pk %}">Перемещение</a>
+    <a class="btn" href="{% url 'bin_create' warehouse.pk %}">+ Ячейка</a>
+    {% if request.user|in_groups:"director" %}
+      <a class="btn btn-danger" href="{% url 'warehouse_delete' warehouse.pk %}">Удалить склад</a>
+    {% endif %}
+  </div>
 </div>
 
 
 <h2 class="text-xl font-semibold mb-2">Ячейки</h2>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
-    {% for b in bins %}
-    <div class="rounded-xl border p-2">
-        <div class="font-mono">{{ b.code }}</div>
-        <div class="text-xs text-gray-500">{{ b.description }}</div>
+  {% for b in bins %}
+  <div class="rounded-xl border p-2 flex items-start justify-between">
+    <div>
+      <div class="font-mono">{{ b.code }}</div>
+      <div class="text-xs text-gray-500">{{ b.description }}</div>
     </div>
-    {% empty %}
-    <p>Нет ячеек</p>
-    {% endfor %}
+    <div class="text-xs flex gap-2">
+      <a class="hover:underline" href="{% url 'bin_edit' warehouse.pk b.pk %}">изменить</a>
+      <a class="text-red-600 hover:underline"
+         href="{% url 'bin_delete' warehouse.pk b.pk %}"
+         onclick="return confirm('Удалить ячейку {{ b.code }}?');">удалить</a>
+    </div>
+  </div>
+  {% empty %}
+  <p>Нет ячеек</p>
+  {% endfor %}
 </div>
 
 
@@ -44,8 +53,13 @@
     <tr class="border-t">
         <td class="p-2">{% if row.bin %}{{ row.bin.code }}{% else %}—{% endif %}</td>
         <td class="p-2 font-mono">{{ row.product.barcode }}</td>
-        <td class="p-2">{{ row.product.name }}</td>
-        <td class="p-2">{{ row.quantity }}</td>
+        <td class="p-2">
+            <a class="hover:underline"
+            href="{% url 'inventory_edit' warehouse.pk row.pk %}">
+            {{ row.product.name }}
+            </a>
+        </td>
+        <td class="p-2">{{ row.quantity|floatformat:0 }}</td>
         <td class="p-2 text-xs text-gray-500">{{ row.updated_at|date:"d.m.Y H:i" }}</td>
     </tr>
     {% empty %}

@@ -29,6 +29,13 @@ urlpatterns = [
     path("warehouse/<int:pk>/", views.warehouse_detail, name="warehouse_detail"),
     path("warehouse/<int:pk>/put-away/", views.put_away_view, name="put_away"),
     path("warehouse/<int:pk>/move/", views.move_view, name="move_between_bins"),
+    path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/",
+         views.inventory_edit, name="inventory_edit"),
+
+    path("warehouse/<int:pk>/bins/new/", views.bin_create, name="bin_create"),
+    path("warehouse/<int:warehouse_pk>/bins/<int:pk>/edit/", views.bin_edit, name="bin_edit"),
+    path("warehouse/<int:warehouse_pk>/bins/<int:pk>/delete/", views.bin_delete, name="bin_delete"),
+
     path('operator/', views.operator_dashboard, name='operator_dashboard'),
     path('manager/', views.manager_dashboard, name='manager_dashboard'),
     path('director/', views.director_dashboard, name='director_dashboard'),

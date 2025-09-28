@@ -9,6 +9,9 @@ from django.contrib.auth.models import User
 from .models import Profile
 from django import forms
 from .models import Warehouse
+from .models import Inventory, StorageBin
+from decimal import Decimal
+from django import forms
 
 User = get_user_model()
 
@@ -144,4 +147,50 @@ class WarehouseCreateForm(forms.ModelForm):
         code = self.cleaned_data["code"].strip()
         if not code:
             raise forms.ValidationError("Код обязателен")
+        return code
+
+class InventoryEditForm(forms.Form):
+    bin = forms.ModelChoiceField(
+        queryset=StorageBin.objects.none(),
+        required=False,
+        empty_label="— (без ячейки)",
+        label="Ячейка",
+    )
+    quantity = forms.IntegerField(
+        min_value=0,
+        label="Количество",
+        help_text="0 — удалить позицию",
+        widget=forms.NumberInput(attrs={"step": "1"})
+    )
+
+    def __init__(self, *args, **kwargs):
+        warehouse = kwargs.pop("warehouse")
+        super().__init__(*args, **kwargs)
+        self.fields["bin"].queryset = StorageBin.objects.filter(
+            warehouse=warehouse, is_active=True
+        ).order_by("code")
+
+class StorageBinForm(forms.ModelForm):
+    class Meta:
+        model = StorageBin
+        fields = ["code", "description", "is_active"]
+        widgets = {
+            "code": forms.TextInput(attrs={"autofocus": True}),
+            "description": forms.TextInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.warehouse = kwargs.pop("warehouse", None)
+        super().__init__(*args, **kwargs)
+
+    def clean_code(self):
+        code = (self.cleaned_data.get("code") or "").strip()
+        if not code:
+            raise forms.ValidationError("Укажите код ячейки")
+        # уникальность кода в рамках склада
+        qs = StorageBin.objects.filter(warehouse=self.warehouse, code__iexact=code)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("Такая ячейка уже есть в этом складе")
         return code

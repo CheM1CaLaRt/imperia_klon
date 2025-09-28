@@ -201,7 +201,23 @@ class Inventory(models.Model):
 
     class Meta:
         constraints = [
-            models.CheckConstraint(check=Q(quantity__gte=0), name="inventory_qty_nonneg"),
+            # 1) уникальность, когда bin НЕ NULL
+            models.UniqueConstraint(
+                fields=["warehouse", "product", "bin"],
+                condition=Q(bin__isnull=False),
+                name="uniq_inventory_row_not_null_bin",
+            ),
+            # 2) уникальность, когда bin = NULL (ровно одна строка на (warehouse, product))
+            models.UniqueConstraint(
+                fields=["warehouse", "product"],
+                condition=Q(bin__isnull=True),
+                name="uniq_inventory_row_null_bin",
+            ),
+            # 3) количество неотрицательное
+            models.CheckConstraint(
+                check=Q(quantity__gte=0),
+                name="inventory_qty_nonneg",
+            ),
         ]
         verbose_name = "Остаток"
         verbose_name_plural = "Остатки"

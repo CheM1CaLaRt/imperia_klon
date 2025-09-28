@@ -1,11 +1,38 @@
 {% extends "base.html" %}
-
-{% load access %}
-{% block title %}Перемещение — {{ warehouse.name }}{% endblock %}
+{% block title %}Перемещение между ячейками{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Перемещение между ячейками</h1>
-<form method="post" class="grid gap-3 max-w-md">{% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Переместить</button>
+
+<h1 class="text-2xl font-semibold mb-6">Перемещение между ячейками</h1>
+
+<form method="post" class="max-w-xl">
+  {% csrf_token %}
+
+  <label class="form-label">Из ячейки:</label>
+  <input type="text" name="from_bin" class="input" list="bins_list" placeholder="например: A1">
+
+  <label class="form-label mt-3">В ячейку:</label>
+  <input type="text" name="to_bin" class="input" list="bins_list" placeholder="например: B2">
+
+  <datalist id="bins_list">
+    {% for b in bins %}
+      <option value="{{ b.code }}">{{ b.code }}</option>
+    {% endfor %}
+  </datalist>
+
+  <label class="form-label mt-3">Штрихкод:</label>
+  <input type="text" name="barcode" class="input" required>
+
+  <label class="form-label mt-3">Кол-во:</label>
+  <input type="number" step="1" min="1" name="qty" class="input" required>
+
+  <div class="mt-3">
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="create_to" checked>
+      Создать ячейку-получателя, если нет
+    </label>
+  </div>
+
+  <button class="btn btn-primary mt-4">Переместить</button>
 </form>
+
 {% endblock %}

@@ -1,44 +1,36 @@
 # core/views.py
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.models import Group
 from django.http import HttpRequest
-from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
 from .forms import UserUpdateForm, ProfileForm
 from .models import Profile
 from .widgets import AvatarInput
-from os.path import basename
 from django.db.models import Q, Min, F
 from django.db.models.expressions import OrderBy
 from django.core.paginator import Paginator
-from django.shortcuts import render
-from .models import Product
-from .permissions import warehouse_or_director_required
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, Http404
-from django.forms.models import model_to_dict
 from django.db.models import Min
-from .models import Product, ProductImage, ProductCertificate, ProductPrice
 from .permissions import warehouse_or_director_required
+from .forms import WarehouseCreateForm
 from decimal import Decimal
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required, permission_required
-from .models import Warehouse
-from .forms import PutAwayForm, MoveForm
-from .services.inventory import put_away, move_between_bins
+from django.shortcuts import get_object_or_404, redirect, render
+from django.db import transaction
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
-from django.db.models import Sum, Count
-from django.contrib import messages
-from django.shortcuts import redirect, render
-from django.contrib.auth.decorators import login_required
-from .forms import WarehouseCreateForm
 from .utils.auth import group_required
+from .forms import StorageBinForm
+from .models import Warehouse, StorageBin, Inventory, Product, StockMovement
 from django.db.models import (
     Count, Sum, OuterRef, Subquery, IntegerField, DecimalField, Value
 )
 from django.db.models.functions import Coalesce
+
+def movement_const(cls):
+    MT = getattr(cls, "MovementType", None) or getattr(cls, "Type", None)
+    return {
+        "IN":   getattr(MT, "IN",   "IN"),
+        "MOVE": getattr(MT, "MOVE", "MOVE"),
+        "OUT":  getattr(MT, "OUT",  "OUT"),
+    }
 
 
 
@@ -147,57 +139,67 @@ def warehouse_dashboard(request):
 @login_required
 @group_required("warehouse", "director")
 def warehouse_new_dashboard(request):
-    from .models import Warehouse, StorageBin, Inventory, StockMovement
+    from .models import Warehouse, StorageBin, Inventory
 
-    # Подзапросы (каждый агрегат отдельно, чтобы не было декартова произведения)
-    bins_sq = (
+    bins_cnt_sq = Subquery(
         StorageBin.objects
-        .filter(warehouse=OuterRef("pk"))
-        .values("warehouse")
-        .annotate(c=Count("id"))
-        .values("c")[:1]
+        .filter(warehouse=OuterRef('pk'))
+        .values('warehouse')
+        .annotate(c=Count('id'))
+        .values('c')[:1],
+        output_field=IntegerField(),
     )
 
-    inv_pos_sq = (
+    inv_pos_sq = Subquery(
         Inventory.objects
-        .filter(warehouse=OuterRef("pk"))
-        .values("warehouse")
-        .annotate(c=Count("id"))
-        .values("c")[:1]
+        .filter(warehouse=OuterRef('pk'))
+        .values('warehouse')
+        .annotate(c=Count('id'))
+        .values('c')[:1],
+        output_field=IntegerField(),
     )
 
-    inv_qty_sq = (
+    qty_field = DecimalField(max_digits=14, decimal_places=3)
+
+    inv_qty_sq = Subquery(
         Inventory.objects
-        .filter(warehouse=OuterRef("pk"))
-        .values("warehouse")
-        .annotate(s=Sum("quantity"))
-        .values("s")[:1]
+        .filter(warehouse=OuterRef('pk'))
+        .values('warehouse')
+        .annotate(s=Sum('quantity', output_field=qty_field))
+        .values('s')[:1],
+        output_field=qty_field,
     )
-
-    DEC = DecimalField(max_digits=14, decimal_places=3)
-    INT = IntegerField()
 
     warehouses = (
         Warehouse.objects.filter(is_active=True)
         .order_by("code")
         .annotate(
-            bins_count=Coalesce(Subquery(bins_sq, output_field=INT), Value(0, output_field=INT)),
-            inv_positions=Coalesce(Subquery(inv_pos_sq, output_field=INT), Value(0, output_field=INT)),
-            inv_qty=Coalesce(Subquery(inv_qty_sq, output_field=DEC), Value(Decimal("0"), output_field=DEC)),
+            bins_count=Coalesce(bins_cnt_sq, Value(0, output_field=IntegerField())),
+            inv_positions=Coalesce(inv_pos_sq, Value(0, output_field=IntegerField())),
+            inv_qty=Coalesce(inv_qty_sq, Value(0, output_field=qty_field)),
         )
     )
 
-    recent_moves = (
-        StockMovement.objects
-        .select_related("warehouse", "bin_from", "bin_to", "product", "actor")
-        .order_by("-timestamp")[:20]
+    dt_field = "created_at" if hasattr(StockMovement, "created_at") else (
+        "created" if hasattr(StockMovement, "created") else None
     )
 
-    ctx = {
+    moves_qs = StockMovement.objects.select_related(
+        "warehouse", "bin_from", "bin_to", "product", "actor"
+    )
+
+    if dt_field:
+        moves_qs = moves_qs.order_by(f"-{dt_field}")
+    else:
+        moves_qs = moves_qs.order_by("-pk")
+
+    recent_moves = list(moves_qs[:20])
+
+    return render(request, "core/warehouse_dashboard.html", {
         "warehouses": warehouses,
-        "recent_moves": recent_moves,
-    }
-    return render(request, "core/warehouse_dashboard.html", ctx)
+        # ...
+        "recent_moves": recent_moves,  # <— обязательно передаём
+    })
 
 @login_required
 @group_required("operator")
@@ -349,54 +351,222 @@ def warehouse_detail(request, pk: int):
         {"warehouse": warehouse, "bins": bins, "inventory": inventory},
     )
 
-@login_required
-@group_required("director", "warehouse") #@permission_required("core.add_inventory", raise_exception=True)
-def put_away_view(request, pk: int):
-    wh = get_object_or_404(Warehouse, pk=pk)
-    if request.method == "POST":
-        form = PutAwayForm(request.POST)
-        if form.is_valid():
-            try:
-                inv = put_away(
-                    warehouse=wh,
-                    bin_code=form.cleaned_data["bin_code"],
-                    barcode=form.cleaned_data["barcode"],
-                    qty=Decimal(form.cleaned_data["quantity"]),
-                    actor=request.user,
-                    create_bin_if_missing=form.cleaned_data.get("create_bin", True),
-                )
-                messages.success(request, f"Добавлено в {inv.bin.code if inv.bin else 'склад'}: {inv.product} x{form.cleaned_data['quantity']}")
-                return redirect("warehouse_detail", pk=wh.pk)
-            except Exception as e:
-                messages.error(request, str(e))
-    else:
-        form = PutAwayForm()
-    return render(request, "core/put_away.html", {"warehouse": wh, "form": form})
+
+
 
 @login_required
-@group_required("director", "warehouse") #@permission_required("core.change_inventory", raise_exception=True)
-def move_view(request, pk: int):
-    wh = get_object_or_404(Warehouse, pk=pk)
+@group_required("warehouse", "director")
+@transaction.atomic
+def put_away_view(request, pk: int):
+    warehouse = get_object_or_404(Warehouse, pk=pk)
+
     if request.method == "POST":
-        form = MoveForm(request.POST)
-        if form.is_valid():
-            try:
-                move_between_bins(
-                    warehouse=wh,
-                    barcode=form.cleaned_data["barcode"],
-                    qty=Decimal(form.cleaned_data["quantity"]),
-                    bin_from_code=form.cleaned_data["bin_from"],
-                    bin_to_code=form.cleaned_data["bin_to"],
-                    actor=request.user,
-                    create_bin_if_missing=form.cleaned_data.get("create_bin", True),
-                )
-                messages.success(request, "Перемещение выполнено")
-                return redirect("warehouse_detail", pk=wh.pk)
-            except Exception as e:
-                messages.error(request, str(e))
-    else:
-        form = MoveForm()
-    return render(request, "core/move.html", {"warehouse": wh, "form": form})
+        bin_code   = (request.POST.get("bin_code") or "").strip()
+        barcode    = (request.POST.get("barcode") or "").strip()
+        qty_str    = (request.POST.get("qty") or "").strip()
+        create_bin = request.POST.get("create_bin", "") == "on"
+
+        # qty
+        try:
+            qty = Decimal(qty_str.replace(",", "."))
+        except Exception:
+            messages.error(request, "Некорректное количество.")
+            return redirect("put_away", pk=warehouse.pk)
+        if qty <= 0:
+            messages.error(request, "Количество должно быть > 0.")
+            return redirect("put_away", pk=warehouse.pk)
+
+        # товар под блокировкой
+        try:
+            product = Product.objects.select_for_update().get(barcode=barcode)
+        except Product.DoesNotExist:
+            messages.error(request, f"Товар со штрихкодом {barcode} не найден.")
+            return redirect("put_away", pk=warehouse.pk)
+
+        # ячейка (опционально)
+        bin_obj = None
+        if bin_code:
+            bin_obj = (
+                StorageBin.objects.select_for_update()
+                .filter(warehouse=warehouse, code=bin_code)
+                .first()
+            )
+            if not bin_obj:
+                if create_bin:
+                    bin_obj = StorageBin.objects.create(
+                        warehouse=warehouse, code=bin_code, is_active=True
+                    )
+                else:
+                    messages.error(request, f"Ячейка {bin_code} не найдена.")
+                    return redirect("put_away", pk=warehouse.pk)
+
+        # консолидация остатков (одна строка на (warehouse, product, bin))
+        qs = (
+            Inventory.objects.select_for_update()
+            .filter(warehouse=warehouse, product=product, bin=bin_obj)
+            .order_by("pk")
+        )
+
+        inv = qs.first()
+        if inv:
+            total_existing = qs.aggregate(s=Sum("quantity"))["s"] or Decimal("0")
+            qs.exclude(pk=inv.pk).delete()
+            inv.quantity = total_existing + qty
+            inv.save(update_fields=["quantity", "updated_at"])
+        else:
+            inv = Inventory.objects.create(
+                warehouse=warehouse, product=product, bin=bin_obj, quantity=qty
+            )
+
+        # лог движения
+        const = movement_const(StockMovement)
+
+        # безопасно определяем имена полей
+        field_names = {f.name for f in StockMovement._meta.get_fields() if hasattr(f, "attname")}
+        mtype_field = "movement_type" if "movement_type" in field_names else ("type" if "type" in field_names else None)
+        actor_field = "actor" if "actor" in field_names else ("performed_by" if "performed_by" in field_names else None)
+
+        kwargs = dict(
+            warehouse=warehouse,
+            bin_from=None,
+            bin_to=bin_obj,
+            product=product,
+            quantity=qty,
+        )
+
+        if mtype_field:
+            kwargs[mtype_field] = const["IN"]
+        if actor_field:
+            kwargs[actor_field] = request.user
+
+        StockMovement.objects.create(**kwargs)
+
+        messages.success(request, "Товар размещён.")
+        return redirect("warehouse_detail", pk=warehouse.pk)
+
+    # GET — форма
+    return render(request, "core/put_away.html", {"warehouse": warehouse})
+
+@login_required
+@group_required("warehouse", "director")
+@transaction.atomic
+def move_view(request, pk: int):
+    warehouse = get_object_or_404(Warehouse, pk=pk)
+
+    if request.method == "POST":
+        from_code = (request.POST.get("from_bin") or "").strip()
+        to_code   = (request.POST.get("to_bin")   or "").strip()
+        barcode   = (request.POST.get("barcode")  or "").strip()
+        qty_str   = (request.POST.get("qty")      or "").strip()
+        create_to = request.POST.get("create_to", "") == "on"
+
+        # количество
+        try:
+            qty = Decimal(qty_str.replace(",", "."))
+        except Exception:
+            messages.error(request, "Некорректное количество.")
+            return redirect("move_between_bins", pk=warehouse.pk)
+        if qty <= 0:
+            messages.error(request, "Количество должно быть > 0.")
+            return redirect("move_between_bins", pk=warehouse.pk)
+
+        # товар под блокировкой
+        try:
+            product = Product.objects.select_for_update().get(barcode=barcode)
+        except Product.DoesNotExist:
+            messages.error(request, f"Товар со штрихкодом {barcode} не найден.")
+            return redirect("move_between_bins", pk=warehouse.pk)
+
+        # ячейки
+        from_bin = None
+        if from_code:
+            from_bin = (StorageBin.objects
+                        .select_for_update()
+                        .filter(warehouse=warehouse, code=from_code).first())
+            if not from_bin:
+                messages.error(request, f"Ячейка-источник «{from_code}» не найдена.")
+                return redirect("move_between_bins", pk=warehouse.pk)
+
+        to_bin = None
+        if to_code:
+            to_bin = (StorageBin.objects
+                      .select_for_update()
+                      .filter(warehouse=warehouse, code=to_code).first())
+            if not to_bin:
+                if create_to:
+                    to_bin = StorageBin.objects.create(
+                        warehouse=warehouse, code=to_code, is_active=True
+                    )
+                else:
+                    messages.error(request, f"Ячейка-получатель «{to_code}» не найдена.")
+                    return redirect("move_between_bins", pk=warehouse.pk)
+
+        if from_bin == to_bin:
+            messages.error(request, "Источник и получатель совпадают.")
+            return redirect("move_between_bins", pk=warehouse.pk)
+
+        # уменьшить в источнике (консолидация дублей)
+        src_qs = (Inventory.objects.select_for_update()
+                  .filter(warehouse=warehouse, product=product, bin=from_bin)
+                  .order_by("pk"))
+        if not src_qs.exists():
+            messages.error(request, "В источнике нет такого товара.")
+            return redirect("move_between_bins", pk=warehouse.pk)
+
+        src = src_qs.first()
+        if src_qs.count() > 1:
+            total = sum((r.quantity for r in src_qs), Decimal("0"))
+            src.quantity = total
+            Inventory.objects.exclude(pk=src.pk).filter(
+                warehouse=warehouse, product=product, bin=from_bin
+            ).delete()
+
+        if src.quantity < qty:
+            messages.error(request, "Недостаточно товара в источнике.")
+            return redirect("move_between_bins", pk=warehouse.pk)
+
+        src.quantity -= qty
+        if src.quantity == 0:
+            src.delete()
+        else:
+            src.save(update_fields=["quantity", "updated_at"])
+
+        # добавить в получателе (консолидация дублей)
+        dst_qs = (Inventory.objects.select_for_update()
+                  .filter(warehouse=warehouse, product=product, bin=to_bin)
+                  .order_by("pk"))
+        if dst_qs.exists():
+            dst = dst_qs.first()
+            if dst_qs.count() > 1:
+                total = sum((r.quantity for r in dst_qs), Decimal("0"))
+                dst.quantity = total
+                Inventory.objects.exclude(pk=dst.pk).filter(
+                    warehouse=warehouse, product=product, bin=to_bin
+                ).delete()
+            dst.quantity = (dst.quantity or Decimal("0")) + qty
+            dst.save(update_fields=["quantity", "updated_at"])
+        else:
+            Inventory.objects.create(
+                warehouse=warehouse, product=product, bin=to_bin, quantity=qty
+            )
+
+        # лог движения (универсальный fallback)
+        MT = getattr(StockMovement, "MovementType", None) or getattr(StockMovement, "Type", None)
+        MOV_MOVE = getattr(MT, "MOVE", None) or "MOVE"
+
+        StockMovement.objects.create(
+            warehouse=warehouse,
+            bin_from=from_bin, bin_to=to_bin,
+            product=product, quantity=qty,
+            movement_type=MOV_MOVE, actor=request.user,
+        )
+
+        messages.success(request, "Перемещение выполнено.")
+        return redirect("warehouse_detail", pk=warehouse.pk)
+
+    # GET — показать форму
+    bins = StorageBin.objects.filter(warehouse=warehouse, is_active=True).order_by("code")
+    return render(request, "core/move.html", {"warehouse": warehouse, "bins": bins})
 
 @login_required
 @group_required("director")  # или: @permission_required("core.add_warehouse", raise_exception=True)
@@ -428,3 +598,116 @@ def warehouse_delete(request, pk: int):
 
     # GET -> страница подтверждения
     return render(request, "core/warehouse_confirm_delete.html", {"warehouse": wh})
+
+@login_required
+@group_required("warehouse", "director")
+@transaction.atomic
+def inventory_edit(request, warehouse_pk: int, pk: int):
+    warehouse = get_object_or_404(Warehouse, pk=warehouse_pk)
+    inv = get_object_or_404(Inventory.objects.select_for_update(), pk=pk, warehouse=warehouse)
+
+    from .forms import InventoryEditForm
+    if request.method == "POST":
+        # явная кнопка удаления
+        if "delete" in request.POST:
+            inv.delete()
+            messages.success(request, "Позиция удалена.")
+            return redirect("warehouse_detail", pk=warehouse.pk)
+
+        form = InventoryEditForm(request.POST, warehouse=warehouse)
+        if form.is_valid():
+            new_bin = form.cleaned_data["bin"]
+            new_qty = form.cleaned_data["quantity"]
+
+            # 0 -> удалить
+            if new_qty == 0:
+                inv.delete()
+                messages.success(request, "Позиция удалена (кол-во = 0).")
+                return redirect("warehouse_detail", pk=warehouse.pk)
+
+            # смена ячейки или qty
+            moved_bin = (new_bin != inv.bin)
+            if moved_bin:
+                # если уже есть позиция для того же товара в новой ячейке — объединим
+                dup = Inventory.objects.select_for_update().filter(
+                    warehouse=warehouse, bin=new_bin, product=inv.product
+                ).exclude(pk=inv.pk).first()
+                if dup:
+                    dup.quantity += new_qty
+                    dup.save(update_fields=["quantity", "updated_at"])
+                    inv.delete()
+                    messages.success(request, "Позиция объединена с существующей ячейкой.")
+                else:
+                    inv.bin = new_bin
+                    inv.quantity = new_qty
+                    inv.save(update_fields=["bin", "quantity", "updated_at"])
+                    messages.success(request, "Позиция обновлена.")
+            else:
+                inv.quantity = new_qty
+                inv.save(update_fields=["quantity", "updated_at"])
+                messages.success(request, "Позиция обновлена.")
+
+            return redirect("warehouse_detail", pk=warehouse.pk)
+    else:
+        form = InventoryEditForm(
+            warehouse=warehouse,
+            initial={"bin": inv.bin_id, "quantity": inv.quantity},
+        )
+
+    return render(request, "core/inventory_edit.html", {
+        "warehouse": warehouse,
+        "inv": inv,
+        "form": form,
+    })
+
+@login_required
+@group_required("warehouse", "director")
+def bin_create(request, pk: int):
+    warehouse = get_object_or_404(Warehouse, pk=pk)
+    if request.method == "POST":
+        form = StorageBinForm(request.POST, warehouse=warehouse)
+        if form.is_valid():
+            StorageBin.objects.create(
+                warehouse=warehouse,
+                code=form.cleaned_data["code"],
+                description=form.cleaned_data.get("description") or "",
+                is_active=form.cleaned_data.get("is_active", True),
+            )
+            messages.success(request, "Ячейка создана.")
+            return redirect("warehouse_detail", pk=warehouse.pk)
+    else:
+        form = StorageBinForm(warehouse=warehouse, initial={"is_active": True})
+    return render(request, "core/bin_form.html", {"warehouse": warehouse, "form": form, "title": "Новая ячейка"})
+
+@login_required
+@group_required("warehouse", "director")
+def bin_edit(request, warehouse_pk: int, pk: int):
+    warehouse = get_object_or_404(Warehouse, pk=warehouse_pk)
+    bin_obj = get_object_or_404(StorageBin, pk=pk, warehouse=warehouse)
+    if request.method == "POST":
+        form = StorageBinForm(request.POST, instance=bin_obj, warehouse=warehouse)
+        if form.is_valid():
+            form.instance.warehouse = warehouse
+            form.save()
+            messages.success(request, "Ячейка сохранена.")
+            return redirect("warehouse_detail", pk=warehouse.pk)
+    else:
+        form = StorageBinForm(instance=bin_obj, warehouse=warehouse)
+    return render(request, "core/bin_form.html", {"warehouse": warehouse, "form": form, "title": f"Ячейка {bin_obj.code}"})
+
+@login_required
+@group_required("warehouse", "director")
+@transaction.atomic
+def bin_delete(request, warehouse_pk: int, pk: int):
+    warehouse = get_object_or_404(Warehouse, pk=warehouse_pk)
+    bin_obj = get_object_or_404(StorageBin.objects.select_for_update(), pk=pk, warehouse=warehouse)
+
+    # запрет удалять, если есть остатки
+    has_stock = Inventory.objects.filter(warehouse=warehouse, bin=bin_obj, quantity__gt=0).exists()
+    if has_stock:
+        messages.error(request, "Нельзя удалить ячейку: в ней есть остатки.")
+        return redirect("warehouse_detail", pk=warehouse.pk)
+
+    bin_obj.delete()  # жёсткое удаление
+    messages.success(request, "Ячейка удалена.")
+    return redirect("warehouse_detail", pk=warehouse.pk)

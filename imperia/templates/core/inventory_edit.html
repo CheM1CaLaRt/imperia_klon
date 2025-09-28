@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Редактирование позиции{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">
+  {{ warehouse.code }} — {{ warehouse.name }} • Редактирование позиции
+</h1>
+
+<div class="rounded-xl border p-4 mb-4">
+  <div class="text-sm text-gray-600 mb-2">
+    Штрихкод: <span class="font-mono">{{ inv.product.barcode }}</span><br>
+    Товар: {{ inv.product.name }}
+  </div>
+
+  <form method="post" class="space-y-3">
+    {% csrf_token %}
+    <div>
+      <label class="block text-sm mb-1">{{ form.bin.label }}</label>
+      {{ form.bin }}
+      {% if form.bin.errors %}<div class="text-red-600 text-sm">{{ form.bin.errors }}</div>{% endif %}
+    </div>
+    <div>
+      <label class="block text-sm mb-1">{{ form.quantity.label }}</label>
+      {{ form.quantity}}
+      <div class="text-xs text-gray-500">{{ form.fields.quantity.help_text }}</div>
+      {% if form.quantity.errors %}<div class="text-red-600 text-sm">{{ form.quantity.errors }}</div>{% endif %}
+    </div>
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Сохранить</button>
+      <a class="btn" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
+      <button type="submit" name="delete" value="1" class="btn btn-danger"
+              onclick="return confirm('Удалить позицию?');">
+        Удалить
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
