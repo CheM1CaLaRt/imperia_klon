@@ -1,27 +1,26 @@
 {% extends "base.html" %}
-{% block title %}{{ title }}{% endblock %}
+{% block title %}{% if mode == 'create' %}Новая ячейка{% else %}Изменить ячейку{% endif %}{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">{{ warehouse.code }} — {{ warehouse.name }} • {{ title }}</h1>
-
-<form method="post" class="space-y-3 rounded-xl border p-4">
+<h1 class="text-2xl font-semibold mb-4">
+  {% if mode == 'create' %}Новая ячейка{% else %}Изменить ячейку{% endif %}
+  — {{ warehouse.code }}
+</h1>
+<form method="post" class="space-y-3 max-w-xl">
   {% csrf_token %}
+  {{ form.non_field_errors }}
   <div>
-    <label class="block text-sm mb-1">Код</label>
+    <label class="block text-sm text-gray-600 mb-1">Код</label>
     {{ form.code }}
-    {% if form.code.errors %}<div class="text-red-600 text-sm">{{ form.code.errors }}</div>{% endif %}
+    {{ form.code.errors }}
   </div>
   <div>
-    <label class="block text-sm mb-1">Описание</label>
+    <label class="block text-sm text-gray-600 mb-1">Описание</label>
     {{ form.description }}
-    {% if form.description.errors %}<div class="text-red-600 text-sm">{{ form.description.errors }}</div>{% endif %}
+    {{ form.description.errors }}
   </div>
-  <div class="flex items-center gap-2">
-    {{ form.is_active }} <label>Активна</label>
-  </div>
-
   <div class="flex gap-2">
-    <button class="btn btn-primary" type="submit">Сохранить</button>
-    <a class="btn" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
+    <button class="btn">Сохранить</button>
+    <a class="btn btn-ghost" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
   </div>
 </form>
 {% endblock %}

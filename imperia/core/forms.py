@@ -12,6 +12,7 @@ from .models import Warehouse
 from .models import Inventory, StorageBin
 from decimal import Decimal
 from django import forms
+from .models import StorageBin
 
 User = get_user_model()
 
@@ -194,3 +195,12 @@ class StorageBinForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError("Такая ячейка уже есть в этом складе")
         return code
+
+class StorageBinForm(forms.ModelForm):
+    class Meta:
+        model = StorageBin
+        fields = ["code", "description"]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": "form-input", "placeholder": "Код ячейки"}),
+            "description": forms.TextInput(attrs={"class": "form-input", "placeholder": "Описание (необязательно)"}),
+        }

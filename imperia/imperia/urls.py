@@ -32,9 +32,16 @@ urlpatterns = [
     path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/",
          views.inventory_edit, name="inventory_edit"),
 
-    path("warehouse/<int:pk>/bins/new/", views.bin_create, name="bin_create"),
-    path("warehouse/<int:warehouse_pk>/bins/<int:pk>/edit/", views.bin_edit, name="bin_edit"),
-    path("warehouse/<int:warehouse_pk>/bins/<int:pk>/delete/", views.bin_delete, name="bin_delete"),
+# Ячейки
+    path("warehouse/<int:pk>/bin/new/", views.bin_create, name="bin_create"),
+    path("warehouse/<int:warehouse_pk>/bin/<int:pk>/edit/", views.bin_edit, name="bin_edit"),
+    path("warehouse/<int:warehouse_pk>/bin/<int:pk>/delete/", views.bin_delete, name="bin_delete"),
+
+# Редактирование позиции остатка
+    path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/edit/", views.inventory_edit, name="inventory_edit"),
+    #path("warehouse/<int:pk>/bins/new/", views.bin_create, name="bin_create"),
+    #path("warehouse/<int:warehouse_pk>/bins/<int:pk>/edit/", views.bin_edit, name="bin_edit"),
+    #path("warehouse/<int:warehouse_pk>/bins/<int:pk>/delete/", views.bin_delete, name="bin_delete"),
 
     path('operator/', views.operator_dashboard, name='operator_dashboard'),
     path('manager/', views.manager_dashboard, name='manager_dashboard'),

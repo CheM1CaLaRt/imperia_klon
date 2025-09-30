@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Удалить ячейку {{ bin.code }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Удалить ячейку «{{ bin.code }}»?</h1>
+<p class="mb-4 text-gray-600">Действие необратимо. Привязанные остатки останутся без ячейки.</p>
+<form method="post" class="flex gap-2">
+  {% csrf_token %}
+  <button class="btn btn-danger">Удалить</button>
+  <a class="btn btn-ghost" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
+</form>
+{% endblock %}

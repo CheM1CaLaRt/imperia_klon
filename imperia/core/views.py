@@ -1,28 +1,33 @@
 # core/views.py
-from django.contrib.auth import authenticate, login, logout
-from django.http import HttpRequest
-from .forms import UserUpdateForm, ProfileForm
-from .models import Profile
-from .widgets import AvatarInput
-from django.db.models import Q, Min, F
-from django.db.models.expressions import OrderBy
-from django.core.paginator import Paginator
-from django.http import JsonResponse, Http404
-from django.db.models import Min
-from .permissions import warehouse_or_director_required
-from .forms import WarehouseCreateForm
 from decimal import Decimal
+from django.db import IntegrityError
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
-from django.db import transaction
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from .utils.auth import group_required
-from .forms import StorageBinForm
-from .models import Warehouse, StorageBin, Inventory, Product, StockMovement
+from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import (
-    Count, Sum, OuterRef, Subquery, IntegerField, DecimalField, Value
+    Count, Sum, Value, Subquery, OuterRef, IntegerField, DecimalField,
+    Q, F, Min
 )
+from django.db.models.expressions import OrderBy
 from django.db.models.functions import Coalesce
+from django.http import Http404, HttpRequest, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from .forms import (
+    UserUpdateForm, ProfileForm, WarehouseCreateForm, StorageBinForm
+)
+from .models import Profile, Warehouse, StorageBin, Inventory, Product, StockMovement
+from .permissions import warehouse_or_director_required
+from .utils.auth import group_required   # <-- единственный нужный импорт
+from .widgets import AvatarInput
+
+
+# ---------------------------------------------------------------------
+# Универсальные константы/утилиты
+# ---------------------------------------------------------------------
 
 def movement_const(cls):
     MT = getattr(cls, "MovementType", None) or getattr(cls, "Type", None)
@@ -33,21 +38,53 @@ def movement_const(cls):
     }
 
 
-
 ROLE_TO_URL = {
     "warehouse": "warehouse_dashboard",
     "operator": "operator_dashboard",
     "manager": "manager_dashboard",
-    "director": "director_dashboard",  # управляющий
+    "director": "director_dashboard",
 }
+
 
 def in_group(group_name):
     def check(user):
-       return user.is_authenticated and user.groups.filter(name=group_name).exists()
+        return user.is_authenticated and user.groups.filter(name=group_name).exists()
     return check
 
-#def group_required(group_name):
- #   return user_passes_test(in_group(group_name), login_url="login")
+
+# Стабильная сортировка для остатков
+def _qs_with_order(base_qs, order_param: str):
+    """
+    Поддерживаемые значения order_param:
+      bin, -bin, barcode, -barcode, product, -product, qty, -qty, updated, -updated
+    """
+    if not order_param:
+        return base_qs.order_by("product__name", "pk")
+
+    mapping = {
+        "bin": F("bin__code"),
+        "-bin": F("bin__code").desc(nulls_last=True),
+        "barcode": F("product__barcode"),
+        "-barcode": F("product__barcode").desc(),
+        "product": F("product__name"),
+        "-product": F("product__name").desc(),
+        "qty": F("quantity"),
+        "-qty": F("quantity").desc(),
+        "updated": F("updated_at"),
+        "-updated": F("updated_at").desc(),
+    }
+    expr = mapping.get(order_param)
+    if expr is None:
+        return base_qs.order_by("product__name", "pk")
+
+    alias = "__ord"
+    qs = base_qs.annotate(**{alias: expr})
+    return qs.order_by(alias, "pk")
+
+
+# ---------------------------------------------------------------------
+# Аутентификация/профиль/роутер ролей
+# ---------------------------------------------------------------------
 
 def login_view(request: HttpRequest):
     if request.user.is_authenticated:
@@ -72,16 +109,13 @@ def profile_view(request):
 
     u_form = UserUpdateForm(request.POST or None, instance=user)
     p_form = ProfileForm(request.POST or None, request.FILES or None, instance=profile)
-
-    # на случай, если Meta не подхватилась — жёстко заменим:
-    p_form.fields["avatar"].widget = AvatarInput()
+    p_form.fields["avatar"].widget = AvatarInput()  # гарантируем нужный виджет
 
     if request.method == "POST":
         if u_form.is_valid() and p_form.is_valid():
             u_form.save()
             p_form.save()
             messages.success(request, "Профиль сохранён.")
-            # при автосабмите вернёмся на эту же страницу
             return redirect("profile")
 
     return render(request, "profile.html", {
@@ -90,29 +124,29 @@ def profile_view(request):
         "username": user.username,
         "roles": [g.name for g in user.groups.all()],
     })
+
+
 @login_required
 def post_login_router(request: HttpRequest):
-    """
-    Определяем первую доступную роль пользователя и кидаем в соответствующий раздел.
-    Если ролей несколько — приоритет по порядку в ROLE_TO_URL.
-    """
     for role, url_name in ROLE_TO_URL.items():
         if request.user.groups.filter(name=role).exists():
             return redirect(url_name)
-    # Если ролей нет — можно отправить в заглушку или назад на логин
     return render(request, "no_role.html")
+
 
 def logout_view(request: HttpRequest):
     logout(request)
     return redirect("login")
 
-# --- Дашборды ролей ---
+
+# ---------------------------------------------------------------------
+# Дашборды
+# ---------------------------------------------------------------------
+
 @login_required
 @group_required("warehouse")
 def warehouse_dashboard(request):
-    from .models import Warehouse, StorageBin, Inventory, StockMovement
-
-    # Склады + аннотации, чтобы в шаблоне не лазить по словарям
+    # старый дашборд
     warehouses = (
         Warehouse.objects.filter(is_active=True)
         .order_by("code")
@@ -122,51 +156,33 @@ def warehouse_dashboard(request):
             inv_qty=Sum("inventory__quantity"),
         )
     )
-
-    # Последние движения
     recent_moves = (
         StockMovement.objects.select_related("warehouse", "bin_from", "bin_to", "product", "actor")
         .order_by("-timestamp")[:20]
     )
 
-    ctx = {
-        "warehouses": warehouses,
-        "recent_moves": recent_moves,
-    }
-    # ВАЖНО: рендерим СТАРЫЙ шаблон
+    ctx = {"warehouses": warehouses, "recent_moves": recent_moves}
     return render(request, "dashboards/warehouse.html", ctx)
+
 
 @login_required
 @group_required("warehouse", "director")
 def warehouse_new_dashboard(request):
-    from .models import Warehouse, StorageBin, Inventory
-
+    # новый дашборд
     bins_cnt_sq = Subquery(
-        StorageBin.objects
-        .filter(warehouse=OuterRef('pk'))
-        .values('warehouse')
-        .annotate(c=Count('id'))
-        .values('c')[:1],
+        StorageBin.objects.filter(warehouse=OuterRef('pk'))
+        .values('warehouse').annotate(c=Count('id')).values('c')[:1],
         output_field=IntegerField(),
     )
-
     inv_pos_sq = Subquery(
-        Inventory.objects
-        .filter(warehouse=OuterRef('pk'))
-        .values('warehouse')
-        .annotate(c=Count('id'))
-        .values('c')[:1],
+        Inventory.objects.filter(warehouse=OuterRef('pk'), quantity__gt=0)
+        .values('warehouse').annotate(c=Count('product', distinct=True)).values('c')[:1],
         output_field=IntegerField(),
     )
-
     qty_field = DecimalField(max_digits=14, decimal_places=3)
-
     inv_qty_sq = Subquery(
-        Inventory.objects
-        .filter(warehouse=OuterRef('pk'))
-        .values('warehouse')
-        .annotate(s=Sum('quantity', output_field=qty_field))
-        .values('s')[:1],
+        Inventory.objects.filter(warehouse=OuterRef('pk'))
+        .values('warehouse').annotate(s=Sum('quantity', output_field=qty_field)).values('s')[:1],
         output_field=qty_field,
     )
 
@@ -183,53 +199,51 @@ def warehouse_new_dashboard(request):
     dt_field = "created_at" if hasattr(StockMovement, "created_at") else (
         "created" if hasattr(StockMovement, "created") else None
     )
-
     moves_qs = StockMovement.objects.select_related(
         "warehouse", "bin_from", "bin_to", "product", "actor"
     )
-
-    if dt_field:
-        moves_qs = moves_qs.order_by(f"-{dt_field}")
-    else:
-        moves_qs = moves_qs.order_by("-pk")
-
+    moves_qs = moves_qs.order_by(f"-{dt_field}") if dt_field else moves_qs.order_by("-pk")
     recent_moves = list(moves_qs[:20])
 
-    return render(request, "core/warehouse_dashboard.html", {
-        "warehouses": warehouses,
-        # ...
-        "recent_moves": recent_moves,  # <— обязательно передаём
-    })
+    return render(
+        request,
+        "core/warehouse_dashboard.html",
+        {"warehouses": warehouses, "recent_moves": recent_moves},
+    )
+
 
 @login_required
 @group_required("operator")
 def operator_dashboard(request):
     return render(request, "dashboards/operator.html")
 
+
 @login_required
 @group_required("manager")
 def manager_dashboard(request):
     return render(request, "dashboards/manager.html")
+
 
 @login_required
 @group_required("director")
 def director_dashboard(request):
     return render(request, "dashboards/director.html")
 
+
+# ---------------------------------------------------------------------
+# Товары
+# ---------------------------------------------------------------------
+
 @warehouse_or_director_required
 def product_list(request):
     q = (request.GET.get("q") or "").strip()
-    sort = (request.GET.get("sort") or "name").lower()   # name | price | supplier
-    order = (request.GET.get("order") or "asc").lower()  # asc | desc
+    sort = (request.GET.get("sort") or "name").lower()
+    order = (request.GET.get("order") or "asc").lower()
     page = int(request.GET.get("page") or 1)
     per_page = int(request.GET.get("per_page") or 24)
 
-    qs = (Product.objects
-          .all()
-          .select_related("supplier")
-          .prefetch_related("images", "prices"))
+    qs = Product.objects.all().select_related("supplier").prefetch_related("images", "prices")
 
-    # фильтр при вводе (минимум 3 символа)
     if len(q) >= 3:
         qs = qs.filter(
             Q(name__icontains=q) |
@@ -239,23 +253,17 @@ def product_list(request):
             Q(vendor_code__icontains=q)
         )
 
-    # минимальная цена по товару
     qs = qs.annotate(min_price=Min("prices__value"))
 
-    # сортировки
     if sort == "price":
         qs = qs.order_by(
-            OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True),
-            "id"
+            OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True), "id"
         )
     elif sort == "supplier":
-        # сортируем по названию поставщика
         qs = qs.order_by(
-            OrderBy(F("supplier__name"), descending=(order == "desc")),
-            "id"
+            OrderBy(F("supplier__name"), descending=(order == "desc")), "id"
         )
     else:
-        # по умолчанию — по названию
         sort_field = "name"
         if order == "desc":
             sort_field = "-" + sort_field
@@ -271,10 +279,12 @@ def product_list(request):
         "order": order,
         "per_page": per_page,
     })
+
+
 @login_required
 def home(request):
-    # можешь использовать уже существующий шаблон дашборда склада
     return render(request, "home.html")
+
 
 @warehouse_or_director_required
 def product_detail_json(request, pk: int):
@@ -285,10 +295,7 @@ def product_detail_json(request, pk: int):
 
     images = list(p.images.order_by("position", "id").values_list("url", flat=True))
     certs = [
-        {
-            "name": c.name, "issued_by": c.issued_by,
-            "active_to": c.active_to, "url": c.url
-        }
+        {"name": c.name, "issued_by": c.issued_by, "active_to": c.active_to, "url": c.url}
         for c in p.certificates.all()
     ]
     prices = [
@@ -321,37 +328,73 @@ def product_detail_json(request, pk: int):
     }
     return JsonResponse(data)
 
+
+# ---------------------------------------------------------------------
+# Склады / карточка склада / CRUD ячеек / операции
+# ---------------------------------------------------------------------
+
 @login_required
 def warehouse_list(request):
     warehouses = Warehouse.objects.filter(is_active=True)
     return render(request, "core/warehouse_list.html", {"warehouses": warehouses})
 
+
 @login_required
 @group_required("warehouse", "director")
 def warehouse_detail(request, pk: int):
-    from .models import Warehouse, StorageBin, Inventory
-
+    """
+    Современная версия карточки склада:
+      - фильтр по ячейке (повторный клик снимает фильтр),
+      - поиск по штрихкоду/названию,
+      - стабильная сортировка всех колонок.
+    Параметры: ?bin=CODE&q=...&o=bin|-bin|barcode|-barcode|product|-product|qty|-qty|updated|-updated
+    """
     warehouse = get_object_or_404(Warehouse, pk=pk)
 
-    bins = (
-        StorageBin.objects.filter(warehouse=warehouse, is_active=True)
-        .order_by("code")
+    active_bin = (request.GET.get("bin") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+    order = (request.GET.get("o") or "").strip()
+
+    bins = StorageBin.objects.filter(warehouse=warehouse, is_active=True).order_by("code")
+
+    inv = (
+        Inventory.objects.select_related("bin", "product")
+        .filter(warehouse=warehouse, quantity__gt=0)
     )
 
-    # Показать только позиции с количеством > 0
-    inventory = (
-        Inventory.objects.filter(warehouse=warehouse, quantity__gt=0)
-        .select_related("bin", "product")
-        .order_by("bin__code", "product__barcode")
-    )
+    if active_bin:
+        inv = inv.filter(bin__code=active_bin)
 
-    return render(
-        request,
-        "core/warehouse_detail.html",
-        {"warehouse": warehouse, "bins": bins, "inventory": inventory},
-    )
+    if q:
+        inv = inv.filter(
+            Q(product__barcode__icontains=q) |
+            Q(product__name__icontains=q)
+        )
 
+    inv = _qs_with_order(inv, order)
 
+    # метрики для шапки
+    metrics = {
+        "bins_count": StorageBin.objects.filter(warehouse=warehouse).count(),
+        "positions": (Inventory.objects
+                      .filter(warehouse=warehouse, quantity__gt=0)
+                      .values("product").distinct().count()),
+        "updated": (Inventory.objects
+                    .filter(warehouse=warehouse)
+                    .order_by("-updated_at")
+                    .values_list("updated_at", flat=True).first()),
+    }
+
+    ctx = {
+        "warehouse": warehouse,
+        "bins": bins,
+        "inventory": inv,
+        "active_bin": active_bin,
+        "q": q,
+        "order": order,
+        **metrics,
+    }
+    return render(request, "core/warehouse_detail.html", ctx)
 
 
 @login_required
@@ -366,7 +409,6 @@ def put_away_view(request, pk: int):
         qty_str    = (request.POST.get("qty") or "").strip()
         create_bin = request.POST.get("create_bin", "") == "on"
 
-        # qty
         try:
             qty = Decimal(qty_str.replace(",", "."))
         except Exception:
@@ -376,21 +418,16 @@ def put_away_view(request, pk: int):
             messages.error(request, "Количество должно быть > 0.")
             return redirect("put_away", pk=warehouse.pk)
 
-        # товар под блокировкой
         try:
             product = Product.objects.select_for_update().get(barcode=barcode)
         except Product.DoesNotExist:
             messages.error(request, f"Товар со штрихкодом {barcode} не найден.")
             return redirect("put_away", pk=warehouse.pk)
 
-        # ячейка (опционально)
         bin_obj = None
         if bin_code:
-            bin_obj = (
-                StorageBin.objects.select_for_update()
-                .filter(warehouse=warehouse, code=bin_code)
-                .first()
-            )
+            bin_obj = (StorageBin.objects.select_for_update()
+                       .filter(warehouse=warehouse, code=bin_code).first())
             if not bin_obj:
                 if create_bin:
                     bin_obj = StorageBin.objects.create(
@@ -400,12 +437,9 @@ def put_away_view(request, pk: int):
                     messages.error(request, f"Ячейка {bin_code} не найдена.")
                     return redirect("put_away", pk=warehouse.pk)
 
-        # консолидация остатков (одна строка на (warehouse, product, bin))
-        qs = (
-            Inventory.objects.select_for_update()
-            .filter(warehouse=warehouse, product=product, bin=bin_obj)
-            .order_by("pk")
-        )
+        qs = (Inventory.objects.select_for_update()
+              .filter(warehouse=warehouse, product=product, bin=bin_obj)
+              .order_by("pk"))
 
         inv = qs.first()
         if inv:
@@ -418,10 +452,7 @@ def put_away_view(request, pk: int):
                 warehouse=warehouse, product=product, bin=bin_obj, quantity=qty
             )
 
-        # лог движения
         const = movement_const(StockMovement)
-
-        # безопасно определяем имена полей
         field_names = {f.name for f in StockMovement._meta.get_fields() if hasattr(f, "attname")}
         mtype_field = "movement_type" if "movement_type" in field_names else ("type" if "type" in field_names else None)
         actor_field = "actor" if "actor" in field_names else ("performed_by" if "performed_by" in field_names else None)
@@ -433,7 +464,6 @@ def put_away_view(request, pk: int):
             product=product,
             quantity=qty,
         )
-
         if mtype_field:
             kwargs[mtype_field] = const["IN"]
         if actor_field:
@@ -444,8 +474,8 @@ def put_away_view(request, pk: int):
         messages.success(request, "Товар размещён.")
         return redirect("warehouse_detail", pk=warehouse.pk)
 
-    # GET — форма
     return render(request, "core/put_away.html", {"warehouse": warehouse})
+
 
 @login_required
 @group_required("warehouse", "director")
@@ -460,7 +490,6 @@ def move_view(request, pk: int):
         qty_str   = (request.POST.get("qty")      or "").strip()
         create_to = request.POST.get("create_to", "") == "on"
 
-        # количество
         try:
             qty = Decimal(qty_str.replace(",", "."))
         except Exception:
@@ -470,18 +499,15 @@ def move_view(request, pk: int):
             messages.error(request, "Количество должно быть > 0.")
             return redirect("move_between_bins", pk=warehouse.pk)
 
-        # товар под блокировкой
         try:
             product = Product.objects.select_for_update().get(barcode=barcode)
         except Product.DoesNotExist:
             messages.error(request, f"Товар со штрихкодом {barcode} не найден.")
             return redirect("move_between_bins", pk=warehouse.pk)
 
-        # ячейки
         from_bin = None
         if from_code:
-            from_bin = (StorageBin.objects
-                        .select_for_update()
+            from_bin = (StorageBin.objects.select_for_update()
                         .filter(warehouse=warehouse, code=from_code).first())
             if not from_bin:
                 messages.error(request, f"Ячейка-источник «{from_code}» не найдена.")
@@ -489,8 +515,7 @@ def move_view(request, pk: int):
 
         to_bin = None
         if to_code:
-            to_bin = (StorageBin.objects
-                      .select_for_update()
+            to_bin = (StorageBin.objects.select_for_update()
                       .filter(warehouse=warehouse, code=to_code).first())
             if not to_bin:
                 if create_to:
@@ -505,7 +530,6 @@ def move_view(request, pk: int):
             messages.error(request, "Источник и получатель совпадают.")
             return redirect("move_between_bins", pk=warehouse.pk)
 
-        # уменьшить в источнике (консолидация дублей)
         src_qs = (Inventory.objects.select_for_update()
                   .filter(warehouse=warehouse, product=product, bin=from_bin)
                   .order_by("pk"))
@@ -531,7 +555,6 @@ def move_view(request, pk: int):
         else:
             src.save(update_fields=["quantity", "updated_at"])
 
-        # добавить в получателе (консолидация дублей)
         dst_qs = (Inventory.objects.select_for_update()
                   .filter(warehouse=warehouse, product=product, bin=to_bin)
                   .order_by("pk"))
@@ -550,7 +573,6 @@ def move_view(request, pk: int):
                 warehouse=warehouse, product=product, bin=to_bin, quantity=qty
             )
 
-        # лог движения (универсальный fallback)
         MT = getattr(StockMovement, "MovementType", None) or getattr(StockMovement, "Type", None)
         MOV_MOVE = getattr(MT, "MOVE", None) or "MOVE"
 
@@ -564,12 +586,12 @@ def move_view(request, pk: int):
         messages.success(request, "Перемещение выполнено.")
         return redirect("warehouse_detail", pk=warehouse.pk)
 
-    # GET — показать форму
     bins = StorageBin.objects.filter(warehouse=warehouse, is_active=True).order_by("code")
     return render(request, "core/move.html", {"warehouse": warehouse, "bins": bins})
 
+
 @login_required
-@group_required("director")  # или: @permission_required("core.add_warehouse", raise_exception=True)
+@group_required("director")
 def warehouse_create(request):
     if request.method == "POST":
         form = WarehouseCreateForm(request.POST)
@@ -581,23 +603,18 @@ def warehouse_create(request):
         form = WarehouseCreateForm(initial={"is_active": True})
     return render(request, "core/warehouse_create.html", {"form": form})
 
+
 @login_required
 @group_required("director")
 def warehouse_delete(request, pk: int):
-    """
-    Жёсткое удаление склада. FK в моделях настроены на CASCADE,
-    так что удалятся ячейки/остатки/движения, связанные со складом.
-    """
     wh = get_object_or_404(Warehouse, pk=pk)
-
     if request.method == "POST":
         name = f"{wh.code} — {wh.name}"
         wh.delete()
         messages.success(request, f"Склад «{name}» удалён.")
         return redirect("warehouse_dashboard")
-
-    # GET -> страница подтверждения
     return render(request, "core/warehouse_confirm_delete.html", {"warehouse": wh})
+
 
 @login_required
 @group_required("warehouse", "director")
@@ -608,7 +625,6 @@ def inventory_edit(request, warehouse_pk: int, pk: int):
 
     from .forms import InventoryEditForm
     if request.method == "POST":
-        # явная кнопка удаления
         if "delete" in request.POST:
             inv.delete()
             messages.success(request, "Позиция удалена.")
@@ -619,16 +635,13 @@ def inventory_edit(request, warehouse_pk: int, pk: int):
             new_bin = form.cleaned_data["bin"]
             new_qty = form.cleaned_data["quantity"]
 
-            # 0 -> удалить
             if new_qty == 0:
                 inv.delete()
                 messages.success(request, "Позиция удалена (кол-во = 0).")
                 return redirect("warehouse_detail", pk=warehouse.pk)
 
-            # смена ячейки или qty
             moved_bin = (new_bin != inv.bin)
             if moved_bin:
-                # если уже есть позиция для того же товара в новой ячейке — объединим
                 dup = Inventory.objects.select_for_update().filter(
                     warehouse=warehouse, bin=new_bin, product=inv.product
                 ).exclude(pk=inv.pk).first()
@@ -660,40 +673,71 @@ def inventory_edit(request, warehouse_pk: int, pk: int):
         "form": form,
     })
 
+
+# --------------------- CRUD ячеек ---------------------
+
 @login_required
 @group_required("warehouse", "director")
 def bin_create(request, pk: int):
     warehouse = get_object_or_404(Warehouse, pk=pk)
+
     if request.method == "POST":
-        form = StorageBinForm(request.POST, warehouse=warehouse)
+        form = StorageBinForm(request.POST)  # БЕЗ warehouse=...
         if form.is_valid():
-            StorageBin.objects.create(
-                warehouse=warehouse,
-                code=form.cleaned_data["code"],
-                description=form.cleaned_data.get("description") or "",
-                is_active=form.cleaned_data.get("is_active", True),
-            )
+            obj = form.save(commit=False)
+            obj.warehouse = warehouse
+            try:
+                obj.save()
+            except IntegrityError:
+                messages.error(request, "Ячейка с таким кодом уже существует на этом складе.")
+                return render(request, "core/bin_form.html", {
+                    "warehouse": warehouse,
+                    "form": form,
+                    "title": "Новая ячейка",
+                })
             messages.success(request, "Ячейка создана.")
             return redirect("warehouse_detail", pk=warehouse.pk)
     else:
-        form = StorageBinForm(warehouse=warehouse, initial={"is_active": True})
-    return render(request, "core/bin_form.html", {"warehouse": warehouse, "form": form, "title": "Новая ячейка"})
+        form = StorageBinForm(initial={"is_active": True})  # БЕЗ warehouse=...
+
+    return render(request, "core/bin_form.html", {
+        "warehouse": warehouse,
+        "form": form,
+        "title": "Новая ячейка",
+    })
+
 
 @login_required
 @group_required("warehouse", "director")
 def bin_edit(request, warehouse_pk: int, pk: int):
     warehouse = get_object_or_404(Warehouse, pk=warehouse_pk)
     bin_obj = get_object_or_404(StorageBin, pk=pk, warehouse=warehouse)
+
     if request.method == "POST":
-        form = StorageBinForm(request.POST, instance=bin_obj, warehouse=warehouse)
+        form = StorageBinForm(request.POST, instance=bin_obj)  # БЕЗ warehouse=...
         if form.is_valid():
-            form.instance.warehouse = warehouse
-            form.save()
+            obj = form.save(commit=False)
+            obj.warehouse = warehouse  # на всякий случай закрепим склад
+            try:
+                obj.save()
+            except IntegrityError:
+                messages.error(request, "Ячейка с таким кодом уже существует на этом складе.")
+                return render(request, "core/bin_form.html", {
+                    "warehouse": warehouse,
+                    "form": form,
+                    "title": f"Ячейка {bin_obj.code}",
+                })
             messages.success(request, "Ячейка сохранена.")
             return redirect("warehouse_detail", pk=warehouse.pk)
     else:
-        form = StorageBinForm(instance=bin_obj, warehouse=warehouse)
-    return render(request, "core/bin_form.html", {"warehouse": warehouse, "form": form, "title": f"Ячейка {bin_obj.code}"})
+        form = StorageBinForm(instance=bin_obj)  # БЕЗ warehouse=...
+
+    return render(request, "core/bin_form.html", {
+        "warehouse": warehouse,
+        "form": form,
+        "title": f"Ячейка {bin_obj.code}",
+    })
+
 
 @login_required
 @group_required("warehouse", "director")
@@ -708,6 +752,6 @@ def bin_delete(request, warehouse_pk: int, pk: int):
         messages.error(request, "Нельзя удалить ячейку: в ней есть остатки.")
         return redirect("warehouse_detail", pk=warehouse.pk)
 
-    bin_obj.delete()  # жёсткое удаление
+    bin_obj.delete()
     messages.success(request, "Ячейка удалена.")
     return redirect("warehouse_detail", pk=warehouse.pk)
