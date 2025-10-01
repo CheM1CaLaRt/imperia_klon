@@ -32,10 +32,16 @@ urlpatterns = [
     path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/",
          views.inventory_edit, name="inventory_edit"),
 
+    path("products/<int:pk>/card/", views.product_card, name="product_card"),
+    path("ajax/product-by-barcode/", views.product_by_barcode, name="product_by_barcode"),
+
 # Ячейки
     path("warehouse/<int:pk>/bin/new/", views.bin_create, name="bin_create"),
     path("warehouse/<int:warehouse_pk>/bin/<int:pk>/edit/", views.bin_edit, name="bin_edit"),
-    path("warehouse/<int:warehouse_pk>/bin/<int:pk>/delete/", views.bin_delete, name="bin_delete"),
+    path("warehouse/<int:warehouse_pk>/bin/<int:bin_pk>/delete/",
+                      views.bin_delete,
+                      name="bin_delete",
+                  ),
 
 # Редактирование позиции остатка
     path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/edit/", views.inventory_edit, name="inventory_edit"),

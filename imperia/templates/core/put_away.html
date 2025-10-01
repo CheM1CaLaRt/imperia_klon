@@ -1,34 +1,112 @@
-{# templates/core/put_away.html #}
 {% extends "base.html" %}
-{% block title %}Размещение товара{% endblock %}
+{% block title %}Размещение товара (put-away){% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">Размещение товара (put-away)</h1>
+<h1 class="text-3xl font-semibold mb-6">Размещение товара (put-away)</h1>
 
-<form method="post" class="max-w-xl space-y-4">
-  {% csrf_token %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+  {# Левая колонка — форма #}
+  <form method="post" class="space-y-4 rounded-2xl bg-white/60 p-6 ring-1 ring-gray-200">
+    {% csrf_token %}
 
-  <div>
-    <label class="block text-sm mb-1">Ячейка:</label>
-    <input type="text" name="bin_code" class="w-full" placeholder="например, A1">
-    <div class="text-xs text-gray-500">Можно оставить пустым</div>
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Ячейка:</label>
+      <input type="text" name="bin" class="input w-full" placeholder="например, A1">
+      <div class="text-xs text-gray-500 mt-1">Можно оставить пустым</div>
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Штрихкод:</label>
+      <input
+        type="search"
+        name="barcode"
+        class="input w-full font-mono"
+        autocomplete="off"
+        placeholder=""
+        hx-get="{% url 'product_by_barcode' %}"
+        hx-target="#putaway-preview"
+        hx-trigger="input delay:250ms, search from:input"
+        hx-indicator="#putaway-indicator"
+      >
+      <div id="putaway-indicator" class="text-xs text-gray-400 mt-1 hidden">Загрузка…</div>
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Кол-во:</label>
+      <input id="qty-input" type="number" step="any" name="qty" class="input w-full">
+    </div>
+
+    <label class="inline-flex items-center gap-2">
+      <input type="checkbox" name="create_bin" checked>
+      <span>Создавать ячейку, если нет</span>
+    </label>
+
+    <button class="btn btn-primary w-full">Добавить</button>
+  </form>
+
+  {# Правая колонка — превью товара #}
+  <div id="putaway-preview" class="rounded-2xl bg-white/60 p-6 ring-1 ring-gray-200">
+    <div class="text-sm text-gray-500">Введите штрихкод — здесь появится карточка товара.</div>
   </div>
+</div>
 
-  <div>
-    <label class="block text-sm mb-1">Штрихкод:</label>
-    <input type="text" name="barcode" class="w-full" required>
-  </div>
+{# Индикатор HTMX + автофокус qty при найденном товаре + мгновенная очистка превью #}
+<script>
+  (function () {
+    const indicator = document.getElementById('putaway-indicator');
+    const preview   = document.getElementById('putaway-preview');
+    const bc        = document.querySelector('input[name="barcode"]');
+    const placeholderHTML = '<div class="text-sm text-gray-500">Введите штрихкод — здесь появится карточка товара.</div>';
 
-  <div>
-    <label class="block text-sm mb-1">Кол-во:</label>
-    <input type="number" name="qty" class="w-full" inputmode="numeric" step="1" min="1" required>
-  </div>
+    document.addEventListener('htmx:beforeRequest', (e) => {
+      if (e.detail.elt?.name === 'barcode') indicator?.classList.remove('hidden');
+    });
+    document.addEventListener('htmx:afterOnLoad', (e) => {
+      if (e.detail.elt?.name === 'barcode') {
+        indicator?.classList.add('hidden');
+        const found = preview.querySelector('[data-product-found="1"]');
+        if (found) document.getElementById('qty-input')?.focus();
+      }
+    });
 
-  <div class="flex items-center gap-2">
-    <input type="checkbox" name="create_bin" id="create_bin" checked>
-    <label for="create_bin">Создавать ячейку, если нет</label>
-  </div>
+    // мгновенно возвращаем плейсхолдер, если поле стало пустым
+    function maybeClearPreview() {
+      if (bc && preview && bc.value.trim() === '') {
+        preview.innerHTML = placeholderHTML;
+      }
+    }
+    bc?.addEventListener('input',  maybeClearPreview);
+    bc?.addEventListener('search', maybeClearPreview);
+  })();
+</script>
 
-  <button type="submit" class="btn btn-primary w-full">Добавить</button>
-</form>
+{# Lightbox для увеличенного фото #}
+<dialog id="img-zoom-modal" class="rounded-2xl p-0 w-[min(92vw,840px)] shadow-2xl backdrop:bg-black/60">
+  <form method="dialog" class="m-0">
+    <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+      <div class="text-sm text-gray-500">Просмотр изображения</div>
+      <button class="rounded-md px-2 py-1 text-sm hover:bg-gray-100">Закрыть</button>
+    </div>
+    <div class="p-4 bg-white flex items-center justify-center">
+      <img id="img-zoom-target" src="" alt="Фото товара" class="max-w-full max-h-[70vh] object-contain">
+    </div>
+  </form>
+</dialog>
+<script>
+  (function () {
+    const dlg = document.getElementById('img-zoom-modal');
+    const img = document.getElementById('img-zoom-target');
+    window.__zoomPreview = function (src) {
+      if (!src) return;
+      img.src = src;
+      dlg.showModal();
+    };
+    dlg?.addEventListener('click', (e) => {
+      const r = dlg.getBoundingClientRect();
+      const inside = r.top <= e.clientY && e.clientY <= r.bottom && r.left <= e.clientX && e.clientX <= r.right;
+      if (!inside) dlg.close();
+    });
+    dlg?.addEventListener('close', () => { img.src = ''; });
+  })();
+</script>
 {% endblock %}

@@ -222,5 +222,49 @@
   </script>
 
   {% block extra_js %}{% endblock %}
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+{# Flash messages #}
+{% if messages %}
+  <div id="flash-root" class="fixed top-4 right-4 z-[1000] space-y-2 w-[min(92vw,420px)]">
+    {% for message in messages %}
+      <div
+        class="flash-item rounded-xl px-4 py-3 shadow ring-1 text-sm flex items-start gap-3
+               {% if message.tags == 'error' %} bg-red-50 text-red-800 ring-red-200
+               {% elif message.tags == 'warning' %} bg-amber-50 text-amber-900 ring-amber-200
+               {% elif message.tags == 'success' %} bg-green-50 text-green-800 ring-green-200
+               {% elif message.tags == 'info' %} bg-blue-50 text-blue-800 ring-blue-200
+               {% else %} bg-gray-50 text-gray-800 ring-gray-200 {% endif %}">
+        <div class="min-w-0 break-words">{{ message }}</div>
+        <button type="button" class="ml-auto shrink-0 rounded-md px-2 py-1 text-xs opacity-70 hover:opacity-100"
+                onclick="this.closest('.flash-item')?.remove()">Закрыть</button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<script>
+  // Автоскрытие через 5 секунд
+  (function () {
+    const items = document.querySelectorAll('#flash-root .flash-item');
+    items.forEach((el, idx) => {
+      // лёгкая ступенчатая задержка, чтобы не исчезали все одновременно
+      const delay = 5000 + idx * 200;
+      setTimeout(() => {
+        el.style.transition = 'opacity .25s, transform .25s';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-6px)';
+        setTimeout(() => el.remove(), 300);
+      }, delay);
+    });
+
+    // Закрытие всех по Esc
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('#flash-root .flash-item').forEach(el => el.remove());
+      }
+    });
+  })();
+</script>
 </body>
 </html>

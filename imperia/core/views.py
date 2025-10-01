@@ -1,5 +1,6 @@
 # core/views.py
 from decimal import Decimal
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db import IntegrityError
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -742,16 +743,130 @@ def bin_edit(request, warehouse_pk: int, pk: int):
 @login_required
 @group_required("warehouse", "director")
 @transaction.atomic
-def bin_delete(request, warehouse_pk: int, pk: int):
-    warehouse = get_object_or_404(Warehouse, pk=warehouse_pk)
-    bin_obj = get_object_or_404(StorageBin.objects.select_for_update(), pk=pk, warehouse=warehouse)
+def bin_delete(request, warehouse_pk: int, bin_pk: int):
+    if request.method != "POST":
+        # на всякий случай, не даём удалять через GET
+        return redirect("warehouse_detail", warehouse_pk)
 
-    # запрет удалять, если есть остатки
-    has_stock = Inventory.objects.filter(warehouse=warehouse, bin=bin_obj, quantity__gt=0).exists()
-    if has_stock:
-        messages.error(request, "Нельзя удалить ячейку: в ней есть остатки.")
-        return redirect("warehouse_detail", pk=warehouse.pk)
+    # находим связанную ячейку строго внутри склада
+    bin_obj = get_object_or_404(
+        StorageBin,
+        pk=bin_pk,
+        warehouse_id=warehouse_pk,
+    )
 
+    # есть ли в ячейке товар?
+    has_items = Inventory.objects.filter(
+        bin=bin_obj,
+        quantity__gt=0
+    ).exists()
+
+    if has_items:
+        messages.error(request, f"Нельзя удалить ячейку {bin_obj.code}: в ней есть товар.")
+        return redirect("warehouse_detail", warehouse_pk)
+
+    code = bin_obj.code
     bin_obj.delete()
-    messages.success(request, "Ячейка удалена.")
-    return redirect("warehouse_detail", pk=warehouse.pk)
+    messages.success(request, f"Ячейка {code} удалена.")
+    return redirect("warehouse_detail", warehouse_pk)
+
+def product_card(request, pk: int):
+    product = get_object_or_404(Product, pk=pk)
+
+    # ---- ГАЛЕРЕЯ (list[str]) ----
+    gallery = []
+    main = getattr(product, "image_url", None)
+    if main:
+        gallery.append(main)
+
+    if hasattr(product, "images") and product.images is not None:
+        # поддержим related manager и обычный список
+        src = product.images.all() if hasattr(product.images, "all") else product.images
+        for img in src:
+            url = getattr(img, "url", None) or getattr(img, "image_url", None) or str(img)
+            if url and url not in gallery:
+                gallery.append(url)
+
+    # ---- АТРИБУТЫ (list[tuple[str, str]]) ----
+    attrs = []
+    raw = getattr(product, "attributes", None)
+    if isinstance(raw, dict):
+        attrs = [(str(k), str(v)) for k, v in raw.items() if v not in (None, "")]
+    elif isinstance(raw, (list, tuple)):
+        for item in raw:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                k, v = item
+                if v not in (None, ""):
+                    attrs.append((str(k), str(v)))
+
+    # ---- СЕРТИФИКАТЫ (list[{"name","url"}]) ----
+    certificates = []
+    if hasattr(product, "certificates") and product.certificates is not None:
+        src = product.certificates.all() if hasattr(product.certificates, "all") else product.certificates
+        for c in src:
+            certificates.append({
+                "name": getattr(c, "name", None) or str(c),
+                "url": getattr(c, "url", None),
+            })
+
+    context = {
+        "product": product,
+        "gallery": gallery,
+        "attrs": attrs,
+        "certificates": certificates,
+        "price_min": getattr(product, "price_min", None) or getattr(product, "price", None),
+    }
+    return render(request, "core/partials/product_card.html", context)
+
+def _pick_product_image(request, product):
+    """Вернёт нормализованный URL главной картинки или None."""
+    candidates = []
+
+    # 1) Явное поле-строка
+    url = getattr(product, "image_url", None)
+    if url:
+        candidates.append(url)
+
+    # 2) OneToOne/FileField
+    f = getattr(product, "image", None)
+    if f:
+        try:
+            candidates.append(f.url)  # у FileField есть .url
+        except Exception:
+            pass
+
+    # 3) Related images (ManyToMany/ForeignKey related_name='images')
+    imgs = getattr(product, "images", None)
+    if imgs is not None:
+        src = imgs.all() if hasattr(imgs, "all") else imgs
+        for img in list(src)[:6]:
+            u = getattr(img, "url", None) or getattr(img, "image_url", None) or getattr(img, "file_url", None)
+            if u:
+                candidates.append(u)
+
+    # Нормализация: //host/... -> https://host/..., /media/... -> абсолютный
+    def normalize(u: str) -> str | None:
+        u = u.strip()
+        if not u:
+            return None
+        if u.startswith("//"):
+            return "https:" + u
+        if u.startswith("/"):
+            return request.build_absolute_uri(u)
+        return u
+
+    for cand in candidates:
+        u = normalize(str(cand))
+        if not u:
+            continue
+        # пропускаем явно не-URL (например, base64/ data: можно отдать как есть)
+        if u.startswith("http://") or u.startswith("https://") or u.startswith("data:"):
+            return u
+    return None
+
+def product_by_barcode(request):
+    barcode = (request.GET.get("barcode") or "").strip()
+    product = Product.objects.filter(barcode=barcode).first() if barcode else None
+    thumb_url = _pick_product_image(request, product) if product else None
+    ctx = {"barcode": barcode, "product": product, "thumb_url": thumb_url}
+    return render(request, "core/partials/putaway_product_preview.html", ctx)

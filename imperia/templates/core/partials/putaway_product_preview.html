@@ -1,0 +1,47 @@
+{% if product %}
+  <div data-product-found="1" class="flex gap-4 items-start">
+    <button
+      type="button"
+      class="h-28 w-28 rounded-xl ring-1 ring-gray-200 overflow-hidden bg-white flex items-center justify-center"
+      data-zoom-src="{{ thumb_url }}"
+      title="Открыть фото"
+      onclick="window.__zoomPreview?.(this.dataset.zoomSrc)"
+    >
+      {% if thumb_url %}
+        <img
+          src="{{ thumb_url }}"
+          alt="{{ product.name }}"
+          class="max-h-full max-w-full object-contain"
+          loading="lazy"
+          referrerpolicy="no-referrer"
+          crossorigin="anonymous"
+          onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'нет фото',className:'text-gray-400 text-xs'}));"
+        >
+      {% else %}
+        <span class="text-gray-400 text-xs">нет фото</span>
+      {% endif %}
+    </button>
+
+    <div class="min-w-0 space-y-1">
+      <div class="text-xs text-gray-500">
+        Штрихкод: <span class="font-mono">{{ product.barcode }}</span>
+        {% if product.brand %} • {{ product.brand }}{% endif %}
+      </div>
+      <div class="text-lg font-medium leading-snug">{{ product.name }}</div>
+      {% if product.price_min %}
+        <div class="text-sm text-gray-600">Цена от: <b>{{ product.price_min|floatformat:2 }}</b> ₽</div>
+      {% endif %}
+    </div>
+  </div>
+{% elif barcode %}
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+    <div class="text-sm text-amber-900">
+      Товар со штрихкодом <span class="font-mono">{{ barcode }}</span> не найден.
+    </div>
+    <div class="mt-3">
+      <button type="button" class="btn">Создать товар с этим штрихкодом</button>
+    </div>
+  </div>
+{% else %}
+  <div class="text-sm text-gray-500">Введите штрихкод — здесь появится карточка товара.</div>
+{% endif %}
