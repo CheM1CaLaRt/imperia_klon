@@ -13,7 +13,7 @@ from django.db.models import (
 )
 from django.db.models.expressions import OrderBy
 from django.db.models.functions import Coalesce
-from django.http import Http404, HttpRequest, JsonResponse
+from django.http import Http404, HttpRequest, JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -24,6 +24,19 @@ from .models import Profile, Warehouse, StorageBin, Inventory, Product, StockMov
 from .permissions import warehouse_or_director_required
 from .utils.auth import group_required   # <-- единственный нужный импорт
 from .widgets import AvatarInput
+from django.views.decorators.http import require_http_methods
+from .forms import ProductInlineCreateForm
+from django.db import transaction, IntegrityError
+from django.forms.utils import ErrorList
+import json, time
+from django.views.decorators.http import require_http_methods
+from django.db import transaction, IntegrityError
+from django.shortcuts import render, get_object_or_404
+from .models import Product, ProductImage, ProductPrice  # Supplier можно получать через FK
+from typing import Iterable
+
+
+
 
 
 # ---------------------------------------------------------------------
@@ -770,6 +783,9 @@ def bin_delete(request, warehouse_pk: int, bin_pk: int):
     messages.success(request, f"Ячейка {code} удалена.")
     return redirect("warehouse_detail", warehouse_pk)
 
+
+# --------------------- CRUD продуктов ---------------------
+
 def product_card(request, pk: int):
     product = get_object_or_404(Product, pk=pk)
 
@@ -818,55 +834,239 @@ def product_card(request, pk: int):
     }
     return render(request, "core/partials/product_card.html", context)
 
+# Что показать как картинку — из ProductImage
 def _pick_product_image(request, product):
-    """Вернёт нормализованный URL главной картинки или None."""
-    candidates = []
+    if not product:
+        return None
+    return (ProductImage.objects
+            .filter(product=product)
+            .order_by("position", "id")
+            .values_list("url", flat=True)
+            .first())
 
-    # 1) Явное поле-строка
-    url = getattr(product, "image_url", None)
-    if url:
-        candidates.append(url)
+def _price_for(product, price_types: Iterable[str] | str):
+    """Вернёт значение цены для первого найденного типа из набора алиасов."""
+    if isinstance(price_types, str):
+        price_types = [price_types]
+    return (ProductPrice.objects
+            .filter(product=product, price_type__in=list(price_types))
+            .values_list("value", flat=True)
+            .first())
 
-    # 2) OneToOne/FileField
-    f = getattr(product, "image", None)
-    if f:
-        try:
-            candidates.append(f.url)  # у FileField есть .url
-        except Exception:
-            pass
+def _price_min(product, price_type=None):
+    qs = ProductPrice.objects.filter(product=product)
+    if price_type:
+        qs = qs.filter(price_type=price_type)
+    return qs.order_by("value").values_list("value", flat=True).first()
 
-    # 3) Related images (ManyToMany/ForeignKey related_name='images')
-    imgs = getattr(product, "images", None)
-    if imgs is not None:
-        src = imgs.all() if hasattr(imgs, "all") else imgs
-        for img in list(src)[:6]:
-            u = getattr(img, "url", None) or getattr(img, "image_url", None) or getattr(img, "file_url", None)
-            if u:
-                candidates.append(u)
+def _first_attr(obj, names, default=""):
+    for n in names:
+        if hasattr(obj, n):
+            v = getattr(obj, n)
+            if v not in (None, ""):
+                if n == "supplier" and hasattr(v, "name"):
+                    return v.name
+                return v
+    return default
 
-    # Нормализация: //host/... -> https://host/..., /media/... -> абсолютный
-    def normalize(u: str) -> str | None:
-        u = u.strip()
-        if not u:
-            return None
-        if u.startswith("//"):
-            return "https:" + u
-        if u.startswith("/"):
-            return request.build_absolute_uri(u)
-        return u
-
-    for cand in candidates:
-        u = normalize(str(cand))
-        if not u:
-            continue
-        # пропускаем явно не-URL (например, base64/ data: можно отдать как есть)
-        if u.startswith("http://") or u.startswith("https://") or u.startswith("data:"):
-            return u
-    return None
-
+@require_http_methods(["GET"])
 def product_by_barcode(request):
     barcode = (request.GET.get("barcode") or "").strip()
     product = Product.objects.filter(barcode=barcode).first() if barcode else None
-    thumb_url = _pick_product_image(request, product) if product else None
-    ctx = {"barcode": barcode, "product": product, "thumb_url": thumb_url}
+    ctx = {
+        "barcode": barcode,
+        "product": product,
+        "thumb_url": _pick_product_image(request, product) if product else None,
+        "price_min": _price_min(product) if product else None,
+    }
     return render(request, "core/partials/putaway_product_preview.html", ctx)
+
+
+@require_http_methods(["GET", "POST"])
+@transaction.atomic
+def product_create_inline(request):
+    initial_barcode = (request.GET.get("barcode") or request.POST.get("barcode") or "").strip()
+
+    if request.method == "GET":
+        form = ProductInlineCreateForm(initial={"barcode": initial_barcode})
+        return render(request, "core/partials/product_create_inline.html", {"form": form})
+
+    form = ProductInlineCreateForm(request.POST)
+    if not form.is_valid():
+        return render(request, "core/partials/product_create_inline.html", {"form": form})
+
+    cd = form.cleaned_data
+
+    # --- supplier обязателен (создаём по имени из формы) ---
+    sup_field = Product._meta.get_field("supplier")
+    SupplierModel = sup_field.remote_field.model
+    supplier_obj, _ = SupplierModel.objects.get_or_create(
+        name=(cd.get("vendor") or "Без поставщика").strip() or "Без поставщика"
+    )
+
+    # --- vendor_code (NOT NULL): если не ввели — от barcode, иначе AUTO-... ---
+    vendor_code = (cd.get("vendor_code") or cd.get("barcode") or f"AUTO-{supplier_obj.code}-{int(time.time())}")[:255]
+
+    # --- создаём сам продукт ---
+    product = Product.objects.create(
+        name=(cd.get("name") or "").strip(),
+        barcode=(cd.get("barcode") or "").strip() or None,
+        brand=(cd.get("brand") or "").strip(),
+        description=cd.get("description") or "",
+        supplier=supplier_obj,
+        vendor_code=vendor_code,
+
+        manufacturer_country=cd.get("country") or "",
+        weight_kg=cd.get("weight_kg"),
+        volume_m3=cd.get("volume_m3"),
+        pkg_height_cm=cd.get("pkg_h_cm"),
+        pkg_width_cm=cd.get("pkg_w_cm"),
+        pkg_depth_cm=cd.get("pkg_d_cm"),
+        description_ext=cd.get("description_ext") or "",
+    )
+
+    # --- изображение (если указали URL) ---
+    img_url = (cd.get("image_url") or "").strip()
+    if img_url:
+        ProductImage.objects.create(product=product, url=img_url, position=1)
+
+    # --- цена типа 'contracts' (если указали) ---
+    price_val = cd.get("price_contracts")
+    if price_val is not None:  # поле присутствует в форме и не пустое
+        ProductPrice.objects.update_or_create(
+            product=product,
+            price_type="contracts",
+            defaults={"value": price_val, "currency": "RUB"},
+        )
+
+    # --- превью справа: показываем ту же 'contracts' цену ---
+    ctx = {
+        "barcode": product.barcode,
+        "product": product,
+        "thumb_url": _pick_product_image(request, product),
+        "price_min": _price_for(product, "contracts"),  # именно contracts
+    }
+    return render(request, "core/partials/putaway_product_preview.html", ctx)
+
+@require_http_methods(["GET", "POST"])
+@transaction.atomic
+def product_update_inline(request, pk: int):
+    product = get_object_or_404(Product, pk=pk)
+
+    # ---------- GET: показать форму с заполненными полями ----------
+    if request.method == "GET":
+        initial = {
+            "name": product.name,
+            "barcode": product.barcode,
+            "brand": product.brand,
+            "vendor": product.supplier.name if getattr(product, "supplier", None) else "",
+            "image_url": _pick_product_image(request, product) or "",
+            "description": product.description,
+
+            # новые поля
+            "country": product.manufacturer_country or "",
+            "weight_kg": product.weight_kg,
+            "volume_m3": product.volume_m3,
+            "pkg_h_cm": product.pkg_height_cm,
+            "pkg_w_cm": product.pkg_width_cm,
+            "pkg_d_cm": product.pkg_depth_cm,
+            "description_ext": product.description_ext or "",
+            "vendor_code": product.vendor_code or "",
+            "price_contracts": _price_for(product, ["contracts", "contract"]),  # ← вот так
+        }
+        form = ProductInlineCreateForm(initial=initial)
+        return render(request, "core/partials/product_update_inline.html", {"form": form, "product": product})
+
+    # ---------- POST: обработка сохранения (тот блок, что вы прислали) ----------
+    form = ProductInlineCreateForm(request.POST)
+    if not form.is_valid():
+        return render(request, "core/partials/product_update_inline.html",
+                      {"form": form, "product": product})
+
+    cd = form.cleaned_data
+
+    # простые поля
+    for fld in ("name", "barcode", "brand", "description"):
+        if cd.get(fld) not in (None, ""):
+            setattr(product, fld, cd[fld])
+
+    # supplier по имени vendor
+    vendor_name = (cd.get("vendor") or "").strip()
+    if vendor_name:
+        sup_field = Product._meta.get_field("supplier")
+        SupplierModel = sup_field.remote_field.model
+        supplier_obj, _ = SupplierModel.objects.get_or_create(name=vendor_name)
+        product.supplier = supplier_obj
+
+    # новые поля
+    product.manufacturer_country = cd.get("country") or product.manufacturer_country
+    if cd.get("weight_kg") is not None: product.weight_kg = cd["weight_kg"]
+    if cd.get("volume_m3") is not None: product.volume_m3 = cd["volume_m3"]
+    if cd.get("pkg_h_cm") is not None:  product.pkg_height_cm = cd["pkg_h_cm"]
+    if cd.get("pkg_w_cm") is not None:  product.pkg_width_cm = cd["pkg_w_cm"]
+    if cd.get("pkg_d_cm") is not None:  product.pkg_depth_cm = cd["pkg_d_cm"]
+    if cd.get("description_ext") not in (None, ""): product.description_ext = cd["description_ext"]
+    # Разрешим менять vendor_code, если текущий автосгенерирован
+    if cd.get("vendor_code") not in (None, ""):
+        if (product.vendor_code or "").startswith("AUTO-") or not product.vendor_code:
+            product.vendor_code = cd["vendor_code"]
+
+    product.save()
+    price_val = cd.get("price_contracts")
+    if price_val is not None:
+        existing = ProductPrice.objects.filter(
+            product=product, price_type__in=["contracts", "contract"]
+        ).first()
+        price_type = existing.price_type if existing else "contracts"
+        ProductPrice.objects.update_or_create(
+            product=product,
+            price_type=price_type,
+            defaults={"value": price_val, "currency": "RUB"},
+        )
+    else:
+        ProductPrice.objects.filter(product=product, price_type__in=["contracts", "contract"]).delete()
+
+    # добавим картинку, если ввели
+    img_url = (cd.get("image_url") or "").strip()
+    if img_url and not ProductImage.objects.filter(product=product, url=img_url).exists():
+        pos = ProductImage.objects.filter(product=product).count() + 1
+        ProductImage.objects.create(product=product, url=img_url, position=pos)
+
+    ctx = {
+        "barcode": product.barcode,
+        "product": product,
+        "thumb_url": _pick_product_image(request, product),
+        "price_min": _price_for(product, ["contracts", "contract"]),
+    }
+    return render(request, "core/partials/putaway_product_preview.html", ctx)
+
+
+@require_http_methods(["GET", "POST"])
+@transaction.atomic
+def product_delete_inline(request, pk: int):
+    """Подтверждение удаления и удаление. Блокируем, если есть остатки."""
+    product = get_object_or_404(Product, pk=pk)
+
+    # Проверка остатков
+    has_stock = False
+    if Inventory is not None:
+        try:
+            has_stock = Inventory.objects.filter(product=product).exclude(quantity__lte=0).exists()
+        except Exception:
+            # если другая схема полей — считаем, что остатки есть на всякий случай
+            has_stock = False
+
+    if request.method == "POST":
+        if has_stock:
+            # Покажем сообщение и вернёмся к превью
+            thumb_url = _pick_product_image(request, product)
+            ctx = {"barcode": product.barcode, "product": product, "thumb_url": thumb_url, "delete_error": "Нельзя удалить товар: по нему есть остатки."}
+            return render(request, "core/partials/putaway_product_preview.html", ctx)
+
+        barcode = product.barcode
+        product.delete()
+        # Отрисуем «не найдено» с кнопкой создать
+        return render(request, "core/partials/putaway_product_preview.html", {"barcode": barcode, "product": None, "thumb_url": None})
+
+    # GET — показать подтверждение
+    return render(request, "core/partials/product_delete_inline.html", {"product": product})

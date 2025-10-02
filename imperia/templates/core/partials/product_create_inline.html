@@ -1,0 +1,108 @@
+{# Новый товар (inline, HTMX) #}
+<div class="rounded-2xl ring-1 ring-gray-200 bg-white p-5">
+  <h3 class="text-lg font-semibold mb-4">Новый товар</h3>
+
+  {% if form.non_field_errors %}
+    <div class="mb-3 rounded-lg bg-red-50 text-red-800 ring-1 ring-red-200 px-3 py-2 text-sm">
+      {{ form.non_field_errors|join:", " }}
+    </div>
+  {% endif %}
+
+  <form
+    hx-post="{% url 'product_create_inline' %}"
+    hx-target="#putaway-preview"
+    hx-swap="innerHTML"
+    class="space-y-4"
+  >
+    {% csrf_token %}
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Штрихкод</label>
+      {{ form.barcode }}
+      {% if form.barcode.errors %}<div class="text-xs text-red-600 mt-1">{{ form.barcode.errors|join:", " }}</div>{% endif %}
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Название</label>
+      {{ form.name }}
+      {% if form.name.errors %}<div class="text-xs text-red-600 mt-1">{{ form.name.errors|join:", " }}</div>{% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Бренд</label>
+    {{ form.brand }}
+  </div>
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Поставщик</label>
+    {{ form.vendor }}
+  </div>
+</div>
+
+<div>
+  <label class="block text-sm text-gray-600 mb-1">Цена (contracts), ₽</label>
+  {{ form.price_contracts }}
+</div>
+
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">URL изображения</label>
+      {{ form.image_url }}
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Описание</label>
+      {{ form.description }}
+    </div>
+
+    {# --- расширенные поля, как в "Изменить" --- #}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Страна</label>
+        {{ form.country }}
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Вес, кг</label>
+        {{ form.weight_kg }}
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Объём, м³</label>
+        {{ form.volume_m3 }}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Высота, см</label>
+        {{ form.pkg_h_cm }}
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Ширина, см</label>
+        {{ form.pkg_w_cm }}
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">Глубина, см</label>
+        {{ form.pkg_d_cm }}
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Расширенное описание</label>
+      {{ form.description_ext }}
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Артикул поставщика</label>
+      {{ form.vendor_code }}
+    </div>
+
+    <div class="flex gap-2">
+      <button class="btn btn-primary" type="submit">Сохранить</button>
+      <button class="btn btn-light" type="button"
+              hx-get="{% url 'product_by_barcode' %}?barcode={{ form.barcode.value|default_if_none:''|urlencode }}"
+              hx-target="#putaway-preview" hx-swap="innerHTML">
+        Отмена
+      </button>
+    </div>
+  </form>
+</div>

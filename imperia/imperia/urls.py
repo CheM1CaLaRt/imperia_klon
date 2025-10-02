@@ -34,6 +34,9 @@ urlpatterns = [
 
     path("products/<int:pk>/card/", views.product_card, name="product_card"),
     path("ajax/product-by-barcode/", views.product_by_barcode, name="product_by_barcode"),
+    path("ajax/product-create-inline/", views.product_create_inline, name="product_create_inline"),
+    path("ajax/product/<int:pk>/edit/", views.product_update_inline, name="product_update_inline"),
+    path("ajax/product/<int:pk>/delete/", views.product_delete_inline, name="product_delete_inline"),
 
 # Ячейки
     path("warehouse/<int:pk>/bin/new/", views.bin_create, name="bin_create"),

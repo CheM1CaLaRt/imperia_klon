@@ -204,3 +204,42 @@ class StorageBinForm(forms.ModelForm):
             "code": forms.TextInput(attrs={"class": "form-input", "placeholder": "Код ячейки"}),
             "description": forms.TextInput(attrs={"class": "form-input", "placeholder": "Описание (необязательно)"}),
         }
+
+class ProductInlineCreateForm(forms.Form):
+    name = forms.CharField(label="Название", max_length=512,
+                           widget=forms.TextInput(attrs={"class": "input w-full"}))
+    barcode = forms.CharField(label="Штрихкод", max_length=128, required=False,
+                              widget=forms.TextInput(attrs={"class": "input w-full font-mono"}))
+    brand = forms.CharField(label="Бренд", max_length=255, required=False,
+                            widget=forms.TextInput(attrs={"class": "input w-full"}))
+    vendor = forms.CharField(label="Поставщик", max_length=255, required=False,
+                             widget=forms.TextInput(attrs={"class": "input w-full"}))
+    image_url = forms.URLField(label="URL изображения", required=False,
+                               widget=forms.URLInput(attrs={"class": "input w-full", "placeholder": "https://..."}))
+    description = forms.CharField(label="Описание", required=False,
+                                  widget=forms.Textarea(attrs={"class": "input w-full", "rows": 5}))
+
+    # --- новые удобные поля (вместо JSON) ---
+    country = forms.CharField(label="Страна", max_length=255, required=False,
+                              widget=forms.TextInput(attrs={"class": "input w-full"}))
+    weight_kg = forms.DecimalField(label="Вес, кг", required=False, decimal_places=3, max_digits=12,
+                                   widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.001"}))
+    volume_m3 = forms.DecimalField(label="Объём, м³", required=False, decimal_places=6, max_digits=12,
+                                   widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.000001"}))
+    pkg_h_cm = forms.DecimalField(label="Высота, см", required=False, decimal_places=2, max_digits=12,
+                                  widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.01"}))
+    pkg_w_cm = forms.DecimalField(label="Ширина, см", required=False, decimal_places=2, max_digits=12,
+                                  widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.01"}))
+    pkg_d_cm = forms.DecimalField(label="Глубина, см", required=False, decimal_places=2, max_digits=12,
+                                  widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.01"}))
+    description_ext = forms.CharField(label="Расширенное описание", required=False,
+                                      widget=forms.Textarea(attrs={"class": "input w-full", "rows": 6}))
+    vendor_code = forms.CharField(label="Артикул поставщика", required=False, max_length=255,
+                                  widget=forms.TextInput(attrs={"class": "input w-full font-mono"}))
+    price_contracts = forms.DecimalField(
+        label="Цена (contracts), ₽",
+        required=False,
+        decimal_places=2,
+        max_digits=12,
+        widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.01"})
+    )
