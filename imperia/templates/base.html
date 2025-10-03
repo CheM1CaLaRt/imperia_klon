@@ -1,4 +1,5 @@
 {% load access %}
+{% load static %}
 <!doctype html>
 <html lang="ru">
 <head>
@@ -149,9 +150,9 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div style="display:flex;align-items:center;gap:8px">
-        <div class="brand">
-          <a href="{% url 'post_login_router' %}">Imperia</a>
-        </div>
+        <a href="{% url 'post_login_router' %}" class="brand" aria-label="На главную">
+         <img src="{% static 'img/log.png' %}" alt="Imperia" width="50" height="50">
+        </a>
 
         <!-- NAV: Главная / Товары -->
         {% with current=request.resolver_match.url_name %}

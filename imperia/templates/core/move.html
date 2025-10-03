@@ -32,7 +32,10 @@
     </label>
   </div>
 
-  <button class="btn btn-primary mt-4">Переместить</button>
+  <div class="flex items-center gap-3 mt-4">
+  <button class="btn btn-primary" type="submit">Переместить</button>
+  <a class="btn btn-light" href="{% url 'warehouse_detail' warehouse.pk %}">Назад</a>
+</div>
 </form>
 
 {% endblock %}

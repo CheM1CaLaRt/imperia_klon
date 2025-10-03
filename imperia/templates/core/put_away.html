@@ -41,7 +41,10 @@
       <span>Создавать ячейку, если нет</span>
     </label>
 
-    <button class="btn btn-primary w-full">Добавить</button>
+    <div class="flex items-center gap-3">
+   <button class="btn btn-primary" type="submit">Добавить</button>
+    <a class="btn btn-light" href="{% url 'warehouse_detail' warehouse.pk %}">Назад</a>
+    </div>
   </form>
 
   {# Правая колонка — превью товара #}
@@ -107,6 +110,36 @@
       if (!inside) dlg.close();
     });
     dlg?.addEventListener('close', () => { img.src = ''; });
+  })();
+</script>
+<script>
+  (function () {
+    const indicator = document.getElementById('putaway-indicator');
+    const preview   = document.getElementById('putaway-preview');
+    const bc        = document.querySelector('input[name="barcode"]');
+    const qty       = document.getElementById('qty-input');
+    const placeholderHTML =
+      '<div class="text-sm text-gray-500">Введите штрихкод — здесь появится карточка товара.</div>';
+
+    document.addEventListener('htmx:beforeRequest', (e) => {
+      if (e.detail.elt?.name === 'barcode') indicator?.classList.remove('hidden');
+    });
+    document.addEventListener('htmx:afterOnLoad', (e) => {
+      if (e.detail.elt?.name === 'barcode') {
+        indicator?.classList.add('hidden');
+        const found = preview.querySelector('[data-product-found="1"]');
+        if (found) qty?.focus();
+      }
+    });
+
+    function maybeClearPreview() {
+      if (bc && preview && bc.value.trim() === '') {
+        preview.innerHTML = placeholderHTML;
+        if (qty) qty.value = '';
+      }
+    }
+    bc?.addEventListener('input',  maybeClearPreview);
+    bc?.addEventListener('search', maybeClearPreview);
   })();
 </script>
 {% endblock %}

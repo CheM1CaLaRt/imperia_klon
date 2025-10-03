@@ -300,22 +300,37 @@ def home(request):
     return render(request, "home.html")
 
 
-@warehouse_or_director_required
+def _in_groups(user, names):
+    return user.is_authenticated and user.groups.filter(name__in=names).exists()
+
 def product_detail_json(request, pk: int):
     try:
         p = Product.objects.annotate(min_price=Min("prices__value")).get(pk=pk)
     except Product.DoesNotExist:
         raise Http404
 
-    images = list(p.images.order_by("position", "id").values_list("url", flat=True))
+    # права
+    can_see_supplier = _in_groups(request.user, ["director", "operator", "warehouse"])
+    can_see_prices   = _in_groups(request.user, ["director", "operator"])
+
+    images = list(
+        p.images.order_by("position", "id").values_list("url", flat=True)
+    )
     certs = [
         {"name": c.name, "issued_by": c.issued_by, "active_to": c.active_to, "url": c.url}
         for c in p.certificates.all()
     ]
-    prices = [
-        {"type": pr.price_type, "value": str(pr.value), "currency": pr.currency}
-        for pr in p.prices.all().order_by("price_type")
-    ]
+
+    # цены только для разрешённых ролей
+    if can_see_prices:
+        prices = [
+            {"type": pr.price_type, "value": str(pr.value), "currency": pr.currency}
+            for pr in p.prices.all().order_by("price_type")
+        ]
+        min_price = str(p.min_price) if p.min_price is not None else None
+    else:
+        prices = []
+        min_price = None
 
     data = {
         "id": p.id,
@@ -324,7 +339,8 @@ def product_detail_json(request, pk: int):
         "brand": p.brand,
         "vendor_code": p.vendor_code,
         "barcode": p.barcode,
-        "supplier": getattr(p.supplier, "code", None),
+        # поставщик только для director/operator/warehouse
+        "supplier": (getattr(p.supplier, "code", None) if can_see_supplier else None),
         "country": p.manufacturer_country,
         "description": p.description,
         "description_ext": p.description_ext,
@@ -335,7 +351,7 @@ def product_detail_json(request, pk: int):
             "w_cm": str(p.pkg_width_cm) if p.pkg_width_cm is not None else None,
             "d_cm": str(p.pkg_depth_cm) if p.pkg_depth_cm is not None else None,
         },
-        "min_price": str(p.min_price) if p.min_price is not None else None,
+        "min_price": min_price,
         "images": images,
         "certificates": certs,
         "prices": prices,
@@ -785,6 +801,10 @@ def bin_delete(request, warehouse_pk: int, bin_pk: int):
 
 
 # --------------------- CRUD продуктов ---------------------
+def _can_see_prices(user) -> bool:
+    return user.is_authenticated and user.groups.filter(
+        name__in=["operator", "director"]
+    ).exists()
 
 def product_card(request, pk: int):
     product = get_object_or_404(Product, pk=pk)
@@ -825,12 +845,37 @@ def product_card(request, pk: int):
                 "url": getattr(c, "url", None),
             })
 
+    # ---- ПРАВА НА ЦЕНЫ ----
+    can_prices = (
+        request.user.is_authenticated
+        and request.user.groups.filter(name__in=["operator", "director"]).exists()
+    )
+
+    # ---- ЦЕНЫ ----
+    prices = []
+    price_min = None
+    if can_prices:
+        try:
+            prices = list(
+                ProductPrice.objects
+                .filter(product=product)
+                .order_by("price_type")
+                .values("price_type", "value", "currency")
+            )
+            if prices:
+                price_min = min((p["value"] for p in prices if p["value"] is not None), default=None)
+        except Exception:
+            # запасной вариант — если модели цен нет/упали, возьмём поля с объекта
+            price_min = getattr(product, "price_min", None) or getattr(product, "price", None)
+
     context = {
         "product": product,
         "gallery": gallery,
         "attrs": attrs,
         "certificates": certificates,
-        "price_min": getattr(product, "price_min", None) or getattr(product, "price", None),
+        "prices": prices,          # список всех цен (если разрешено)
+        "price_min": price_min,    # минимальная (если разрешено)
+        "can_prices": can_prices,  # флаг для шаблона
     }
     return render(request, "core/partials/product_card.html", context)
 

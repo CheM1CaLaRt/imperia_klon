@@ -1,4 +1,5 @@
 {# Новый товар (inline, HTMX) #}
+{% load access %}
 <div class="rounded-2xl ring-1 ring-gray-200 bg-white p-5">
   <h3 class="text-lg font-semibold mb-4">Новый товар</h3>
 
@@ -39,10 +40,12 @@
   </div>
 </div>
 
-<div>
-  <label class="block text-sm text-gray-600 mb-1">Цена (contracts), ₽</label>
-  {{ form.price_contracts }}
-</div>
+{% if request.user|in_groups:"operator" or request.user|in_groups:"director" %}
+  <div>
+    <label class="block text-sm text-gray-600 mb-1">Цена (contracts), ₽</label>
+    <input type="text" name="price_contracts" class="input w-full" value="{{ form.price_contracts.value|default:'' }}">
+  </div>
+{% endif %}
 
 
     <div>

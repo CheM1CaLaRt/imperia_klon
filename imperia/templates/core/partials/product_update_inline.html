@@ -1,3 +1,5 @@
+{% load access %}
+
 <div class="rounded-2xl ring-1 ring-gray-200 bg-white p-5">
   <h3 class="text-lg font-semibold mb-4">Изменить товар</h3>
 
@@ -26,10 +28,12 @@
   </div>
 </div>
 
+{% if request.user|in_groups:"operator" or request.user|in_groups:"director" %}
 <div>
   <label class="block text-sm text-gray-600 mb-1">Цена (contracts), ₽</label>
   {{ form.price_contracts }}
 </div>
+{% endif %}
 
     <div>
       <label class="block text-sm text-gray-600 mb-1">URL изображения</label>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load access %}
 {% block title %}Товары — Imperia{% endblock %}
 
 {% block content %}
@@ -54,15 +55,24 @@
           <div class="mt-2 text-sm text-gray-600">
             Штрихкод: <span class="font-mono">{{ p.barcode|default:"—" }}</span>
           </div>
-          <div class="mt-1 text-sm text-gray-600">Поставщик: {{ p.supplier.code }}</div>
+          {% if request.user|in_groups:"director" or request.user|in_groups:"operator" or request.user|in_groups:"warehouse" %}
+            <div class="mt-1 text-sm text-gray-600">Поставщик: {{ p.supplier.code }}</div>
+          {% endif %}
+
           <div class="mt-2">
-            {% if p.min_price %}
-              <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-sm px-2 py-1">
-                от {{ p.min_price }} ₽
-              </span>
+            {% if request.user|in_groups:"operator" or request.user|in_groups:"director" %}
+              {% if p.min_price %}
+                <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-sm px-2 py-1">
+                  от {{ p.min_price }} ₽
+                </span>
+              {% else %}
+                <span class="inline-flex items-center rounded-full bg-gray-100 text-gray-600 text-sm px-2 py-1">
+                  цена не указана
+                </span>
+              {% endif %}
             {% else %}
               <span class="inline-flex items-center rounded-full bg-gray-100 text-gray-600 text-sm px-2 py-1">
-                цена не указана
+                цена недоступна
               </span>
             {% endif %}
           </div>
@@ -121,11 +131,15 @@
             <div class="text-sm text-gray-600">Штрихкод: <span class="font-mono" id="mBarcode"></span></div>
             <div class="text-sm text-gray-600">Поставщик: <span id="mSupplier"></span></div>
 
-            <div id="mPrice" class="mt-2 hidden">
-              <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-sm px-2 py-1">
-                от <span id="mMinPrice"></span>
-              </span>
-            </div>
+
+            {# Цены в модалке — только для operator/director #}
+            {% if request.user|in_groups:"operator" or request.user|in_groups:"director" %}
+              <div id="mPrice" class="mt-2 hidden">
+                <span class="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-sm px-2 py-1">
+                  от <span id="mMinPrice"></span>
+                </span>
+              </div>
+            {% endif %}
 
             <div class="mt-3">
               <div class="text-sm text-gray-900 font-medium mb-1">Описание</div>
@@ -159,12 +173,14 @@
               </details>
             </div>
 
-            <div class="mt-3">
-              <details>
-                <summary class="cursor-pointer select-none text-sm font-medium text-gray-900">Все цены</summary>
-                <div id="mPricesAll" class="mt-2 text-sm text-gray-700"></div>
-              </details>
-            </div>
+            {% if request.user|in_groups:"operator" or request.user|in_groups:"director" %}
+              <div class="mt-3">
+                <details>
+                  <summary class="cursor-pointer select-none text-sm font-medium text-gray-900">Все цены</summary>
+                  <div id="mPricesAll" class="mt-2 text-sm text-gray-700"></div>
+                </details>
+              </div>
+            {% endif %}
           </div>
         </div>
 
@@ -230,8 +246,12 @@
     const supplier= document.getElementById('mSupplier');
     const desc    = document.getElementById('mDesc');
     const descExt = document.getElementById('mDescExt');
-    const minPriceWrap = document.getElementById('mPrice');
-    const minPrice = document.getElementById('mMinPrice');
+
+    // Элементы цен могут отсутствовать (для пользователей без доступа)
+    const minPriceWrap = document.getElementById('mPrice') || null;
+    const minPrice = document.getElementById('mMinPrice') || null;
+    const pricesAll = document.getElementById('mPricesAll') || null;
+
     const weight  = document.getElementById('mWeight');
     const volume  = document.getElementById('mVol');
     const pkg     = document.getElementById('mPkg');
@@ -240,7 +260,6 @@
     const imgWrap = document.getElementById('mImageWrap');
     const thumbs  = document.getElementById('mThumbs');
     const certs   = document.getElementById('mCerts');
-    const pricesAll = document.getElementById('mPricesAll');
 
     function openModal(){ modal.classList.remove('hidden'); document.body.style.overflow='hidden'; }
     function closeModal(){ modal.classList.add('hidden'); document.body.style.overflow=''; }
@@ -263,16 +282,17 @@
         supplier.textContent = '';
         desc.textContent = '';
         descExt.textContent = '';
-        minPriceWrap.classList.add('hidden');
-        minPrice.textContent = '';
-        weight.textContent = '—';
-        volume.textContent = '—';
-        pkg.textContent = '—';
+
+        if (minPriceWrap) { minPriceWrap.classList.add('hidden'); }
+        if (minPrice)     { minPrice.textContent = ''; }
+        weight.textContent  = '—';
+        volume.textContent  = '—';
+        pkg.textContent     = '—';
         country.textContent = '—';
         imgWrap.innerHTML = '<div class="text-sm text-gray-500">Загрузка…</div>';
         thumbs.innerHTML = '';
         certs.innerHTML = '';
-        pricesAll.innerHTML = '';
+        if (pricesAll) pricesAll.innerHTML = '';
 
         openModal();
 
@@ -287,7 +307,11 @@
             desc.textContent = d.description || '';
             descExt.textContent = d.description_ext || '';
 
-            if (d.min_price){ minPriceWrap.classList.remove('hidden'); minPrice.textContent = d.min_price + ' ₽'; }
+            // min price (если сервер вернул и элемент существует)
+            if (minPriceWrap && minPrice && d.min_price){
+              minPriceWrap.classList.remove('hidden');
+              minPrice.textContent = d.min_price + ' ₽';
+            }
 
             country.textContent = d.country || '—';
             weight.textContent  = d.weight_kg || '—';
@@ -327,18 +351,20 @@
               certs.innerHTML = '<div class="text-sm text-gray-500">Нет данных</div>';
             }
 
-            // все цены
-            if (Array.isArray(d.prices) && d.prices.length){
-              const tbl = document.createElement('div');
-              d.prices.forEach(p=>{
-                const row = document.createElement('div');
-                row.className='flex justify-between gap-3';
-                row.innerHTML = `<span class="text-gray-500">${p.type}</span><span class="font-medium">${p.value} ${p.currency}</span>`;
-                tbl.appendChild(row);
-              });
-              pricesAll.appendChild(tbl);
-            } else {
-              pricesAll.innerHTML = '<div class="text-sm text-gray-500">Нет цен</div>';
+            // все цены (если элемент существует и сервер вернул)
+            if (pricesAll){
+              if (Array.isArray(d.prices) && d.prices.length){
+                const tbl = document.createElement('div');
+                d.prices.forEach(p=>{
+                  const row = document.createElement('div');
+                  row.className='flex justify-between gap-3';
+                  row.innerHTML = `<span class="text-gray-500">${p.type}</span><span class="font-medium">${p.value} ${p.currency}</span>`;
+                  tbl.appendChild(row);
+                });
+                pricesAll.appendChild(tbl);
+              } else {
+                pricesAll.innerHTML = '<div class="text-sm text-gray-500">Нет цен</div>';
+              }
             }
           })
           .catch(()=>{ title.textContent='Ошибка загрузки'; });
