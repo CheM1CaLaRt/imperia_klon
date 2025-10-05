@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Склад — Imperia{% endblock %}
 {% block content %}
-  <div class="card">
+  <div class="card" style="width: min(720px,100%); padding: 24px; margin: 0 auto; ">
     <h1>Склад — дашборд</h1>
     <h2>Здравствуйте, {% firstof request.user.first_name request.user.username %}!</h2>
     <p>Доступно только группе <b>warehouse</b>.</p>
