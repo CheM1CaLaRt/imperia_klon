@@ -12,12 +12,16 @@ from core.views import home, product_list
 from core.views import product_detail_json
 from django.urls import path
 from core import views
+from core import views_counterparty as v
+from django.urls import path, include
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     # даём пустому пути второе имя 'home'
     path('', views.post_login_router, name='home'),
     path("", home, name="post_login_router"),  # ссылка из base.html
+    path("", include(("core.urls", "core"), namespace="core")),  # если приложение импортируется как 'core'
     path("home/", home, name="home"),  # альтернативное имя
     path("products/", product_list, name="product-list"),
     path("warehouse/", views.warehouse_dashboard, name="warehouse_dashboard"),
@@ -48,9 +52,16 @@ urlpatterns = [
 
 # Редактирование позиции остатка
     path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/edit/", views.inventory_edit, name="inventory_edit"),
-    #path("warehouse/<int:pk>/bins/new/", views.bin_create, name="bin_create"),
-    #path("warehouse/<int:warehouse_pk>/bins/<int:pk>/edit/", views.bin_edit, name="bin_edit"),
-    #path("warehouse/<int:warehouse_pk>/bins/<int:pk>/delete/", views.bin_delete, name="bin_delete"),
+
+
+# контрагенты
+
+    #path("counterparties/new/", v.counterparty_create, name="counterparty_create"),
+    #path("counterparties/lookup/", v.counterparty_lookup_inn, name="counterparty_lookup_inn"),
+    #path("counterparties/<int:pk>/", v.counterparty_detail, name="counterparty_detail"),
+
+
+
 
     path('operator/', views.operator_dashboard, name='operator_dashboard'),
     path('manager/', views.manager_dashboard, name='manager_dashboard'),

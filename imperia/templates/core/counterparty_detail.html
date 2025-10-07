@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Контрагент — {{ obj.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">{{ obj.name }}</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div class="rounded-xl border p-4">
+    <h2 class="font-semibold mb-2">Реквизиты</h2>
+    <div class="space-y-1 text-sm">
+      <div><span class="text-gray-500">ИНН:</span> {{ obj.inn }}</div>
+      {% if obj.kpp %}<div><span class="text-gray-500">КПП:</span> {{ obj.kpp }}</div>{% endif %}
+      {% if obj.ogrn %}<div><span class="text-gray-500">ОГРН:</span> {{ obj.ogrn }}</div>{% endif %}
+      {% if obj.full_name %}<div><span class="text-gray-500">Полное имя:</span> {{ obj.full_name }}</div>{% endif %}
+      {% if obj.address %}<div><span class="text-gray-500">Адрес:</span> {{ obj.address }}</div>{% endif %}
+      <!-- В блоке реквизитов -->
+      {% if obj.website %}
+      <div><span class="text-gray-500">Сайт:</span>
+      <a href="{{ obj.website }}" class="text-blue-600" target="_blank" rel="noopener">{{ obj.website }}</a>
+      </div>
+      {% endif %}
+      <div><span class="text-gray-500">Страна:</span> {{ obj.registration_country }}</div>
+      <div class="text-xs text-gray-500 mt-2">Обновлено: {{ obj.updated_at }}</div>
+    </div>
+  </div>
+
+  <div class="rounded-xl border p-4">
+  <h2 class="font-semibold mb-2">Финансовые показатели</h2>
+
+  <form method="post" action="{% url 'core:counterparty_refresh_finance' obj.pk %}" class="mb-3">
+    {% csrf_token %}
+    <button class="rounded-xl border px-3 py-1">Обновить из ЕГРЮЛ</button>
+  </form>
+    {% if obj.finance %}
+      <div class="space-y-1 text-sm">
+        <div><span class="text-gray-500">Выручка (последний год):</span> {{ obj.finance.revenue_last|default:"—" }}</div>
+        <div><span class="text-gray-500">Чистая прибыль (последний год):</span> {{ obj.finance.profit_last|default:"—" }}</div>
+        <details class="mt-2">
+          <summary class="cursor-pointer text-blue-600">Показать исходный JSON</summary>
+          <pre class="text-xs whitespace-pre-wrap">{{ obj.finance.data|json_script:"finData" }}</pre>
+        </details>
+      </div>
+    {% else %}
+    <p class="text-sm text-gray-500">Финансовых данных нет.</p>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- Новая карточка Контакты -->
+<div class="rounded-xl border p-4">
+  <div class="flex items-center justify-between mb-2">
+    <h2 class="font-semibold">Контактные лица</h2>
+    <a href="{% url 'core:contact_add' obj.pk %}" class="rounded-xl border px-3 py-1">Добавить контакт</a>
+  </div>
+  {% if obj.contacts.all %}
+    <div class="space-y-2 text-sm">
+      {% for c in obj.contacts.all %}
+        <div class="border rounded-lg p-2">
+          <div class="font-medium">{{ c.full_name }}</div>
+          <div class="text-gray-600">{{ c.position }}</div>
+          <div class="mt-1">
+            {% if c.email %}<span class="mr-3">✉️ {{ c.email }}</span>{% endif %}
+            {% if c.phone %}<span class="mr-3">☎️ {{ c.phone }}</span>{% endif %}
+            {% if c.mobile %}<span>📱 {{ c.mobile }}</span>{% endif %}
+          </div>
+          {% if c.note %}<div class="text-gray-500 mt-1">{{ c.note }}</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-sm text-gray-500">Контактов пока нет.</p>
+  {% endif %}
+</div>
+{% endblock %}

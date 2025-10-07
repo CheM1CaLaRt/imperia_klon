@@ -11,6 +11,9 @@ try:
 except Exception:
     ProfileForm = None
 
+from .models import Counterparty, CounterpartyFinance, CounterpartyContact
+
+
 
 class ProfileInline(admin.StackedInline):
     model = Profile
@@ -135,3 +138,27 @@ class StockMovementAdmin(admin.ModelAdmin):
     list_filter = ("movement_type", "warehouse")
     search_fields = ("product__name", "product__barcode", "bin_from__code", "bin_to__code")
     date_hierarchy = "timestamp"
+
+class CounterpartyContactInline(admin.TabularInline):
+    model = CounterpartyContact
+    extra = 0
+    fields = ("full_name", "position", "email", "phone", "mobile", "note")
+    show_change_link = True
+
+@admin.register(Counterparty)
+class CounterpartyAdmin(admin.ModelAdmin):
+    list_display = ("name", "inn", "kpp", "ogrn", "website", "updated_at")
+    search_fields = ("name", "full_name", "inn", "kpp", "ogrn", "website")
+    readonly_fields = ("created_at", "updated_at", "meta_json")
+    inlines = [CounterpartyContactInline]
+
+@admin.register(CounterpartyFinance)
+class CounterpartyFinanceAdmin(admin.ModelAdmin):
+    list_display = ("counterparty", "revenue_last", "profit_last", "fetched_at")
+    readonly_fields = ("fetched_at", "data")
+
+@admin.register(CounterpartyContact)
+class CounterpartyContactAdmin(admin.ModelAdmin):
+    list_display = ("full_name", "counterparty", "position", "email", "phone", "mobile", "created_at")
+    search_fields = ("full_name", "counterparty__name", "email", "phone", "mobile")
+    list_filter = ("position",)

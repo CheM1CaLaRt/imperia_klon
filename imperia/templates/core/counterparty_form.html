@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Новый контрагент{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Новый контрагент</h1>
+
+<form method="post" id="cpForm" class="space-y-4">
+  {% csrf_token %}
+  <div>
+  <label class="block text-sm font-medium">Сайт компании</label>
+  {{ form.website }}
+</div>
+
+<hr class="my-4"/>
+
+<h2 class="text-lg font-semibold mb-2">Контактные лица</h2>
+{{ formset.management_form }}
+<div id="contacts">
+  {% for f in formset %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 border rounded-xl p-3">
+      <div class="md:col-span-1">
+        <label class="block text-sm font-medium">ФИО</label>
+        {{ f.full_name }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Должность</label>
+        {{ f.position }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Email</label>
+        {{ f.email }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Телефон</label>
+        {{ f.phone }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Моб.</label>
+        {{ f.mobile }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Комментарий</label>
+        {{ f.note }}
+      </div>
+      {% if f.DELETE %}
+      <div class="md:col-span-3">
+        <label class="inline-flex items-center gap-2 text-sm">
+          {{ f.DELETE }} Удалить эту строку
+        </label>
+      </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<button type="button" id="addContact" class="rounded-xl border px-3 py-1">Добавить ещё контакт</button>
+
+<script>
+document.getElementById("addContact").addEventListener("click", function() {
+  const total = document.querySelector('#id_' + '{{ formset.prefix|default:"counterpartycontact_set" }}' + '-TOTAL_FORMS');
+  const formCount = parseInt(total.value, 10);
+  const container = document.getElementById("contacts");
+  const first = container.querySelector(".grid");
+  const clone = first.cloneNode(true);
+  // очистим значения новых инпутов
+  clone.querySelectorAll("input,textarea").forEach((el) => { el.value = ""; });
+  // переименуем индексы __prefix__ -> formCount
+  clone.querySelectorAll("[name]").forEach((el) => {
+    el.name = el.name.replace(/-\d+-/, '-' + formCount + '-');
+    el.id = el.id.replace(/-\d+-/, '-' + formCount + '-');
+  });
+  container.appendChild(clone);
+  total.value = formCount + 1;
+});
+</script>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+    <div class="md:col-span-2">
+      <label class="block text-sm font-medium">ИНН</label>
+      {{ form.inn }}
+      <p class="text-xs text-gray-500 mt-1">10 (юр.лицо) или 12 (ИП) цифр</p>
+    </div>
+    <div>
+      <button type="button" id="btnLookup" class="w-full rounded-xl border px-4 py-2">
+         Найти в ЕГРЮЛ
+       </button>
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-sm font-medium">Краткое наименование</label>
+    {{ form.name }}
+  </div>
+
+  <div>
+    <label class="block text-sm font-medium">Полное наименование</label>
+    {{ form.full_name }}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <label class="block text-sm font-medium">КПП</label>
+      {{ form.kpp }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium">ОГРН/ОГРНИП</label>
+      {{ form.ogrn }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium">Страна регистрации</label>
+      {{ form.registration_country }}
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-sm font-medium">Адрес</label>
+    {{ form.address }}
+  </div>
+
+  <div class="pt-2">
+    <button class="rounded-xl bg-blue-600 text-white px-6 py-2">Сохранить</button>
+  </div>
+</form>
+
+
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const byName = (n) => document.querySelector(`[name="${n}"]`);
+  const debug = document.getElementById("debug");
+
+  async function lookupInn(e) {
+    e.preventDefault();
+
+    const innEl = byName("inn");
+    const inn = (innEl.value || "").trim();
+
+    if (!/^\d{10}(\d{2})?$/.test(inn)) {
+      alert("Введите корректный ИНН (10 или 12 цифр).");
+      innEl.focus();
+      return;
+    }
+
+    const url = "{% url 'core:counterparty_lookup_inn' %}?inn=" + encodeURIComponent(inn);
+
+    try {
+      const r = await fetch(url, { headers: { "X-Requested-With": "fetch" } });
+      const payload = await r.json();
+
+      if (!payload.ok) {
+        alert(payload.error || "Ошибка сервиса ЕГРЮЛ");
+        return;
+      }
+
+      // Заполним поля. Плюс — пробуем русские ключи на всякий случай.
+      const d = payload.data || {};
+      const get = (keys) => {
+        for (const k of keys) {
+          if (d[k] != null && d[k] !== "") return String(d[k]).trim();
+        }
+        return "";
+      };
+
+      const fillMap = {
+        inn: ["inn","ИНН"],
+        name: ["name","Наименование","short_name","краткое"],
+        full_name: ["full_name","ПолноеНаименование","полное"],
+        kpp: ["kpp","КПП"],
+        ogrn: ["ogrn","ogrnip","ОГРН","ОГРНИП"],
+        registration_country: ["registration_country","Страна","country"],
+        address: ["address","Адрес","addr"],
+      };
+
+      Object.entries(fillMap).forEach(([field, keys]) => {
+        const el = byName(field);
+        if (el) el.value = get(keys);
+      });
+    } catch (e) {
+      alert("Сервис ЕГРЮЛ недоступен. Попробуйте позже.");
+    }
+  }
+
+  const btn = document.getElementById("btnLookup");
+  if (btn) btn.addEventListener("click", lookupInn);
+
+  // Enter по ИНН запускает поиск
+  const innEl = byName("inn");
+  if (innEl) innEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      lookupInn(e);
+    }
+  });
+});
+</script>
+
+{% endblock %}

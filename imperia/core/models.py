@@ -7,6 +7,8 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db.models import Q
+from django.core.validators import RegexValidator
+from django.core.validators import URLValidator
 
 
 def avatar_upload_to(instance, filename):
@@ -258,4 +260,71 @@ class StockMovement(models.Model):
 
     def __str__(self):
         return f"{self.timestamp:%Y-%m-%d %H:%M} {self.movement_type} {self.product} x{self.quantity}"
+
+
+      # -------------------контрагенты-------------------
+
+inn_validator = RegexValidator(
+    regex=r"^\d{10}(\d{2})?$",  # 10 (юр.лица) или 12 (ИП)
+    message="ИНН должен содержать 10 или 12 цифр"
+)
+
+class Counterparty(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    inn = models.CharField("ИНН", max_length=12, unique=True, validators=[inn_validator])
+    kpp = models.CharField("КПП", max_length=9, blank=True)
+    ogrn = models.CharField("ОГРН/ОГРНИП", max_length=15, blank=True)
+    name = models.CharField("Наименование", max_length=512)
+    full_name = models.CharField("Полное наименование", max_length=1024, blank=True)
+    registration_country = models.CharField("Страна регистрации", max_length=128, blank=True, default="РОССИЯ")
+    address = models.CharField("Адрес", max_length=1024, blank=True)
+    website = models.URLField("Сайт компании", blank=True)  # ← НОВОЕ поле
+
+    # Сырой JSON — чтобы ничего не потерять при изменениях API
+    meta_json = models.JSONField("Данные из ЕГРЮЛ (сырые)", default=dict, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        permissions = [
+            ("add_counterparty_by_inn", "Может добавлять контрагентов по ИНН"),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.inn})"
+
+
+class CounterpartyFinance(models.Model):
+    counterparty = models.OneToOneField(Counterparty, on_delete=models.CASCADE, related_name="finance")
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    data = models.JSONField("Финансы (сырые)", default=dict, blank=True)
+
+    # Популярные агрегаты, если есть в JSON — сохраним для быстрых выборок
+    revenue_last = models.BigIntegerField("Выручка (посл. год)", null=True, blank=True)
+    profit_last = models.BigIntegerField("Чистая прибыль (посл. год)", null=True, blank=True)
+
+class CounterpartyContact(models.Model):
+    counterparty = models.ForeignKey(
+        Counterparty, on_delete=models.CASCADE, related_name="contacts", verbose_name="Контрагент"
+    )
+    full_name = models.CharField("ФИО", max_length=255)
+    position = models.CharField("Должность", max_length=255, blank=True)
+    email = models.EmailField("Email", blank=True)
+    phone = models.CharField("Телефон", max_length=50, blank=True)
+    mobile = models.CharField("Моб. телефон", max_length=50, blank=True)
+    note = models.CharField("Комментарий", max_length=500, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Контактное лицо"
+        verbose_name_plural = "Контактные лица"
+
+    def __str__(self):
+        return f"{self.full_name} ({self.counterparty.name})"
+
+
+
 

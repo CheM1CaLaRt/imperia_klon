@@ -13,6 +13,8 @@ from .models import Inventory, StorageBin
 from decimal import Decimal
 from django import forms
 from .models import StorageBin
+from django.forms import inlineformset_factory
+from .models import Counterparty, CounterpartyContact, inn_validator
 
 User = get_user_model()
 
@@ -243,3 +245,52 @@ class ProductInlineCreateForm(forms.Form):
         max_digits=12,
         widget=forms.NumberInput(attrs={"class": "input w-full", "step": "0.01"})
     )
+
+# контрагенты
+
+
+class CounterpartyCreateForm(forms.ModelForm):
+    inn = forms.CharField(
+        label="ИНН",
+        validators=[inn_validator],
+        widget=forms.TextInput(attrs={"placeholder": "ИНН (10 или 12 цифр)"}),
+    )
+
+    class Meta:
+        model = Counterparty
+        fields = ["inn", "name", "full_name", "registration_country", "kpp", "ogrn", "address"]
+
+    def clean_name(self):
+        name = (self.cleaned_data.get("name") or "").strip()
+        # убрать удвоенные кавычки и лишние пробелы
+        name = " ".join(name.replace("«", "\"").replace("»", "\"").split())
+        return name
+
+class CounterpartyCreateForm(forms.ModelForm):
+    inn = forms.CharField(label="ИНН", validators=[inn_validator],
+                          widget=forms.TextInput(attrs={"placeholder": "ИНН (10 или 12 цифр)"}))
+
+    class Meta:
+        model = Counterparty
+        fields = ["inn", "name", "full_name", "registration_country", "kpp", "ogrn", "address", "website"]
+
+    def clean_inn(self):
+        return "".join(filter(str.isdigit, self.cleaned_data["inn"]))
+
+    def clean_website(self):
+        url = (self.cleaned_data.get("website") or "").strip()
+        if url and not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        return url
+
+class CounterpartyContactForm(forms.ModelForm):
+    class Meta:
+        model = CounterpartyContact
+        fields = ["full_name", "position", "email", "phone", "mobile", "note"]
+
+ContactFormSet = inlineformset_factory(
+    Counterparty, CounterpartyContact,
+    form=CounterpartyContactForm,
+    fields=["full_name", "position", "email", "phone", "mobile", "note"],
+    extra=1, can_delete=True
+)

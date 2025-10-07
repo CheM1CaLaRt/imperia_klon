@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Новый контакт — {{ obj.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Новый контакт для: {{ obj.name }}</h1>
+<form method="post" class="space-y-3">
+  {% csrf_token %}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div class="md:col-span-1">
+      <label class="block text-sm font-medium">ФИО</label>
+      {{ form.full_name }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium">Должность</label>
+      {{ form.position }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium">Email</label>
+      {{ form.email }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium">Телефон</label>
+      {{ form.phone }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium">Моб.</label>
+      {{ form.mobile }}
+    </div>
+    <div class="md:col-span-3">
+      <label class="block text-sm font-medium">Комментарий</label>
+      {{ form.note }}
+    </div>
+  </div>
+  <button class="rounded-xl bg-blue-600 text-white px-6 py-2">Сохранить</button>
+</form>
+{% endblock %}

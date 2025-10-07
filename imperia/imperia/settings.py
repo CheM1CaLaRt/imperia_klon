@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-STATIC_URL = "/static/"
+
 STATICFILES_DIRS = [BASE_DIR / "static"]  # если этой записи нет
 
 
@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "django.contrib.staticfiles",
     'rest_framework',
-    #"core",  # наше приложение
+
 ]
 # === Jazzmin: внешний вид и меню ===
 JAZZMIN_SETTINGS = {
