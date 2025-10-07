@@ -209,6 +209,9 @@ body{
               Склад
             </a>
             {% endif %}
+            {% if show_clients_link %}
+              <a href="{% url 'core:counterparty_list' %}" class="px-3 py-2 hover:underline">Клиенты</a>
+            {% endif %}
           </nav>
         {% endwith %}
       </div>

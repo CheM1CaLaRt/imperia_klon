@@ -1,16 +1,21 @@
 {% extends "base.html" %}
 {% load humanize %}
+
 {% block title %}Контрагент — {{ obj.name }}{% endblock %}
 
 {% block content %}
 <h1 class="text-2xl font-semibold mb-2">{{ obj.name }}</h1>
 
+{# Кнопки редактирования клиента: только для operator/director #}
+{% if can_edit_client %}
 <div class="mb-4 flex gap-2">
   <a href="{% url 'core:counterparty_update' obj.pk %}" class="rounded-xl border px-3 py-1">Редактировать</a>
   <a href="{% url 'core:counterparty_delete' obj.pk %}" class="rounded-xl border px-3 py-1 text-red-600">Удалить</a>
 </div>
+{% endif %}
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <!-- Реквизиты -->
   <div class="rounded-xl border p-4">
     <h2 class="font-semibold mb-2">Реквизиты</h2>
     <div class="space-y-1 text-sm">
@@ -20,50 +25,35 @@
       {% if obj.full_name %}<div><span class="text-gray-500">Полное имя:</span> {{ obj.full_name }}</div>{% endif %}
       {% if obj.address %}<div><span class="text-gray-500">Адрес:</span> {{ obj.address }}</div>{% endif %}
       {% if obj.website %}
-      <div><span class="text-gray-500">Сайт:</span>
+      <div>
+        <span class="text-gray-500">Сайт:</span>
         <a href="{{ obj.website }}" class="text-blue-600" target="_blank" rel="noopener">{{ obj.website }}</a>
       </div>
       {% endif %}
       <div><span class="text-gray-500">Страна:</span> {{ obj.registration_country }}</div>
-
-      {# НОВОЕ: менеджеры #}
-      <div>
-  <span class="text-gray-500">Менеджеры:</span>
-  {% if obj.managers.all %}
-    {% for m in obj.managers.all %}
-      <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 mr-1 mt-1">
-        {{ m.get_full_name|default:m.username }}
-        <form method="post"
-              action="{% url 'core:counterparty_manager_remove' obj.pk m.pk %}"
-              class="inline">
-          {% csrf_token %}
-          <button type="submit" title="Снять менеджера"
-                  class="text-red-600 hover:text-red-800 leading-none">×</button>
-        </form>
-      </span>
-    {% endfor %}
-  {% else %}
-    <span class="text-gray-400">не назначены</span>
-  {% endif %}
-</div>
-
       <div class="text-xs text-gray-500 mt-2">Обновлено: {{ obj.updated_at }}</div>
     </div>
   </div>
 
-  {# ... блок Финансы — без изменений ... #}
+  <!-- Финансовые показатели -->
   <div class="rounded-xl border p-4">
     <h2 class="font-semibold mb-2">Финансовые показатели</h2>
+
+    {% if can_edit_client %}
     <form method="post" action="{% url 'core:counterparty_refresh_finance' obj.pk %}" class="mb-3">
       {% csrf_token %}
       <button class="rounded-xl border px-3 py-1">Обновить из ЕГРЮЛ</button>
     </form>
+    {% endif %}
+
     {% if obj.finance %}
       <div class="space-y-1 text-sm">
-        <div><span class="text-gray-500">Выручка (последний год):</span>
+        <div>
+          <span class="text-gray-500">Выручка (последний год):</span>
           {% if obj.finance.revenue_last %}{{ obj.finance.revenue_last|floatformat:0|intcomma }} ₽{% else %}—{% endif %}
         </div>
-        <div><span class="text-gray-500">Чистая прибыль (последний год):</span>
+        <div>
+          <span class="text-gray-500">Чистая прибыль (последний год):</span>
           {% if obj.finance.profit_last is not None %}{{ obj.finance.profit_last|floatformat:0|intcomma }} ₽{% else %}—{% endif %}
         </div>
       </div>
@@ -73,12 +63,15 @@
   </div>
 </div>
 
-{# ... блок Контакты — без изменений ... #}
+<!-- Контакты -->
 <div class="rounded-xl border p-4 mt-4">
   <div class="flex items-center justify-between mb-2">
     <h2 class="font-semibold">Контактные лица</h2>
-    <a href="{% url 'core:contact_add' obj.pk %}" class="rounded-xl border px-3 py-1">Добавить контакт</a>
+    {% if can_add_contact %}
+      <a href="{% url 'core:contact_add' obj.pk %}" class="rounded-xl border px-3 py-1">Добавить контакт</a>
+    {% endif %}
   </div>
+
   {% if obj.contacts.all %}
     <div class="space-y-2 text-sm">
       {% for c in obj.contacts.all %}
@@ -88,10 +81,12 @@
               <div class="font-medium">{{ c.full_name }}</div>
               <div class="text-gray-600">{{ c.position }}</div>
             </div>
+            {% if can_edit_contact %}
             <div class="flex gap-2">
               <a href="{% url 'core:contact_edit' pk=obj.pk contact_id=c.pk %}" class="text-blue-600 text-sm">Редактировать</a>
               <a href="{% url 'core:contact_delete' pk=obj.pk contact_id=c.pk %}" class="text-red-600 text-sm">Удалить</a>
             </div>
+            {% endif %}
           </div>
           <div class="mt-1">
             {% if c.email %}<span class="mr-3">✉️ {{ c.email }}</span>{% endif %}
@@ -105,5 +100,44 @@
   {% else %}
     <p class="text-sm text-gray-500">Контактов пока нет.</p>
   {% endif %}
+</div>
+
+<!-- Менеджеры (визуально как контакты) -->
+<div class="rounded-xl border p-4 mt-4">
+  <div class="flex items-center justify-between mb-2">
+    <h2 class="font-semibold">Менеджеры</h2>
+    {% if can_edit_client %}
+      <a href="{% url 'core:counterparty_update' obj.pk %}#managers" class="rounded-xl border px-3 py-1">Назначить</a>
+    {% endif %}
+  </div>
+
+  {% with managers=obj.managers.all %}
+    {% if managers %}
+      <div class="space-y-2 text-sm">
+        {% for m in managers %}
+          <div class="border rounded-lg p-2">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-medium">{{ m.get_full_name|default:m.username }}</div>
+                <div class="text-gray-600">
+                  @{{ m.username }}{% if m.email %} • {{ m.email }}{% endif %}
+                </div>
+              </div>
+              {% if can_edit_client %}
+              <div>
+                <form method="post" action="{% url 'core:counterparty_manager_remove' obj.pk m.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="text-red-600 text-sm">Удалить</button>
+                </form>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-gray-500">Менеджеры не назначены.</p>
+    {% endif %}
+  {% endwith %}
 </div>
 {% endblock %}

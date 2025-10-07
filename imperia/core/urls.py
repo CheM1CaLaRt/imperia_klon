@@ -20,4 +20,6 @@ urlpatterns = [
         v.counterparty_manager_remove,
         name="counterparty_manager_remove",
     ),
+
+    path("counterparties/", v.counterparty_list, name="counterparty_list"),
 ]

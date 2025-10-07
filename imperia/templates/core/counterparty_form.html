@@ -125,9 +125,10 @@ document.getElementById("addContact").addEventListener("click", function() {
   {{ form.managers }}
   {% if form.managers.help_text %}<p class="text-xs text-gray-500">{{ form.managers.help_text }}</p>{% endif %}
 </div>
-  <div class="pt-2">
-    <button class="rounded-xl bg-blue-600 text-white px-6 py-2">Сохранить</button>
-  </div>
+  <div class="mt-6 flex items-center gap-3">
+  <button type="submit" class="rounded-xl bg-black text-white px-4 py-2">Сохранить</button>
+   <a href="{% url 'core:counterparty_list' %}" class="rounded-xl border px-4 py-2">Отмена</a>
+</div>
 </form>
 
 

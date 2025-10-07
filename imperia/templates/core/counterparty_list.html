@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Клиенты{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Клиенты</h1>
+
+<div class="flex items-center justify-between mb-4 gap-3">
+  <form method="get" class="flex-1 flex gap-2">
+    <input type="search" name="q" value="{{ q }}" placeholder="Поиск по названию или ИНН"
+           class="rounded-xl border px-3 py-2 w-full">
+    <button class="rounded-xl border px-4">Найти</button>
+    {% if q %}
+      <a href="{% url 'core:counterparty_list' %}" class="rounded-xl border px-3 py-2">Сброс</a>
+    {% endif %}
+  </form>
+
+  {# Кнопка видна только operator и director #}
+  {% if is_operator or is_director %}
+    <a href="{% url 'core:counterparty_create' %}"
+       class="inline-flex items-center gap-2 rounded-xl bg-black text-white px-4 py-2 shadow hover:opacity-90">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+        <path d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"/>
+      </svg>
+      Добавить клиента
+    </a>
+  {% endif %}
+</div>
+
+{% if objects %}
+  <div class="rounded-xl border divide-y bg-white">
+    {% for obj in objects %}
+      <a href="{% url 'core:counterparty_detail' obj.pk %}"
+         class="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+        <div>
+          <div class="font-medium">{{ obj.name }}</div>
+          <div class="text-sm text-gray-600">
+            ИНН: {{ obj.inn }}{% if obj.kpp %} • КПП: {{ obj.kpp }}{% endif %}
+          </div>
+        </div>
+        {% if obj.managers.all %}
+          <div class="hidden md:flex gap-1">
+            {% for m in obj.managers.all %}
+              <span class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs">
+                {{ m.get_full_name|default:m.username }}
+              </span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-sm text-gray-500">Ничего не найдено.</p>
+{% endif %}
+{% endblock %}
