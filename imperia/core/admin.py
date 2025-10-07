@@ -150,6 +150,7 @@ class CounterpartyAdmin(admin.ModelAdmin):
     list_display = ("name", "inn", "kpp", "ogrn", "website", "updated_at")
     search_fields = ("name", "full_name", "inn", "kpp", "ogrn", "website")
     readonly_fields = ("created_at", "updated_at", "meta_json")
+    filter_horizontal = ("managers",)  # ← удобно выбирать много пользователей
     inlines = [CounterpartyContactInline]
 
 @admin.register(CounterpartyFinance)
@@ -162,3 +163,4 @@ class CounterpartyContactAdmin(admin.ModelAdmin):
     list_display = ("full_name", "counterparty", "position", "email", "phone", "mobile", "created_at")
     search_fields = ("full_name", "counterparty__name", "email", "phone", "mobile")
     list_filter = ("position",)
+

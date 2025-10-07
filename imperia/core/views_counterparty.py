@@ -8,6 +8,11 @@ from .models import Counterparty, CounterpartyFinance
 from .services.egrul import fetch_by_inn, parse_counterparty_payload, fetch_finance_by_inn, EgrulError
 from .forms import CounterpartyCreateForm, ContactFormSet, CounterpartyContactForm
 from .models import Counterparty, CounterpartyFinance, CounterpartyContact
+from django.urls import reverse
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth import get_user_model
+
+
 def _is_operator_or_director(user):
     return user.is_authenticated and user.groups.filter(name__in=["operator","director"]).exists()
 
@@ -141,3 +146,79 @@ def contact_add(request, pk: int):
     else:
         form = CounterpartyContactForm()
     return render(request, "core/contact_form.html", {"obj": obj, "form": form})
+
+@user_passes_test(_is_operator_or_director)
+def counterparty_update(request, pk: int):
+    obj = get_object_or_404(Counterparty, pk=pk)
+    if request.method == "POST":
+        form = CounterpartyCreateForm(request.POST, instance=obj)
+        # редактирование без formset — контакты правим отдельно
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Контрагент обновлён.")
+            return redirect("core:counterparty_detail", pk=obj.pk)
+    else:
+        form = CounterpartyCreateForm(instance=obj)
+    # используем тот же шаблон, просто не передаем formset
+    return render(request, "core/counterparty_form.html", {"form": form, "edit_mode": True})
+
+
+@user_passes_test(_is_operator_or_director)
+@require_http_methods(["GET", "POST"])
+def counterparty_delete(request, pk: int):
+    obj = get_object_or_404(Counterparty, pk=pk)
+    if request.method == "POST":
+        obj.delete()
+        messages.success(request, "Контрагент удалён.")
+        # куда вести после удаления — на панель оператора
+        return redirect("operator_dashboard")
+    return render(request, "core/counterparty_confirm_delete.html", {"obj": obj})
+
+
+@user_passes_test(_is_operator_or_director)
+def contact_edit(request, pk: int, contact_id: int):
+    obj = get_object_or_404(Counterparty, pk=pk)
+    contact = get_object_or_404(CounterpartyContact, pk=contact_id, counterparty=obj)
+    if request.method == "POST":
+        form = CounterpartyContactForm(request.POST, instance=contact)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Контакт обновлён.")
+            return redirect("core:counterparty_detail", pk=obj.pk)
+    else:
+        form = CounterpartyContactForm(instance=contact)
+    return render(request, "core/contact_form.html", {"obj": obj, "form": form, "edit_mode": True})
+
+
+@user_passes_test(_is_operator_or_director)
+@require_http_methods(["GET", "POST"])
+def contact_delete(request, pk: int, contact_id: int):
+    obj = get_object_or_404(Counterparty, pk=pk)
+    contact = get_object_or_404(CounterpartyContact, pk=contact_id, counterparty=obj)
+    if request.method == "POST":
+        contact.delete()
+        messages.success(request, "Контакт удалён.")
+        return redirect("core:counterparty_detail", pk=obj.pk)
+    return render(request, "core/contact_confirm_delete.html", {"obj": obj, "contact": contact})
+
+@user_passes_test(_is_operator_or_director)
+def counterparty_create(request):
+    if request.method == "POST":
+        form = CounterpartyCreateForm(request.POST)
+        if form.is_valid():
+            obj = form.save()  # если раньше было commit=False, то: obj = form.save(commit=False); obj.save(); form.save_m2m()
+            messages.success(request, "Контрагент создан.")
+            return redirect("core:counterparty_detail", pk=obj.pk)
+    else:
+        form = CounterpartyCreateForm()
+    return render(request, "core/counterparty_form.html", {"form": form})
+
+@require_POST
+@user_passes_test(_is_operator_or_director)  # как и для контактов
+def counterparty_manager_remove(request, pk: int, user_id: int):
+    obj = get_object_or_404(Counterparty, pk=pk)
+    User = get_user_model()
+    user = get_object_or_404(User, pk=user_id)
+    obj.managers.remove(user)
+    messages.success(request, f"Менеджер «{user.get_full_name() or user.username}» снят с контрагента.")
+    return redirect("core:counterparty_detail", pk=pk)

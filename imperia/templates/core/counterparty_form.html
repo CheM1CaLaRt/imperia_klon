@@ -1,7 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Новый контрагент{% endblock %}
+{% block title %}{{ edit_mode|yesno:"Редактировать контрагента,Новый контрагент" }}{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Новый контрагент</h1>
+<h1 class="text-2xl font-semibold mb-4">
+  {{ edit_mode|yesno:"Редактировать контрагента,Новый контрагент" }}
+</h1>
 
 <form method="post" id="cpForm" class="space-y-4">
   {% csrf_token %}
@@ -14,6 +17,7 @@
 
 <h2 class="text-lg font-semibold mb-2">Контактные лица</h2>
 {{ formset.management_form }}
+  {% if formset %}
 <div id="contacts">
   {% for f in formset %}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 border rounded-xl p-3">
@@ -51,6 +55,7 @@
     </div>
   {% endfor %}
 </div>
+  {% endif %}
 
 <button type="button" id="addContact" class="rounded-xl border px-3 py-1">Добавить ещё контакт</button>
 
@@ -115,7 +120,11 @@ document.getElementById("addContact").addEventListener("click", function() {
     <label class="block text-sm font-medium">Адрес</label>
     {{ form.address }}
   </div>
-
+<div class="mt-3">
+  <label class="block text-sm font-medium">Закреплённые менеджеры</label>
+  {{ form.managers }}
+  {% if form.managers.help_text %}<p class="text-xs text-gray-500">{{ form.managers.help_text }}</p>{% endif %}
+</div>
   <div class="pt-2">
     <button class="rounded-xl bg-blue-600 text-white px-6 py-2">Сохранить</button>
   </div>
@@ -193,5 +202,15 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 </script>
+{% if edit_mode %}
+  <script>
+    document.addEventListener("DOMContentLoaded", ()=> {
+      const inn = document.querySelector('input[name="inn"]');
+      if (inn) inn.readOnly = true;
+      const btn = document.getElementById("btnLookup");
+      if (btn) btn.disabled = true;
+    });
+  </script>
+{% endif %}
 
 {% endblock %}

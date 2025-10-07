@@ -280,7 +280,16 @@ class Counterparty(models.Model):
     full_name = models.CharField("Полное наименование", max_length=1024, blank=True)
     registration_country = models.CharField("Страна регистрации", max_length=128, blank=True, default="РОССИЯ")
     address = models.CharField("Адрес", max_length=1024, blank=True)
-    website = models.URLField("Сайт компании", blank=True)  # ← НОВОЕ поле
+    website = models.URLField(blank=True, null=True)
+
+    # НОВОЕ: менеджеры
+    managers = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="managed_counterparties",
+        blank=True,
+        verbose_name="Закреплённые менеджеры",
+        help_text="Выберите одного или нескольких менеджеров."
+    )
 
     # Сырой JSON — чтобы ничего не потерять при изменениях API
     meta_json = models.JSONField("Данные из ЕГРЮЛ (сырые)", default=dict, blank=True)
@@ -297,12 +306,10 @@ class Counterparty(models.Model):
 
 class CounterpartyFinance(models.Model):
     counterparty = models.OneToOneField(Counterparty, on_delete=models.CASCADE, related_name="finance")
-    fetched_at = models.DateTimeField(auto_now_add=True)
-    data = models.JSONField("Финансы (сырые)", default=dict, blank=True)
-
-    # Популярные агрегаты, если есть в JSON — сохраним для быстрых выборок
-    revenue_last = models.BigIntegerField("Выручка (посл. год)", null=True, blank=True)
-    profit_last = models.BigIntegerField("Чистая прибыль (посл. год)", null=True, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    revenue_last = models.DecimalField("Выручка, последний год", max_digits=18, decimal_places=2, null=True, blank=True)
+    profit_last  = models.DecimalField("Чистая прибыль, последний год", max_digits=18, decimal_places=2, null=True, blank=True)
+    fetched_at = models.DateTimeField(auto_now=True)
 
 class CounterpartyContact(models.Model):
     counterparty = models.ForeignKey(

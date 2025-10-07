@@ -1,5 +1,8 @@
-import requests
 from typing import Tuple
+import json
+import requests
+from decimal import Decimal
+
 
 BASE_INFO_URL = "https://egrul.itsoft.ru/{inn}.json"
 BASE_FIN_URL  = "https://egrul.itsoft.ru/fin/?{inn}"
@@ -142,23 +145,66 @@ def parse_counterparty_payload(payload: dict) -> dict:
     }
 
 
-def fetch_finance_by_inn(inn: str) -> Tuple[dict, int | None, int | None]:
-    url = BASE_FIN_URL.format(inn=inn)
-    try:
-        r = requests.get(url, timeout=DEFAULT_TIMEOUT)
-        r.raise_for_status()
-        data = r.json() or {}
-    except requests.RequestException as e:
-        raise EgrulError(f"Ошибка запроса финансов: {e}") from e
+class EgrulError(Exception):
+    pass
 
-    # Попробуем вытащить последние показатели, если структура позволяет
-    revenue_last = None
-    profit_last = None
-    # Примеры: {"years": [{"year":2023,"revenue":..., "profit":...}, ...]}
-    years = data.get("years") or data.get("data") or []
-    if isinstance(years, list) and years:
-        last = sorted(years, key=lambda x: x.get("year", 0))[-1]
-        revenue_last = last.get("revenue") or last.get("Выручка")
-        profit_last = last.get("profit") or last.get("ЧистаяПрибыль")
+def _to_dec(v):
+    if v is None:
+        return None
+    # На сайте часто числа строками; уберём пробелы/запятые.
+    s = str(v).replace(" ", "").replace(",", ".")
+    try:
+        return Decimal(s)
+    except Exception:
+        try:
+            return Decimal(int(float(s)))
+        except Exception:
+            return None
+
+def fetch_finance_by_inn(inn: str):
+    """
+    Возвращает кортеж: (fin_json, revenue_last, profit_last)
+    - fin_json: исходный JSON (dict), как пришёл с сервера
+    - revenue_last: Decimal | None  (income за последний год)
+    - profit_last:  Decimal | None  (income - outcome за последний год)
+    """
+    url = f"https://egrul.itsoft.ru/fin/?{inn}"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise EgrulError(f"Ошибка запроса финданных: {e}")
+
+    try:
+        data = resp.json()
+    except ValueError:
+        # иногда приходит текст с одинарными кавычками → попробуем вручную
+        try:
+            data = json.loads(resp.text.replace("'", '"'))
+        except Exception as e:
+            raise EgrulError(f"Не удалось распарсить JSON финданных: {e}")
+
+    # ожидаемый формат: {"2011":{"income":...,"outcome":...}, ...}
+    revenue_last = profit_last = None
+    if isinstance(data, dict):
+        years = []
+        for y, vals in data.items():
+            try:
+                yi = int(y)
+            except Exception:
+                continue
+            if not isinstance(vals, dict):
+                continue
+            inc = _to_dec(vals.get("income"))
+            out = _to_dec(vals.get("outcome"))
+            years.append((yi, inc, out))
+
+        if years:
+            years.sort(key=lambda t: t[0])
+            _, inc, out = years[-1]
+            if inc is not None:
+                revenue_last = inc
+            if inc is not None and out is not None:
+                profit_last = inc - out
 
     return data, revenue_last, profit_last

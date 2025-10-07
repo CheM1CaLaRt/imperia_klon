@@ -7,14 +7,13 @@ from datetime import date
 from .widgets import AvatarInput
 from django.contrib.auth.models import User
 from .models import Profile
-from django import forms
 from .models import Warehouse
 from .models import Inventory, StorageBin
 from decimal import Decimal
-from django import forms
-from .models import StorageBin
 from django.forms import inlineformset_factory
 from .models import Counterparty, CounterpartyContact, inn_validator
+from django.contrib.auth.models import Group
+
 
 User = get_user_model()
 
@@ -294,3 +293,32 @@ ContactFormSet = inlineformset_factory(
     fields=["full_name", "position", "email", "phone", "mobile", "note"],
     extra=1, can_delete=True
 )
+
+User = get_user_model()
+
+class CounterpartyCreateForm(forms.ModelForm):
+    class Meta:
+        model = Counterparty
+        fields = [
+            "inn", "name", "full_name", "kpp", "ogrn",
+            "registration_country", "address", "website",
+            "managers",  # ← добавили в форму
+        ]
+        widgets = {
+            # ... ваши виджеты ...
+            "managers": forms.SelectMultiple(attrs={"class": "w-full"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # показываем только пользователей из группы "manager"
+        try:
+            managers_group = Group.objects.get(name="manager")
+            qs = User.objects.filter(groups=managers_group).order_by(
+                "last_name", "first_name", "username"
+            ).distinct()
+        except Group.DoesNotExist:
+            qs = User.objects.none()
+        self.fields["managers"].queryset = qs
+        self.fields["managers"].label = "Закреплённые менеджеры"
+        self.fields["managers"].help_text = "Можно выбрать несколько."
