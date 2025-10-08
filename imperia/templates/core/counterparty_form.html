@@ -169,7 +169,90 @@
     <a href="javascript:history.back()" class="rounded-xl border px-4 py-2">Отмена</a>
   </div>
 </form>
+<script>
+  // ==========================
+  // Автозаполнение из ЕГРЮЛ
+  // ==========================
+  (function () {
+    const btn = document.getElementById('btn-egrul');
+    if (!btn) return;
 
+    const lookupUrl = "{% url 'core:counterparty_lookup_inn' %}"; // /counterparties/lookup/
+
+    btn.addEventListener('click', async function () {
+      const innInput = document.getElementById('id_inn');
+      const inn = (innInput?.value || '').trim();
+
+      if (!/^\d{10}(\d{2})?$/.test(inn)) {
+        alert('Введите корректный ИНН: 10 (юр.лицо) или 12 (ИП) цифр.');
+        innInput?.focus();
+        return;
+      }
+
+      btn.disabled = true;
+
+      try {
+        const resp = await fetch(`${lookupUrl}?inn=${encodeURIComponent(inn)}`, { method: 'GET' });
+        const data = await resp.json();
+
+        if (!resp.ok || !data.ok) {
+          alert(data.error || 'Не удалось получить данные ЕГРЮЛ');
+          return;
+        }
+
+        const d = data.data || {};
+
+        // Заполняем известные поля из payload
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el && (val ?? '') !== '') el.value = val; };
+
+        setVal('id_name', d.name);
+        setVal('id_full_name', d.full_name);
+        setVal('id_kpp', d.kpp);
+        setVal('id_ogrn', d.ogrn);
+        setVal('id_registration_country', d.registration_country || 'РОССИЯ');
+        setVal('id_address', d.address);
+        setVal('id_website', d.website);
+
+        // Новые поля (обычно ЕГРЮЛ их не даёт — оставляем как есть)
+        // setVal('id_actual_address', d.actual_address);
+        // setVal('id_bank_name', d.bank_name);
+        // setVal('id_bank_bik', d.bank_bik);
+        // setVal('id_bank_account', d.bank_account);
+      } catch (e) {
+        console.error(e);
+        alert('Ошибка запроса к ЕГРЮЛ.');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
+
+  // ==========================
+  // Добавление новой строки документа (Formset)
+  // ==========================
+  (function() {
+    const addBtn = document.getElementById('add-doc');
+    if (!addBtn) return;
+
+    const totalInput = document.querySelector('input[name="{{ doc_formset.prefix }}-TOTAL_FORMS"]');
+    const container = document.getElementById('doc-forms');
+    const tmpl = document.getElementById('doc-empty').innerHTML;
+
+    addBtn.addEventListener('click', function() {
+      const idx = parseInt(totalInput.value || '0', 10);
+      const titleHtml = `<input type="text" name="{{ doc_formset.prefix }}-${idx}-title" class="input">`;
+      const fileHtml  = `<input type="file" name="{{ doc_formset.prefix }}-${idx}-file" class="input">`;
+
+      let html = tmpl.replace('REPLACE_TITLE', titleHtml)
+                     .replace('REPLACE_FILE', fileHtml);
+
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html;
+      container.appendChild(wrapper.firstElementChild);
+      totalInput.value = idx + 1;
+    });
+  })();
+</script>
 <script>
   // Добавление новой строки документа (Formset)
   (function() {
