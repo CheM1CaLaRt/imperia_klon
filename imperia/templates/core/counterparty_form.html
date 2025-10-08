@@ -163,7 +163,19 @@
     </template>
   </div>
   {% endif %}
-
+{# перед кнопками #}
+{% if form.non_field_errors %}
+  <div class="rounded-md bg-red-50 text-red-700 px-3 py-2 text-sm mb-2">
+    {{ form.non_field_errors }}
+  </div>
+{% endif %}
+{% if doc_formset %}
+  {% if doc_formset.non_form_errors %}
+    <div class="rounded-md bg-red-50 text-red-700 px-3 py-2 text-sm mb-2">
+      {{ doc_formset.non_form_errors }}
+    </div>
+  {% endif %}
+{% endif %}
   <div class="flex gap-2">
     <button type="submit" class="rounded-xl bg-black text-white px-4 py-2">Сохранить</button>
     <a href="javascript:history.back()" class="rounded-xl border px-4 py-2">Отмена</a>
@@ -249,32 +261,6 @@
       const wrapper = document.createElement('div');
       wrapper.innerHTML = html;
       container.appendChild(wrapper.firstElementChild);
-      totalInput.value = idx + 1;
-    });
-  })();
-</script>
-<script>
-  // Добавление новой строки документа (Formset)
-  (function() {
-    const addBtn = document.getElementById('add-doc');
-    if (!addBtn) return;
-
-    const totalInput = document.querySelector('input[name="{{ doc_formset.prefix }}-TOTAL_FORMS"]');
-    const container = document.getElementById('doc-forms');
-    const tmpl = document.getElementById('doc-empty').innerHTML;
-
-    addBtn.addEventListener('click', function() {
-      const idx = parseInt(totalInput.value || '0', 10);
-      const titleHtml = `<input type="text" name="{{ doc_formset.prefix }}-${idx}-title" class="input">`;
-      const fileHtml  = `<input type="file" name="{{ doc_formset.prefix }}-${idx}-file" class="input">`;
-
-      let html = tmpl.replace('REPLACE_TITLE', titleHtml)
-                     .replace('REPLACE_FILE', fileHtml);
-
-      const wrapper = document.createElement('div');
-      wrapper.innerHTML = html;
-      container.appendChild(wrapper.firstElementChild);
-
       totalInput.value = idx + 1;
     });
   })();
