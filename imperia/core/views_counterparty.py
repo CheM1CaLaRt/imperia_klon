@@ -9,13 +9,13 @@ from django.http import (
     HttpResponseForbidden,
 )
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from .forms import (
     CounterpartyCreateForm,
     ContactFormSet,
     CounterpartyContactForm,
+    CounterpartyDocumentFormSet,   # ← добавили formset документов
 )
 from .models import (
     Counterparty,
@@ -58,26 +58,42 @@ def _is_attached_manager(user, counterparty: Counterparty):
 def counterparty_create(request):
     """
     Оператор/директор создают контрагента.
-    Кнопка «Найти в ЕГРЮЛ» подтягивает данные, а также можно добавить контакты (formset).
+    Кнопка «Найти в ЕГРЮЛ» подтягивает данные.
+    Можно сразу добавить контакты (formset) и сканы документов (formset).
+    ВАЖНО: форма использует enctype="multipart/form-data".
     """
     if request.method == "POST":
-        form = CounterpartyCreateForm(request.POST)
+        form = CounterpartyCreateForm(request.POST, request.FILES)
         formset = ContactFormSet(request.POST)
-        if form.is_valid() and formset.is_valid():
+        doc_formset = CounterpartyDocumentFormSet(request.POST, request.FILES, prefix="docs")
+
+        if form.is_valid() and formset.is_valid() and doc_formset.is_valid():
             inn = form.cleaned_data["inn"]
+
             obj, created = Counterparty.objects.get_or_create(
                 inn=inn,
                 defaults=form.cleaned_data,
             )
             if not created:
                 # Обновим ключевые поля (если правили вручную)
-                for f in ["name", "full_name", "registration_country", "kpp", "ogrn", "address", "website"]:
+                for f in [
+                    "name", "full_name", "registration_country",
+                    "kpp", "ogrn", "address", "actual_address",
+                    "bank_name", "bank_bik", "bank_account",
+                    "website",
+                ]:
                     setattr(obj, f, form.cleaned_data.get(f))
+            # managers из формы ManyToMany
             obj.save()
+            form.save_m2m()
 
             # Привяжем контакты из инлайн-форм
             formset.instance = obj
             formset.save()
+
+            # Документы
+            doc_formset.instance = obj
+            doc_formset.save()
 
             # Подтянем финансы (не критично, если ошибка)
             try:
@@ -98,8 +114,17 @@ def counterparty_create(request):
     else:
         form = CounterpartyCreateForm()
         formset = ContactFormSet()
+        doc_formset = CounterpartyDocumentFormSet(prefix="docs")
 
-    return render(request, "core/counterparty_form.html", {"form": form, "formset": formset})
+    return render(
+        request,
+        "core/counterparty_form.html",
+        {
+            "form": form,
+            "formset": formset,
+            "doc_formset": doc_formset,
+        },
+    )
 
 
 @login_required
@@ -134,7 +159,7 @@ def counterparty_detail(request, pk: int):
       - manager: только если прикреплён к этому контрагенту
     """
     obj = get_object_or_404(
-        Counterparty.objects.select_related("finance").prefetch_related("contacts", "managers"),
+        Counterparty.objects.select_related("finance").prefetch_related("contacts", "managers", "documents"),
         pk=pk,
     )
 
@@ -181,16 +206,29 @@ def counterparty_refresh_finance(request, pk: int):
 @login_required
 @user_passes_test(_is_operator_or_director)
 def counterparty_update(request, pk: int):
+    """
+    Редактирование включает сохранение M2M (managers) и formset документов.
+    Контакты остаются отдельными операциями (add/edit/delete).
+    """
     obj = get_object_or_404(Counterparty, pk=pk)
+
     if request.method == "POST":
-        form = CounterpartyCreateForm(request.POST, instance=obj)
-        if form.is_valid():
-            form.save()
+        form = CounterpartyCreateForm(request.POST, request.FILES, instance=obj)
+        doc_formset = CounterpartyDocumentFormSet(request.POST, request.FILES, instance=obj, prefix="docs")
+        if form.is_valid() and doc_formset.is_valid():
+            form.save()          # сохранит поля + managers через save_m2m()
+            doc_formset.save()   # сохранит/удалит документы
             messages.success(request, "Контрагент обновлён.")
             return redirect("core:counterparty_detail", pk=obj.pk)
     else:
         form = CounterpartyCreateForm(instance=obj)
-    return render(request, "core/counterparty_form.html", {"form": form, "edit_mode": True})
+        doc_formset = CounterpartyDocumentFormSet(instance=obj, prefix="docs")
+
+    return render(
+        request,
+        "core/counterparty_form.html",
+        {"form": form, "edit_mode": True, "doc_formset": doc_formset},
+    )
 
 
 @login_required

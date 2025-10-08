@@ -6,5 +6,7 @@ class CoreConfig(AppConfig):
 
 
     def ready(self):
+        from . import signals  # noqa
         # Импортируем сигналы при старте приложения
         import core.signals  # noqa: F401
+

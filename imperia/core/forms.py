@@ -11,8 +11,12 @@ from .models import Warehouse
 from .models import Inventory, StorageBin
 from decimal import Decimal
 from django.forms import inlineformset_factory
-from .models import Counterparty, CounterpartyContact, inn_validator
+from .models import CounterpartyContact, inn_validator
 from django.contrib.auth.models import Group
+from .models import (
+    Counterparty,
+    CounterpartyDocument,  # для сканов документов
+)
 
 
 User = get_user_model()
@@ -296,29 +300,123 @@ ContactFormSet = inlineformset_factory(
 
 User = get_user_model()
 
+
 class CounterpartyCreateForm(forms.ModelForm):
+    """Форма создания/редактирования контрагента."""
+
     class Meta:
         model = Counterparty
         fields = [
+            # Основные реквизиты
             "inn", "name", "full_name", "kpp", "ogrn",
-            "registration_country", "address", "website",
-            "managers",  # ← добавили в форму
+            "registration_country",
+
+            # Адреса
+            "address",           # юр. адрес (как было)
+            "actual_address",    # 🔹 новое: фактический/доставки
+
+            # Банк (новые поля)
+            "bank_name",
+            "bank_bik",
+            "bank_account",
+
+            # Прочее
+            "website",
+            "managers",          # выбор закреплённых менеджеров
         ]
         widgets = {
-            # ... ваши виджеты ...
+            "inn": forms.TextInput(attrs={"class": "w-full"}),
+            "name": forms.TextInput(attrs={"class": "w-full"}),
+            "full_name": forms.TextInput(attrs={"class": "w-full"}),
+            "kpp": forms.TextInput(attrs={"class": "w-full"}),
+            "ogrn": forms.TextInput(attrs={"class": "w-full"}),
+
+            "registration_country": forms.TextInput(attrs={"class": "w-full"}),
+
+            "address": forms.TextInput(attrs={"class": "w-full"}),
+            "actual_address": forms.TextInput(attrs={"class": "w-full"}),
+
+            "bank_name": forms.TextInput(attrs={"class": "w-full"}),
+            "bank_bik": forms.TextInput(attrs={"class": "w-full"}),
+            "bank_account": forms.TextInput(attrs={"class": "w-full"}),
+
+            "website": forms.URLInput(attrs={"class": "w-full"}),
+
             "managers": forms.SelectMultiple(attrs={"class": "w-full"}),
+        }
+        help_texts = {
+            "managers": "Можно выбрать нескольких менеджеров.",
+        }
+        labels = {
+            "address": "Юридический адрес",
+            "actual_address": "Фактический адрес / адрес доставки",
+            "bank_name": "Наименование банка",
+            "bank_bik": "БИК",
+            "bank_account": "Номер счёта",
+            "managers": "Закреплённые менеджеры",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # показываем только пользователей из группы "manager"
+
+        # Показываем в поле "managers" только пользователей из группы "manager"
         try:
             managers_group = Group.objects.get(name="manager")
-            qs = User.objects.filter(groups=managers_group).order_by(
-                "last_name", "first_name", "username"
-            ).distinct()
+            qs = (
+                User.objects.filter(groups=managers_group)
+                .order_by("last_name", "first_name", "username")
+                .distinct()
+            )
         except Group.DoesNotExist:
             qs = User.objects.none()
+
         self.fields["managers"].queryset = qs
-        self.fields["managers"].label = "Закреплённые менеджеры"
-        self.fields["managers"].help_text = "Можно выбрать несколько."
+
+        # Приятные плейсхолдеры
+        self.fields["actual_address"].widget.attrs.setdefault(
+            "placeholder", "Например: 109240, г. Москва, наб. Москворецкая, д. 7, стр. 1…"
+        )
+        self.fields["bank_bik"].widget.attrs.setdefault("placeholder", "9 цифр")
+        self.fields["bank_account"].widget.attrs.setdefault("placeholder", "Номер счёта (обычно 20 цифр)")
+
+    # Лёгкая валидация БИК и счёта (по желанию, оставляются пустыми – ок)
+    def clean_bank_bik(self):
+        v = (self.cleaned_data.get("bank_bik") or "").strip()
+        if v and (not v.isdigit() or len(v) != 9):
+            raise forms.ValidationError("БИК должен состоять из 9 цифр.")
+        return v
+
+    def clean_bank_account(self):
+        v = (self.cleaned_data.get("bank_account") or "").strip().replace(" ", "")
+        # Обычно 20 цифр в РФ, но оставим мягкое правило
+        if v and (not v.isdigit() or not (16 <= len(v) <= 34)):
+            raise forms.ValidationError("Номер счёта должен содержать только цифры (обычно 20).")
+        return v
+
+
+# -------------------------------
+# Сканы документов контрагента
+# -------------------------------
+
+class CounterpartyDocumentForm(forms.ModelForm):
+    class Meta:
+        model = CounterpartyDocument
+        fields = ["title", "file"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "w-full", "placeholder": "Например: Устав, Договор №..."}),
+            "file": forms.ClearableFileInput(attrs={"class": "w-full"}),
+        }
+        labels = {
+            "title": "Название документа",
+            "file": "Файл",
+        }
+
+
+# Инлайн-формсет к контрагенту (добавление/удаление файлов)
+CounterpartyDocumentFormSet = forms.inlineformset_factory(
+    parent_model=Counterparty,
+    model=CounterpartyDocument,
+    form=CounterpartyDocumentForm,
+    extra=1,
+    can_delete=True,
+)

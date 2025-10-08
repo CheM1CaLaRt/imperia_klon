@@ -11,6 +11,9 @@ from django.core.validators import RegexValidator
 from django.core.validators import URLValidator
 
 
+
+
+
 def avatar_upload_to(instance, filename):
     return f"avatars/user_{instance.user_id}/{filename}"
 
@@ -276,22 +279,39 @@ class Counterparty(models.Model):
     inn = models.CharField("ИНН", max_length=12, unique=True, validators=[inn_validator])
     kpp = models.CharField("КПП", max_length=9, blank=True)
     ogrn = models.CharField("ОГРН/ОГРНИП", max_length=15, blank=True)
+
     name = models.CharField("Наименование", max_length=512)
     full_name = models.CharField("Полное наименование", max_length=1024, blank=True)
-    registration_country = models.CharField("Страна регистрации", max_length=128, blank=True, default="РОССИЯ")
-    address = models.CharField("Адрес", max_length=1024, blank=True)
-    website = models.URLField(blank=True, null=True)
 
-    # НОВОЕ: менеджеры
+    registration_country = models.CharField(
+        "Страна регистрации", max_length=128, blank=True, default="РОССИЯ"
+    )
+
+    # Юр. адрес (как и было)
+    address = models.CharField("Адрес", max_length=1024, blank=True)
+
+    # 🔹 Новое: фактический адрес / адрес доставки
+    actual_address = models.CharField(
+        "Фактический адрес / адрес доставки", max_length=1024, blank=True
+    )
+
+    # 🔹 Новое: банковские реквизиты
+    bank_name = models.CharField("Банк (наименование)", max_length=255, blank=True)
+    bank_bik = models.CharField("БИК", max_length=20, blank=True)
+    bank_account = models.CharField("Номер счёта", max_length=34, blank=True)
+
+    website = models.URLField("Сайт", blank=True, null=True)
+
+    # Менеджеры (как было)
     managers = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="managed_counterparties",
         blank=True,
         verbose_name="Закреплённые менеджеры",
-        help_text="Выберите одного или нескольких менеджеров."
+        help_text="Выберите одного или нескольких менеджеров.",
     )
 
-    # Сырой JSON — чтобы ничего не потерять при изменениях API
+    # Сырой JSON с ЕГРЮЛ
     meta_json = models.JSONField("Данные из ЕГРЮЛ (сырые)", default=dict, blank=True)
 
     class Meta:
@@ -302,6 +322,27 @@ class Counterparty(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.inn})"
+
+class CounterpartyDocument(models.Model):
+    counterparty = models.ForeignKey(
+        "Counterparty",
+        on_delete=models.CASCADE,
+        related_name="documents",
+        verbose_name="Контрагент",
+    )
+    title = models.CharField("Название", max_length=255, blank=True)
+    file = models.FileField(
+        "Файл",
+        upload_to="counterparty_docs/%Y/%m/%d/",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title or (self.file.name if self.file else "Документ")
+
 
 
 class CounterpartyFinance(models.Model):
@@ -331,6 +372,8 @@ class CounterpartyContact(models.Model):
 
     def __str__(self):
         return f"{self.full_name} ({self.counterparty.name})"
+
+
 
 
 

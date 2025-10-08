@@ -5,6 +5,10 @@ from django.dispatch import receiver
 from .models import Profile
 from django.core.files.storage import default_storage
 from PIL import Image
+from django.db.models.signals import post_delete, pre_save
+from django.dispatch import receiver
+from .models import CounterpartyDocument
+
 
 def _remove_file(f):
     """Безопасно удалить файл на диске, если он существует."""
@@ -66,3 +70,28 @@ def resize_avatar_if_needed(sender, instance: Profile, created, **kwargs):
     except Exception:
         # какие-то экзотические форматы/ошибки PIL — просто пропускаем
         pass
+
+
+@receiver(post_delete, sender=CounterpartyDocument)
+def delete_document_file_on_delete(sender, instance: CounterpartyDocument, **kwargs):
+    """
+    Удаляем файл с диска, когда запись документа удалена
+    (в т.ч. через formset с галочкой «удалить» или каскадно при удалении контрагента).
+    """
+    if instance.file:
+        # save=False — чтобы не пытаться сохранить модель заново
+        instance.file.delete(save=False)
+
+@receiver(pre_save, sender=CounterpartyDocument)
+def delete_old_file_on_change(sender, instance: CounterpartyDocument, **kwargs):
+    """
+    Если заменили файл у существующей записи — удалить старый файл с диска.
+    """
+    if not instance.pk:
+        return  # создаётся новая запись — нечего удалять
+    try:
+        old = CounterpartyDocument.objects.get(pk=instance.pk)
+    except CounterpartyDocument.DoesNotExist:
+        return
+    if old.file and old.file != instance.file:
+        old.file.delete(save=False)

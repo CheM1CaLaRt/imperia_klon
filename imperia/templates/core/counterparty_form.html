@@ -1,217 +1,199 @@
+{# templates/core/counterparty_form.html #}
 {% extends "base.html" %}
-{% block title %}{{ edit_mode|yesno:"Редактировать контрагента,Новый контрагент" }}{% endblock %}
+
+{% block title %}{% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %}{% endblock %}
 
 {% block content %}
 <h1 class="text-2xl font-semibold mb-4">
-  {{ edit_mode|yesno:"Редактировать контрагента,Новый контрагент" }}
+  {% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %}
 </h1>
 
-<form method="post" id="cpForm" class="space-y-4">
+<form method="post" enctype="multipart/form-data" class="space-y-5">
   {% csrf_token %}
-  <div>
-  <label class="block text-sm font-medium">Сайт компании</label>
-  {{ form.website }}
-</div>
 
-<hr class="my-4"/>
+  <div class="grid grid-cols-1 gap-4">
 
-<h2 class="text-lg font-semibold mb-2">Контактные лица</h2>
-{{ formset.management_form }}
-  {% if formset %}
-<div id="contacts">
-  {% for f in formset %}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 border rounded-xl p-3">
-      <div class="md:col-span-1">
-        <label class="block text-sm font-medium">ФИО</label>
-        {{ f.full_name }}
+    {# ИНН + кнопка ЕГРЮЛ #}
+    <div>
+      {{ form.inn.label_tag }}
+      {{ form.inn }}
+      {% if form.inn.errors %}<div class="text-red-600 text-sm">{{ form.inn.errors }}</div>{% endif %}
+      <div class="mt-2">
+        <button type="button" id="btn-egrul" class="rounded-xl border px-3 py-2">Найти в ЕГРЮЛ</button>
       </div>
-      <div>
-        <label class="block text-sm font-medium">Должность</label>
-        {{ f.position }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium">Email</label>
-        {{ f.email }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium">Телефон</label>
-        {{ f.phone }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium">Моб.</label>
-        {{ f.mobile }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium">Комментарий</label>
-        {{ f.note }}
-      </div>
-      {% if f.DELETE %}
-      <div class="md:col-span-3">
-        <label class="inline-flex items-center gap-2 text-sm">
-          {{ f.DELETE }} Удалить эту строку
-        </label>
-      </div>
-      {% endif %}
     </div>
-  {% endfor %}
-</div>
+
+    {# Краткое и полное наименование #}
+    <div>
+      {{ form.name.label_tag }}
+      {{ form.name }}
+      {% if form.name.errors %}<div class="text-red-600 text-sm">{{ form.name.errors }}</div>{% endif %}
+    </div>
+
+    <div>
+      {{ form.full_name.label_tag }}
+      {{ form.full_name }}
+      {% if form.full_name.errors %}<div class="text-red-600 text-sm">{{ form.full_name.errors }}</div>{% endif %}
+    </div>
+
+    {# КПП / ОГРН / Страна #}
+    <div class="grid md:grid-cols-3 gap-4">
+      <div>
+        {{ form.kpp.label_tag }}
+        {{ form.kpp }}
+        {% if form.kpp.errors %}<div class="text-red-600 text-sm">{{ form.kpp.errors }}</div>{% endif %}
+      </div>
+      <div>
+        {{ form.ogrn.label_tag }}
+        {{ form.ogrn }}
+        {% if form.ogrn.errors %}<div class="text-red-600 text-sm">{{ form.ogrn.errors }}</div>{% endif %}
+      </div>
+      <div>
+        {{ form.registration_country.label_tag }}
+        {{ form.registration_country }}
+        {% if form.registration_country.errors %}<div class="text-red-600 text-sm">{{ form.registration_country.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    {# Юр. адрес #}
+    <div>
+      {{ form.address.label_tag }}
+      {{ form.address }}
+      {% if form.address.errors %}<div class="text-red-600 text-sm">{{ form.address.errors }}</div>{% endif %}
+    </div>
+
+    {# Фактический/доставки #}
+    <div>
+      {{ form.actual_address.label_tag }}
+      {{ form.actual_address }}
+      {% if form.actual_address.errors %}<div class="text-red-600 text-sm">{{ form.actual_address.errors }}</div>{% endif %}
+    </div>
+
+    {# Банк: наименование / БИК / счёт #}
+    <div class="grid md:grid-cols-3 gap-4">
+      <div>
+        {{ form.bank_name.label_tag }}
+        {{ form.bank_name }}
+        {% if form.bank_name.errors %}<div class="text-red-600 text-sm">{{ form.bank_name.errors }}</div>{% endif %}
+      </div>
+      <div>
+        {{ form.bank_bik.label_tag }}
+        {{ form.bank_bik }}
+        {% if form.bank_bik.errors %}<div class="text-red-600 text-sm">{{ form.bank_bik.errors }}</div>{% endif %}
+      </div>
+      <div>
+        {{ form.bank_account.label_tag }}
+        {{ form.bank_account }}
+        {% if form.bank_account.errors %}<div class="text-red-600 text-sm">{{ form.bank_account.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    {# Сайт #}
+    <div>
+      {{ form.website.label_tag }}
+      {{ form.website }}
+      {% if form.website.errors %}<div class="text-red-600 text-sm">{{ form.website.errors }}</div>{% endif %}
+    </div>
+
+    {# Менеджеры #}
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Закреплённые менеджеры</label>
+      {{ form.managers }}
+      {% if form.managers.errors %}<div class="text-red-600 text-sm">{{ form.managers.errors }}</div>{% endif %}
+      <p class="text-xs text-gray-500 mt-1">Можно выбрать несколько.</p>
+    </div>
+  </div>
+
+  {# Сканы документов #}
+  {% if doc_formset %}
+  <div class="rounded-xl border p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold">Сканы документов</h2>
+      <button type="button" id="add-doc" class="rounded-xl border px-3 py-1">Добавить файл</button>
+    </div>
+
+    {{ doc_formset.management_form }}
+
+    <div id="doc-forms" class="space-y-3">
+      {% for f in doc_formset.forms %}
+        {{ f.id }} {# скрытое поле для существующих #}
+        <div class="border rounded-lg p-3">
+          <div class="grid md:grid-cols-3 gap-4 items-start">
+            <div>
+              {{ f.title.label_tag }}
+              {{ f.title }}
+              {% if f.title.errors %}<div class="text-red-600 text-sm">{{ f.title.errors }}</div>{% endif %}
+            </div>
+            <div>
+              {{ f.file.label_tag }}
+              {{ f.file }}
+              {% if f.file.errors %}<div class="text-red-600 text-sm">{{ f.file.errors }}</div>{% endif %}
+              {% if f.instance.pk and f.instance.file %}
+                <div class="mt-1 text-sm">
+                  <a href="{{ f.instance.file.url }}" target="_blank" class="text-blue-600 underline">Просмотреть текущий файл</a>
+                </div>
+              {% endif %}
+            </div>
+            <div class="pt-6">
+              {% if f.DELETE %}
+                <label class="inline-flex items-center gap-2 text-red-600">
+                  {{ f.DELETE }} удалить
+                </label>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {# Пустой блок для JS-добавления новой строки #}
+    <template id="doc-empty">
+      <div class="border rounded-lg p-3">
+        <div class="grid md:grid-cols-3 gap-4 items-start">
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">Название</label>
+            REPLACE_TITLE
+          </div>
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">Файл</label>
+            REPLACE_FILE
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
   {% endif %}
 
-<button type="button" id="addContact" class="rounded-xl border px-3 py-1">Добавить ещё контакт</button>
-
-<script>
-document.getElementById("addContact").addEventListener("click", function() {
-  const total = document.querySelector('#id_' + '{{ formset.prefix|default:"counterpartycontact_set" }}' + '-TOTAL_FORMS');
-  const formCount = parseInt(total.value, 10);
-  const container = document.getElementById("contacts");
-  const first = container.querySelector(".grid");
-  const clone = first.cloneNode(true);
-  // очистим значения новых инпутов
-  clone.querySelectorAll("input,textarea").forEach((el) => { el.value = ""; });
-  // переименуем индексы __prefix__ -> formCount
-  clone.querySelectorAll("[name]").forEach((el) => {
-    el.name = el.name.replace(/-\d+-/, '-' + formCount + '-');
-    el.id = el.id.replace(/-\d+-/, '-' + formCount + '-');
-  });
-  container.appendChild(clone);
-  total.value = formCount + 1;
-});
-</script>
-
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-    <div class="md:col-span-2">
-      <label class="block text-sm font-medium">ИНН</label>
-      {{ form.inn }}
-      <p class="text-xs text-gray-500 mt-1">10 (юр.лицо) или 12 (ИП) цифр</p>
-    </div>
-    <div>
-      <button type="button" id="btnLookup" class="w-full rounded-xl border px-4 py-2">
-         Найти в ЕГРЮЛ
-       </button>
-    </div>
+  <div class="flex gap-2">
+    <button type="submit" class="rounded-xl bg-black text-white px-4 py-2">Сохранить</button>
+    <a href="javascript:history.back()" class="rounded-xl border px-4 py-2">Отмена</a>
   </div>
-
-  <div>
-    <label class="block text-sm font-medium">Краткое наименование</label>
-    {{ form.name }}
-  </div>
-
-  <div>
-    <label class="block text-sm font-medium">Полное наименование</label>
-    {{ form.full_name }}
-  </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div>
-      <label class="block text-sm font-medium">КПП</label>
-      {{ form.kpp }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium">ОГРН/ОГРНИП</label>
-      {{ form.ogrn }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium">Страна регистрации</label>
-      {{ form.registration_country }}
-    </div>
-  </div>
-
-  <div>
-    <label class="block text-sm font-medium">Адрес</label>
-    {{ form.address }}
-  </div>
-<div class="mt-3">
-  <label class="block text-sm font-medium">Закреплённые менеджеры</label>
-  {{ form.managers }}
-  {% if form.managers.help_text %}<p class="text-xs text-gray-500">{{ form.managers.help_text }}</p>{% endif %}
-</div>
-  <div class="mt-6 flex items-center gap-3">
-  <button type="submit" class="rounded-xl bg-black text-white px-4 py-2">Сохранить</button>
-   <a href="{% url 'core:counterparty_list' %}" class="rounded-xl border px-4 py-2">Отмена</a>
-</div>
 </form>
 
-
-
-
 <script>
-document.addEventListener("DOMContentLoaded", function () {
-  const byName = (n) => document.querySelector(`[name="${n}"]`);
-  const debug = document.getElementById("debug");
+  // Добавление новой строки документа (Formset)
+  (function() {
+    const addBtn = document.getElementById('add-doc');
+    if (!addBtn) return;
 
-  async function lookupInn(e) {
-    e.preventDefault();
+    const totalInput = document.querySelector('input[name="{{ doc_formset.prefix }}-TOTAL_FORMS"]');
+    const container = document.getElementById('doc-forms');
+    const tmpl = document.getElementById('doc-empty').innerHTML;
 
-    const innEl = byName("inn");
-    const inn = (innEl.value || "").trim();
+    addBtn.addEventListener('click', function() {
+      const idx = parseInt(totalInput.value || '0', 10);
+      const titleHtml = `<input type="text" name="{{ doc_formset.prefix }}-${idx}-title" class="input">`;
+      const fileHtml  = `<input type="file" name="{{ doc_formset.prefix }}-${idx}-file" class="input">`;
 
-    if (!/^\d{10}(\d{2})?$/.test(inn)) {
-      alert("Введите корректный ИНН (10 или 12 цифр).");
-      innEl.focus();
-      return;
-    }
+      let html = tmpl.replace('REPLACE_TITLE', titleHtml)
+                     .replace('REPLACE_FILE', fileHtml);
 
-    const url = "{% url 'core:counterparty_lookup_inn' %}?inn=" + encodeURIComponent(inn);
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html;
+      container.appendChild(wrapper.firstElementChild);
 
-    try {
-      const r = await fetch(url, { headers: { "X-Requested-With": "fetch" } });
-      const payload = await r.json();
-
-      if (!payload.ok) {
-        alert(payload.error || "Ошибка сервиса ЕГРЮЛ");
-        return;
-      }
-
-      // Заполним поля. Плюс — пробуем русские ключи на всякий случай.
-      const d = payload.data || {};
-      const get = (keys) => {
-        for (const k of keys) {
-          if (d[k] != null && d[k] !== "") return String(d[k]).trim();
-        }
-        return "";
-      };
-
-      const fillMap = {
-        inn: ["inn","ИНН"],
-        name: ["name","Наименование","short_name","краткое"],
-        full_name: ["full_name","ПолноеНаименование","полное"],
-        kpp: ["kpp","КПП"],
-        ogrn: ["ogrn","ogrnip","ОГРН","ОГРНИП"],
-        registration_country: ["registration_country","Страна","country"],
-        address: ["address","Адрес","addr"],
-      };
-
-      Object.entries(fillMap).forEach(([field, keys]) => {
-        const el = byName(field);
-        if (el) el.value = get(keys);
-      });
-    } catch (e) {
-      alert("Сервис ЕГРЮЛ недоступен. Попробуйте позже.");
-    }
-  }
-
-  const btn = document.getElementById("btnLookup");
-  if (btn) btn.addEventListener("click", lookupInn);
-
-  // Enter по ИНН запускает поиск
-  const innEl = byName("inn");
-  if (innEl) innEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      lookupInn(e);
-    }
-  });
-});
-</script>
-{% if edit_mode %}
-  <script>
-    document.addEventListener("DOMContentLoaded", ()=> {
-      const inn = document.querySelector('input[name="inn"]');
-      if (inn) inn.readOnly = true;
-      const btn = document.getElementById("btnLookup");
-      if (btn) btn.disabled = true;
+      totalInput.value = idx + 1;
     });
-  </script>
-{% endif %}
-
+  })();
+</script>
 {% endblock %}
