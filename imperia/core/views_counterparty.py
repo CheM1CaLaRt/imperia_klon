@@ -28,6 +28,10 @@ from .forms import (
     CounterpartyDocumentFormSet,   # <-- ВАЖНО
 )
 
+# --- Подсказки адресов через OSM Nominatim (бесплатно) ---
+from django.views.decorators.http import require_GET
+import json
+
 # =========================
 # Helpers (права)
 # =========================
@@ -317,3 +321,61 @@ def counterparty_list(request):
         )
 
     return render(request, "core/counterparty_list.html", {"objects": qs, "q": q})
+
+@login_required
+@require_GET
+def address_suggest_osm(request):
+    """
+    GET ?q=ул тверская 7  → {"suggestions":[{"value":"..."}]}
+    Проксирующий ендпоинт для клиента. Источник — OSM Nominatim.
+    """
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 3:
+        return JsonResponse({"suggestions": []})
+
+    # Параметры/заголовки согласно правилам Nominatim
+    params = {
+        "q": q,
+        "format": "json",
+        "addressdetails": 0,
+        "limit": 5,
+        "accept-language": "ru",
+    }
+    headers = {
+        # укажи свой домен/почту проекта
+        "User-Agent": "ImperiaApp/1.0 (admin@example.com)"
+    }
+
+    suggestions = []
+
+    # Пытаемся через requests; если его нет — через urllib
+    try:
+        import requests  # noqa
+        try:
+            r = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params=params,
+                headers=headers,
+                timeout=3,
+            )
+            r.raise_for_status()
+            data = r.json()
+            suggestions = [{"value": item.get("display_name", "")} for item in data if item.get("display_name")]
+        except Exception:
+            suggestions = []
+    except Exception:
+        # Fallback на стандартную библиотеку
+        from urllib.parse import urlencode
+        from urllib.request import Request, urlopen
+
+        try:
+            url = "https://nominatim.openstreetmap.org/search?" + urlencode(params)
+            req = Request(url, headers=headers)
+            with urlopen(req, timeout=3) as resp:
+                raw = resp.read().decode("utf-8", "ignore")
+                data = json.loads(raw)
+                suggestions = [{"value": item.get("display_name", "")} for item in data if item.get("display_name")]
+        except Exception:
+            suggestions = []
+
+    return JsonResponse({"suggestions": suggestions})

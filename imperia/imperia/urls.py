@@ -14,6 +14,7 @@ from django.urls import path
 from core import views
 from core import views_counterparty as v
 from django.urls import path, include
+from core import views_counterparty
 
 
 urlpatterns = [
@@ -52,6 +53,8 @@ urlpatterns = [
 
 # Редактирование позиции остатка
     path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/edit/", views.inventory_edit, name="inventory_edit"),
+
+    path("api/suggest/address/osm", views_counterparty.address_suggest_osm, name="address_suggest_osm"),
 
 
 # контрагенты

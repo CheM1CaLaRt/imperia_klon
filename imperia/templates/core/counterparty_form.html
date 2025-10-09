@@ -183,7 +183,7 @@
 </form>
 <script>
   // ==========================
-  // Автозаполнение из ЕГРЮЛ
+  // 1) Автозаполнение из ЕГРЮЛ
   // ==========================
   (function () {
     const btn = document.getElementById('btn-egrul');
@@ -215,7 +215,10 @@
         const d = data.data || {};
 
         // Заполняем известные поля из payload
-        const setVal = (id, val) => { const el = document.getElementById(id); if (el && (val ?? '') !== '') el.value = val; };
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && (val ?? '') !== '') el.value = val;
+        };
 
         setVal('id_name', d.name);
         setVal('id_full_name', d.full_name);
@@ -225,7 +228,7 @@
         setVal('id_address', d.address);
         setVal('id_website', d.website);
 
-        // Новые поля (обычно ЕГРЮЛ их не даёт — оставляем как есть)
+        // Новые поля обычно не приходят из ЕГРЮЛ — оставляем как есть:
         // setVal('id_actual_address', d.actual_address);
         // setVal('id_bank_name', d.bank_name);
         // setVal('id_bank_bik', d.bank_bik);
@@ -239,21 +242,131 @@
     });
   })();
 
-  // ==========================
-  // Добавление новой строки документа (Formset)
-  // ==========================
-  (function() {
+
+  // ==========================================
+  // 2) Подсказки адресов (OSM Nominatim, бесплатно)
+  //    для поля "Фактический адрес / адрес доставки"
+  // ==========================================
+  (function () {
+    const input = document.getElementById('id_actual_address');
+    if (!input) return;
+
+    // создаём контейнер подсказок, если его нет
+    const boxId = 'addr-suggest-box';
+    let box = document.getElementById(boxId);
+    if (!box) {
+      box = document.createElement('div');
+      box.id = boxId;
+      box.className = 'hidden absolute z-50 mt-1 w-full rounded-lg border bg-white shadow';
+      // обёртка-родитель для нормального позиционирования
+      const wrapper = document.createElement('div');
+      wrapper.className = 'relative';
+      input.parentNode.insertBefore(wrapper, input);
+      wrapper.appendChild(input);
+      wrapper.appendChild(box);
+    }
+
+    const endpoint = "{% url 'core:address_suggest_osm' %}"; // /api/suggest/address/osm
+    let timer = null;
+    let lastQuery = '';
+
+    function hideBox() {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+    function showBox() {
+      box.classList.remove('hidden');
+    }
+    function esc(s) {
+      return (s || '').replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;');
+    }
+    function render(items) {
+      if (!items || !items.length) {
+        hideBox();
+        return;
+      }
+      box.innerHTML = items.map(it => `
+        <button type="button"
+                class="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100"
+                data-value="${esc(it.value)}">
+          ${esc(it.value)}
+        </button>
+      `).join('');
+      showBox();
+    }
+
+    async function fetchSuggest(q) {
+      try {
+        const resp = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, {
+          headers: {"X-Requested-With": "XMLHttpRequest"}
+        });
+        const data = await resp.json();
+        render((data && data.suggestions) || []);
+      } catch (e) {
+        console.error(e);
+        hideBox();
+      }
+    }
+
+    function debounce(fn, ms) {
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+      };
+    }
+
+    const onType = debounce(() => {
+      const q = (input.value || '').trim();
+      if (!q) { hideBox(); return; }
+      if (q === lastQuery) return;
+      lastQuery = q;
+      fetchSuggest(q);
+    }, 300);
+
+    input.addEventListener('input', onType);
+    input.addEventListener('focus', () => { if (box.innerHTML.trim()) showBox(); });
+    // небольшая задержка, чтобы успеть кликнуть по пункту
+    input.addEventListener('blur', () => setTimeout(hideBox, 150));
+
+    box.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-value]');
+      if (!btn) return;
+      input.value = btn.getAttribute('data-value') || '';
+      hideBox();
+    });
+
+    // ESC — скрыть подсказки
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { hideBox(); }
+    });
+  })();
+
+
+  // ==========================================
+  // 3) Добавление новой строки документа (Formset)
+  // ==========================================
+  (function () {
     const addBtn = document.getElementById('add-doc');
     if (!addBtn) return;
 
-    const totalInput = document.querySelector('input[name="{{ doc_formset.prefix }}-TOTAL_FORMS"]');
-    const container = document.getElementById('doc-forms');
-    const tmpl = document.getElementById('doc-empty').innerHTML;
+    // Если doc_formset не передан в шаблон — защищаемся от пустого селектора
+    const totalInput = document.querySelector('input[name="{{ doc_formset.prefix|default_if_none:"__doc__" }}-TOTAL_FORMS"]') ||
+                       document.querySelector('input[name$="-TOTAL_FORMS"]');
+    const container  = document.getElementById('doc-forms');
+    const tmplEl     = document.getElementById('doc-empty');
 
-    addBtn.addEventListener('click', function() {
+    if (!totalInput || !container || !tmplEl) return;
+
+    const tmpl = tmplEl.innerHTML;
+
+    addBtn.addEventListener('click', function () {
       const idx = parseInt(totalInput.value || '0', 10);
-      const titleHtml = `<input type="text" name="{{ doc_formset.prefix }}-${idx}-title" class="input">`;
-      const fileHtml  = `<input type="file" name="{{ doc_formset.prefix }}-${idx}-file" class="input">`;
+      const prefix = totalInput.name.replace(/-TOTAL_FORMS$/, ''); // вычисляем актуальный prefix
+      const titleHtml = `<input type="text" name="${prefix}-${idx}-title" class="input">`;
+      const fileHtml  = `<input type="file" name="${prefix}-${idx}-file" class="input">`;
 
       let html = tmpl.replace('REPLACE_TITLE', titleHtml)
                      .replace('REPLACE_FILE', fileHtml);
@@ -261,8 +374,10 @@
       const wrapper = document.createElement('div');
       wrapper.innerHTML = html;
       container.appendChild(wrapper.firstElementChild);
+
       totalInput.value = idx + 1;
     });
   })();
 </script>
+
 {% endblock %}

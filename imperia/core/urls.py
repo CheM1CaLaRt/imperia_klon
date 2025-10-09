@@ -2,6 +2,7 @@ from django.urls import path
 from . import views_counterparty as v
 
 
+
 app_name = "core"
 urlpatterns = [
     path("counterparties/new/", v.counterparty_create, name="counterparty_create"),
@@ -22,4 +23,9 @@ urlpatterns = [
     ),
 
     path("counterparties/", v.counterparty_list, name="counterparty_list"),
+    path(
+        "api/suggest/address/osm",
+        v.address_suggest_osm,
+        name="address_suggest_osm",
+    ),
 ]
