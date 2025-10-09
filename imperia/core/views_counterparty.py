@@ -9,7 +9,9 @@ from django.http import (
     HttpResponseForbidden,
 )
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
+import json
 
 from .services.egrul import (
     EgrulError,
@@ -18,23 +20,26 @@ from .services.egrul import (
     parse_counterparty_payload,
 )
 
-
-from .models import Counterparty, CounterpartyFinance, CounterpartyContact
+from .models import (
+    Counterparty,
+    CounterpartyFinance,
+    CounterpartyContact,
+    # заявки на удаление
+    CounterpartyDeletionRequest,
+)
 
 from .forms import (
     CounterpartyCreateForm,
     ContactFormSet,
     CounterpartyContactForm,
-    CounterpartyDocumentFormSet,   # <-- ВАЖНО
+    CounterpartyDocumentFormSet,
+    # комментарий к заявке на удаление (для оператора)
+    CounterpartyDeletionRequestForm,
 )
 
-# --- Подсказки адресов через OSM Nominatim (бесплатно) ---
-from django.views.decorators.http import require_GET
-import json
-
-# =========================
+# ============================================================
 # Helpers (права)
-# =========================
+# ============================================================
 
 def _in_groups(user, names):
     return user.is_authenticated and user.groups.filter(name__in=names).exists()
@@ -45,6 +50,13 @@ def _is_operator_or_director(user):
 def _is_ops_mgr_dir(user):
     return _in_groups(user, ["operator", "manager", "director"])
 
+def _is_operator(user):
+    return _in_groups(user, ["operator"])
+
+def _is_director(user):
+    # позволяем суперпользователю выполнять действия директора
+    return _in_groups(user, ["director"]) or user.is_superuser
+
 def _is_attached_manager(user, counterparty: Counterparty):
     """Пользователь — менеджер, прикреплённый к контрагенту?"""
     return (
@@ -52,11 +64,10 @@ def _is_attached_manager(user, counterparty: Counterparty):
         and counterparty.managers.filter(pk=user.pk).exists()
     )
 
-# =========================
+# ============================================================
 # Создание / автоподбор по ИНН
-# =========================
+# ============================================================
 
-# ------- CREATE -------
 @login_required
 @user_passes_test(_is_operator_or_director)
 def counterparty_create(request):
@@ -65,36 +76,23 @@ def counterparty_create(request):
     """
     if request.method == "POST":
         form = CounterpartyCreateForm(request.POST)
-        # сначала валидируем саму карточку
         if form.is_valid():
             obj = form.save()
-
-            # теперь связываем и валидируем formset документов
             doc_formset = CounterpartyDocumentFormSet(
-                data=request.POST,
-                files=request.FILES,
-                instance=obj,
+                data=request.POST, files=request.FILES, instance=obj
             )
             if doc_formset.is_valid():
                 doc_formset.save()
                 messages.success(request, "Контрагент создан.")
                 return redirect("core:counterparty_detail", pk=obj.pk)
             else:
-                # если документы невалидны — показываем ошибки вместе с формой
                 messages.error(request, "Проверьте блок «Сканы документов».")
         else:
-            # если сама форма невалидна — тоже покажем ошибки
-            doc_formset = CounterpartyDocumentFormSet(
-                instance=Counterparty()
-            )
             messages.error(request, "Проверьте корректность полей.")
-
+            doc_formset = CounterpartyDocumentFormSet(instance=Counterparty())
     else:
         form = CounterpartyCreateForm()
-        # на GET отдаём пустой formset (extra=1)
-        doc_formset = CounterpartyDocumentFormSet(
-            instance=Counterparty()
-        )
+        doc_formset = CounterpartyDocumentFormSet(instance=Counterparty())
 
     return render(
         request,
@@ -111,9 +109,7 @@ def counterparty_update(request, pk: int):
     if request.method == "POST":
         form = CounterpartyCreateForm(request.POST, instance=obj)
         doc_formset = CounterpartyDocumentFormSet(
-            data=request.POST,
-            files=request.FILES,
-            instance=obj,
+            data=request.POST, files=request.FILES, instance=obj
         )
         if form.is_valid() and doc_formset.is_valid():
             form.save()
@@ -131,6 +127,8 @@ def counterparty_update(request, pk: int):
         "core/counterparty_form.html",
         {"form": form, "doc_formset": doc_formset, "edit_mode": True},
     )
+
+
 @login_required
 @user_passes_test(_is_operator_or_director)
 @require_GET
@@ -146,14 +144,14 @@ def counterparty_lookup_inn(request):
     try:
         raw = fetch_by_inn(inn)
         payload = parse_counterparty_payload(raw)
-        payload.pop("meta_json", None)  # в форме не нужен «тяжёлый» блок
+        payload.pop("meta_json", None)
         return JsonResponse({"ok": True, "data": payload})
     except EgrulError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=502)
 
-# =========================
+# ============================================================
 # Детальная / финансы
-# =========================
+# ============================================================
 
 @login_required
 def counterparty_detail(request, pk: int):
@@ -163,14 +161,14 @@ def counterparty_detail(request, pk: int):
       - manager: только если прикреплён к этому контрагенту
     """
     obj = get_object_or_404(
-        Counterparty.objects.select_related("finance").prefetch_related("contacts", "managers", "documents"),
+        Counterparty.objects.select_related("finance")
+        .prefetch_related("contacts", "managers", "documents"),
         pk=pk,
     )
 
     if not (_is_operator_or_director(request.user) or _is_attached_manager(request.user, obj)):
         return HttpResponseForbidden("Недостаточно прав")
 
-    # Флаги для шаблона: кто что может
     can_edit_client = _is_operator_or_director(request.user)
     can_add_contact = can_edit_client or _is_attached_manager(request.user, obj)
     can_edit_contact = _is_operator_or_director(request.user)
@@ -203,25 +201,170 @@ def counterparty_refresh_finance(request, pk: int):
         messages.error(request, f"Не удалось обновить финансы: {e}")
     return redirect("core:counterparty_detail", pk=obj.pk)
 
-# =========================
-# Редактирование / удаление контрагента (только operator/director)
-# =========================
-
+# ============================================================
+# Удаление / заявки на удаление
+# ============================================================
 
 @login_required
-@user_passes_test(_is_operator_or_director)
 @require_http_methods(["GET", "POST"])
 def counterparty_delete(request, pk: int):
+    """
+    - operator: вместо удаления оформляет заявку (comment + PENDING)
+    - director/superuser: реальное удаление
+    """
     obj = get_object_or_404(Counterparty, pk=pk)
+
+    # Оператор — только запрос на удаление
+    if _is_operator(request.user) and not _is_director(request.user):
+        if request.method == "POST":
+            form = CounterpartyDeletionRequestForm(request.POST)
+            if form.is_valid():
+                # не плодим дубликаты PENDING-заявок
+                already = CounterpartyDeletionRequest.objects.filter(
+                    counterparty=obj,
+                    status=CounterpartyDeletionRequest.Status.PENDING,
+                ).exists()
+                if already:
+                    messages.info(request, "Заявка на удаление уже находится на рассмотрении.")
+                    return redirect("core:counterparty_detail", pk=obj.pk)
+
+                CounterpartyDeletionRequest.objects.create(
+                    counterparty=obj,
+                    requested_by=request.user,
+                    comment=form.cleaned_data.get("comment", ""),
+                    status=CounterpartyDeletionRequest.Status.PENDING,
+                )
+                messages.success(request, "Заявка на удаление отправлена управляющему.")
+                return redirect("core:counterparty_detail", pk=obj.pk)
+        else:
+            form = CounterpartyDeletionRequestForm()
+
+        return render(
+            request,
+            "core/counterparty_confirm_delete.html",
+            {"obj": obj, "is_operator_request": True, "form": form},
+        )
+
+    # Директор — удаляет сразу
+    if not _is_director(request.user):
+        messages.error(request, "Недостаточно прав для удаления.")
+        return redirect("core:counterparty_detail", pk=obj.pk)
+
     if request.method == "POST":
         obj.delete()
         messages.success(request, "Контрагент удалён.")
-        return redirect("core:counterparty_list")
-    return render(request, "core/counterparty_confirm_delete.html", {"obj": obj})
+        return redirect("core:director_dashboard")
 
-# =========================
+    return render(
+        request,
+        "core/counterparty_confirm_delete.html",
+        {"obj": obj, "is_operator_request": False},
+    )
+
+# === Дашборд директора и обработка заявок ===
+
+@login_required
+@user_passes_test(_is_director)
+def director_dashboard(request):
+    pending = (
+        CounterpartyDeletionRequest.objects
+        .filter(status=CounterpartyDeletionRequest.Status.PENDING)
+        .select_related("counterparty", "requested_by")
+        .order_by("-created_at")
+    )
+    return render(request, "core/director_dashboard.html", {"pending": pending})
+
+@login_required
+@user_passes_test(_is_director)
+@require_POST
+def deletion_request_approve(request, req_id: int):
+    dr = get_object_or_404(
+        CounterpartyDeletionRequest.objects.select_related("counterparty"),
+        pk=req_id,
+        status=CounterpartyDeletionRequest.Status.PENDING,
+    )
+    dr.status = CounterpartyDeletionRequest.Status.APPROVED
+    dr.reviewed_by = request.user
+    dr.reviewed_at = timezone.now()
+    dr.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+
+    name = str(dr.counterparty)
+    dr.counterparty.delete()
+    messages.success(request, f"Контрагент «{name}» удалён.")
+    return redirect("core:director_dashboard")
+
+@login_required
+@user_passes_test(_is_director)
+@require_POST
+def deletion_request_reject(request, req_id: int):
+    dr = get_object_or_404(
+        CounterpartyDeletionRequest,
+        pk=req_id,
+        status=CounterpartyDeletionRequest.Status.PENDING,
+    )
+    dr.status = CounterpartyDeletionRequest.Status.REJECTED
+    dr.reviewed_by = request.user
+    dr.reviewed_at = timezone.now()
+    dr.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+    messages.info(request, "Заявка отклонена.")
+    return redirect("core:director_dashboard")
+
+# === Дашборд оператора и отмена своей заявки ===
+
+@login_required
+@user_passes_test(_is_operator)
+def operator_dashboard(request):
+    my_requests = (
+        CounterpartyDeletionRequest.objects
+        .filter(requested_by=request.user)
+        .select_related("counterparty")
+        .order_by("-created_at")
+    )
+    has_rejected = my_requests.filter(
+        status=CounterpartyDeletionRequest.Status.REJECTED
+    ).exists()
+
+    return render(
+        request,
+        "core/operator_dashboard.html",
+        {"my_requests": my_requests, "has_rejected": has_rejected},
+    )
+
+@login_required
+@user_passes_test(_is_operator)
+@require_POST
+def deletion_request_cancel(request, req_id: int):
+    """Отменить свою неподтверждённую (PENDING) заявку."""
+    dr = get_object_or_404(
+        CounterpartyDeletionRequest,
+        pk=req_id,
+        requested_by=request.user,
+        status=CounterpartyDeletionRequest.Status.PENDING,
+    )
+    dr.delete()
+    messages.info(request, "Заявка отменена.")
+    return redirect("core:operator_dashboard")
+
+@login_required
+@user_passes_test(_is_operator)
+@require_POST
+def deletion_requests_clear_rejected(request):
+    """Очистить все ОТКЛОНЁННЫЕ заявки текущего оператора."""
+    qs = CounterpartyDeletionRequest.objects.filter(
+        requested_by=request.user,
+        status=CounterpartyDeletionRequest.Status.REJECTED,
+    )
+    count = qs.count()
+    qs.delete()
+    if count:
+        messages.success(request, f"Удалено отклонённых заявок: {count}.")
+    else:
+        messages.info(request, "Отклонённых заявок нет.")
+    return redirect("core:operator_dashboard")
+
+# ============================================================
 # Контакты
-# =========================
+# ============================================================
 
 @login_required
 def contact_add(request, pk: int):
@@ -273,9 +416,9 @@ def contact_delete(request, pk: int, contact_id: int):
         return redirect("core:counterparty_detail", pk=obj.pk)
     return render(request, "core/contact_confirm_delete.html", {"obj": obj, "contact": contact})
 
-# =========================
+# ============================================================
 # Менеджеры у контрагента
-# =========================
+# ============================================================
 
 @login_required
 @require_POST
@@ -291,9 +434,9 @@ def counterparty_manager_remove(request, pk: int, user_id: int):
     )
     return redirect("core:counterparty_detail", pk=pk)
 
-# =========================
+# ============================================================
 # Список клиентов
-# =========================
+# ============================================================
 
 @login_required
 @user_passes_test(_is_ops_mgr_dir)
@@ -322,6 +465,10 @@ def counterparty_list(request):
 
     return render(request, "core/counterparty_list.html", {"objects": qs, "q": q})
 
+# ============================================================
+# Подсказки адресов через OSM Nominatim (бесплатно)
+# ============================================================
+
 @login_required
 @require_GET
 def address_suggest_osm(request):
@@ -333,7 +480,6 @@ def address_suggest_osm(request):
     if len(q) < 3:
         return JsonResponse({"suggestions": []})
 
-    # Параметры/заголовки согласно правилам Nominatim
     params = {
         "q": q,
         "format": "json",
@@ -342,15 +488,13 @@ def address_suggest_osm(request):
         "accept-language": "ru",
     }
     headers = {
-        # укажи свой домен/почту проекта
         "User-Agent": "ImperiaApp/1.0 (admin@example.com)"
     }
 
     suggestions = []
 
-    # Пытаемся через requests; если его нет — через urllib
     try:
-        import requests  # noqa
+        import requests  # noqa: F401
         try:
             r = requests.get(
                 "https://nominatim.openstreetmap.org/search",
@@ -360,11 +504,14 @@ def address_suggest_osm(request):
             )
             r.raise_for_status()
             data = r.json()
-            suggestions = [{"value": item.get("display_name", "")} for item in data if item.get("display_name")]
+            suggestions = [
+                {"value": item.get("display_name", "")}
+                for item in data
+                if item.get("display_name")
+            ]
         except Exception:
             suggestions = []
     except Exception:
-        # Fallback на стандартную библиотеку
         from urllib.parse import urlencode
         from urllib.request import Request, urlopen
 
@@ -374,7 +521,11 @@ def address_suggest_osm(request):
             with urlopen(req, timeout=3) as resp:
                 raw = resp.read().decode("utf-8", "ignore")
                 data = json.loads(raw)
-                suggestions = [{"value": item.get("display_name", "")} for item in data if item.get("display_name")]
+                suggestions = [
+                    {"value": item.get("display_name", "")}
+                    for item in data
+                    if item.get("display_name")
+                ]
         except Exception:
             suggestions = []
 

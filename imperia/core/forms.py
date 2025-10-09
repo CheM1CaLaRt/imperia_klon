@@ -20,6 +20,8 @@ from .models import (
     CounterpartyDocument,
     inn_validator,
 )
+from .models import CounterpartyDeletionRequest
+
 
 User = get_user_model()
 
@@ -416,3 +418,14 @@ CounterpartyDocumentFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
 )
+
+class CounterpartyDeletionRequestForm(forms.ModelForm):
+    class Meta:
+        model = CounterpartyDeletionRequest
+        fields = ["comment"]
+        labels = {"comment": "Комментарий (почему удалить)"}
+        widgets = {
+            "comment": forms.Textarea(
+                attrs={"rows": 3, "class": "w-full rounded-lg border px-3 py-2"}
+            )
+        }

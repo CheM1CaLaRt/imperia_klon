@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Управляющий — дашборд{% endblock %}
+
+{% block content %}
+<div class="grid gap-6">
+
+  <!-- Шапка -->
+  <div class="card">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold">Управляющий — дашборд</h1>
+        <p class="muted">Здравствуйте, {% firstof request.user.first_name request.user.username %}! </p>
+      </div>
+     </div>
+  </div>
+
+  <!-- Заявки на удаление -->
+  <div class="card">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Заявки на удаление контрагентов</h2>
+      <div class="text-sm muted">
+        Всего: <b>{{ pending|length }}</b>
+      </div>
+    </div>
+
+    {% if pending %}
+      <div class="space-y-3">
+
+        {% for req in pending %}
+          <div class="rounded-xl border border-[var(--border)] p-4 bg-white">
+            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+
+              <!-- Информация по контрагенту -->
+              <div class="min-w-0">
+                <div class="text-base font-semibold">
+                  <a href="{% url 'core:counterparty_detail' req.counterparty_id %}" class="hover:underline">
+                    {{ req.counterparty.name }}
+                  </a>
+                </div>
+                <div class="text-sm text-gray-600">
+                  ИНН: <span class="font-mono">{{ req.counterparty.inn }}</span>
+                  {% if req.counterparty.kpp %} • КПП: <span class="font-mono">{{ req.counterparty.kpp }}</span>{% endif %}
+                </div>
+
+                {% if req.comment %}
+                  <div class="mt-2 text-[15px]">
+                    <span class="text-gray-500 select-none">Комментарий:</span>
+                    <span>{{ req.comment }}</span>
+                  </div>
+                {% endif %}
+
+                <div class="mt-2 text-xs text-gray-500">
+                  Запрос от:
+                  <b>{% firstof req.requested_by.get_full_name req.requested_by.username %}</b>
+                  • {{ req.created_at|naturaltime }}
+                </div>
+              </div>
+
+              <!-- Действия -->
+              <div class="shrink-0 flex items-center gap-2">
+                <form method="post" action="{% url 'core:deletion_request_approve' req.id %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-primary">Удалить</button>
+                </form>
+                <form method="post" action="{% url 'core:deletion_request_reject' req.id %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-secondary">Отклонить</button>
+                </form>
+              </div>
+
+            </div>
+          </div>
+        {% endfor %}
+
+      </div>
+    {% else %}
+      <!-- Пустое состояние -->
+      <div class="rounded-xl border border-[var(--border)] p-8 bg-white text-center">
+        <div class="text-5xl mb-2">✅</div>
+        <div class="text-lg font-semibold mb-1">Заявок нет.</div>
+        <div class="text-sm text-gray-600">
+          Как только оператор запросит удаление контрагента — карточка появится здесь.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -190,12 +190,23 @@ body{
         </a>
 
         <!-- NAV: Главная / Товары -->
-        {% with current=request.resolver_match.url_name %}
+         {% with current=request.resolver_match.url_name %}
           <nav class="nav">
-            <a href="{% url 'post_login_router' %}"
-               class="{% if current == 'post_login_router' or current == 'home' %}active{% endif %}">
-              Главная
-            </a>
+<!--            <a href="{% url 'post_login_router' %}"-->
+<!--               class="{% if current == 'post_login_router' or current == 'home' %}active{% endif %}">-->
+<!--              Главная-->
+<!--            </a>-->
+              {% if request.user|in_groups:"operator" %}
+                <a href="{% url 'core:operator_dashboard' %}"
+                    class="{% if request.resolver_match.url_name == 'operator_dashboard' %}active{% endif %}">
+                        Оператор</a>
+              {% endif %}
+            {% if request.user|in_groups:"director" %}
+            <a href="{% url 'core:director_dashboard' %}"
+                class="{% if current == 'director_dashboard' %}active{% endif %}">
+                Управляющий
+                </a>
+            {% endif %}
             <a href="{% url 'product-list' %}"
                class="{% if current == 'product-list' %}active{% endif %}">
               Товары
@@ -203,7 +214,7 @@ body{
             {% if request.user|in_groups:"warehouse,director" %}
                 <a href="{% url 'warehouse_new_dashboard' %}"
                     {% with n=request.resolver_match.url_name %}
-                {% if n == 'warehouse_dashboard' or n == 'warehouse_detail' or n == 'put_away' or n == 'move_between_bins' %}
+                {% if n =='warehouse_dashboard' or n == 'warehouse_detail' or n == 'put_away' or n == 'move_between_bins' %}
                 {% endif %}
                 {% endwith %}">
               Склад

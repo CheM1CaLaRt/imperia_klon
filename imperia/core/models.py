@@ -373,7 +373,51 @@ class CounterpartyContact(models.Model):
     def __str__(self):
         return f"{self.full_name} ({self.counterparty.name})"
 
+class CounterpartyDeletionRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Ожидает подтверждения"
+        APPROVED = "approved", "Одобрено"
+        REJECTED = "rejected", "Отклонено"
 
+    counterparty = models.ForeignKey(
+        "Counterparty",
+        on_delete=models.CASCADE,
+        related_name="deletion_requests",
+        verbose_name="Контрагент",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="counterparty_delete_requests",
+        verbose_name="Кем подано",
+    )
+    comment = models.TextField("Комментарий оператора", blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="counterparty_delete_reviews",
+        verbose_name="Кем рассмотрено",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Заявка на удаление контрагента"
+        verbose_name_plural = "Заявки на удаление контрагентов"
+
+    def __str__(self):
+        return f"Удаление {self.counterparty} ({self.get_status_display()})"
 
 
 

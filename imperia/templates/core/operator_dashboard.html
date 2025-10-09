@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Оператор — Imperia{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Оператор — дашборд</h1>
+  <p>Здравствуйте, {% firstof request.user.first_name request.user.username %}! Доступно только группе <b>operator</b>.</p>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+    <h2 style="margin:0">Мои заявки на удаление контрагентов</h2>
+
+    {% if has_rejected %}
+      <form method="post" action="{% url 'core:deletion_requests_clear_rejected' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary" title="Удалить все отклонённые заявки">
+          Очистить отклонённые
+        </button>
+      </form>
+    {% endif %}
+  </div>
+
+  {% if my_requests %}
+    <div class="space-y-3">
+      {% for r in my_requests %}
+        <div class="rounded-xl border p-3 bg-white">
+          <div class="font-semibold">
+            {{ r.counterparty.name }} (ИНН {{ r.counterparty.inn }})
+          </div>
+          <div class="text-sm text-gray-600">
+            Создано: {{ r.created_at|date:"d.m.Y H:i" }} ·
+            Статус: {{ r.get_status_display }}
+          </div>
+          {% if r.comment %}
+            <div class="mt-1 text-sm">{{ r.comment }}</div>
+          {% endif %}
+
+          {% if r.status == r.Status.PENDING %}
+            <form method="post" action="{% url 'core:deletion_request_cancel' r.id %}" class="mt-2">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-secondary">Отменить заявку</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="text-gray-600">Заявок нет.</div>
+  {% endif %}
+</div>
+{% endblock %}

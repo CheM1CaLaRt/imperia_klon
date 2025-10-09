@@ -1,14 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Удалить контрагента{% endblock %}
+
 {% block content %}
 <h1 class="text-2xl font-semibold mb-4">Удалить контрагента</h1>
-<div class="rounded-xl border p-4">
-  <p class="mb-3">Вы уверены, что хотите удалить контрагента <strong>{{ obj.name }}</strong> (ИНН {{ obj.inn }})?
-    <br>Все связанные контакты и финансы будут удалены.</p>
-  <form method="post" class="flex gap-2">
-    {% csrf_token %}
-    <a href="{% url 'core:counterparty_detail' obj.pk %}" class="rounded-xl border px-4 py-2">Отмена</a>
-    <button class="rounded-xl bg-red-600 text-white px-4 py-2">Удалить</button>
-  </form>
+
+<div class="rounded-xl border p-4 max-w-3xl">
+  {% if is_operator_request %}
+    <p class="mb-3">
+      Вы хотите отправить заявку на удаление контрагента
+      <b>{{ obj.name }}</b> (ИНН {{ obj.inn }}).
+      Запрос уйдёт управляющему (director) на согласование.
+    </p>
+
+    <form method="post" class="space-y-3">
+      {% csrf_token %}
+      <div>
+        {{ form.comment.label_tag }}
+        {{ form.comment }}
+      </div>
+      <div class="flex gap-2">
+        <a href="{% url 'core:counterparty_detail' obj.pk %}" class="rounded-xl border px-4 py-2">Отмена</a>
+        <button type="submit" class="rounded-xl bg-red-600 text-white px-4 py-2">
+          Отправить на удаление
+        </button>
+      </div>
+    </form>
+  {% else %}
+    <p class="mb-3">
+      Вы уверены, что хотите удалить контрагента <b>{{ obj.name }}</b> (ИНН {{ obj.inn }})?
+      Все связанные контакты и финансы будут удалены.
+    </p>
+    <form method="post" class="flex gap-2">
+      {% csrf_token %}
+      <a href="{% url 'core:counterparty_detail' obj.pk %}" class="rounded-xl border px-4 py-2">Отмена</a>
+      <button type="submit" class="rounded-xl bg-red-600 text-white px-4 py-2">Удалить</button>
+    </form>
+  {% endif %}
 </div>
 {% endblock %}
