@@ -73,13 +73,20 @@ body{
   .brand{font-weight:800}
   .brand a{color:var(--primary)}
 
-  /* NAV */
-  .nav{display:flex;align-items:center;gap:6px;margin-left:10px}
-  .nav a{
-    padding:8px 12px;border-radius:10px;font-weight:600;font-size:14px;
-  }
-  .nav a:hover{background:#F4F7FF}
-  .nav a.active{background:#EAF2FF;color:#0A84FF}
+/* NAV */
+.nav{display:flex;align-items:center;gap:6px;margin-left:10px}
+.nav a{
+  padding:8px 12px;border-radius:10px;font-weight:600;font-size:14px;
+}
+.nav a:hover{background:#222; color:#fff}      /* при наведении — тёмный */
+.nav a.active{
+  background:#000;                              /* активная — чёрный фон */
+  color:#fff;                                   /* белый текст */
+}
+.nav a.active:hover{
+  background:#000;                              /* не меняем при hover */
+  color:#fff;
+}
 
   /* user box */
   .avatar-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;
@@ -192,38 +199,44 @@ body{
         <!-- NAV: Главная / Товары -->
          {% with current=request.resolver_match.url_name %}
           <nav class="nav">
-<!--            <a href="{% url 'post_login_router' %}"-->
-<!--               class="{% if current == 'post_login_router' or current == 'home' %}active{% endif %}">-->
-<!--              Главная-->
-<!--            </a>-->
-              {% if request.user|in_groups:"operator" %}
-                <a href="{% url 'core:operator_dashboard' %}"
-                    class="{% if request.resolver_match.url_name == 'operator_dashboard' %}active{% endif %}">
-                        Оператор</a>
-              {% endif %}
-            {% if request.user|in_groups:"director" %}
-            <a href="{% url 'core:director_dashboard' %}"
-                class="{% if current == 'director_dashboard' %}active{% endif %}">
-                Управляющий
-                </a>
-            {% endif %}
-            <a href="{% url 'product-list' %}"
-               class="{% if current == 'product-list' %}active{% endif %}">
-              Товары
-            </a>
-            {% if request.user|in_groups:"warehouse,director" %}
-                <a href="{% url 'warehouse_new_dashboard' %}"
-                    {% with n=request.resolver_match.url_name %}
-                {% if n =='warehouse_dashboard' or n == 'warehouse_detail' or n == 'put_away' or n == 'move_between_bins' %}
-                {% endif %}
-                {% endwith %}">
+  {# Оператор #}
+  {% if request.user|in_groups:"operator" %}
+    <a href="{% url 'core:operator_dashboard' %}"
+       class="{% if request.resolver_match.url_name == 'operator_dashboard' %}active{% endif %}">
+      Оператор
+    </a>
+  {% endif %}
+
+  {# Управляющий #}
+  {% if request.user|in_groups:"director" %}
+    <a href="{% url 'core:director_dashboard' %}"
+       class="{% if request.resolver_match.url_name == 'director_dashboard' %}active{% endif %}">
+      Управляющий
+    </a>
+  {% endif %}
+
+  {# Товары #}
+  <a href="{% url 'product-list' %}"
+     class="{% if request.resolver_match.url_name == 'product-list' %}active{% endif %}">
+    Товары
+  </a>
+
+  {# Склад — активен на нескольких экранах #}
+  {% if request.user|in_groups:"warehouse,director" %}
+              <a href="{% url 'warehouse_new_dashboard' %}"
+              class="{% if request.resolver_match.url_name == 'warehouse_new_dashboard' or request.resolver_match.url_name == 'warehouse_dashboard' or request.resolver_match.url_name == 'warehouse_detail' or request.resolver_match.url_name == 'put_away' or request.resolver_match.url_name == 'move_between_bins' %}active{% endif %}">
               Склад
-            </a>
-            {% endif %}
-            {% if show_clients_link %}
-              <a href="{% url 'core:counterparty_list' %}" class="px-3 py-2 hover:underline">Клиенты</a>
-            {% endif %}
-          </nav>
+              </a>
+              {% endif %}
+
+  {# Клиенты #}
+  {% if show_clients_link %}
+    <a href="{% url 'core:counterparty_list' %}"
+       class="{% if request.resolver_match.url_name == 'counterparty_list' %}active{% endif %}">
+      Клиенты
+    </a>
+  {% endif %}
+</nav>
         {% endwith %}
       </div>
 
