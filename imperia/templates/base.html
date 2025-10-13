@@ -199,6 +199,7 @@ body{
         <!-- NAV: Главная / Товары -->
          {% with current=request.resolver_match.url_name %}
           <nav class="nav">
+
   {# Оператор #}
   {% if request.user|in_groups:"operator" %}
     <a href="{% url 'core:operator_dashboard' %}"
@@ -206,6 +207,26 @@ body{
       Оператор
     </a>
   {% endif %}
+
+
+
+  {# Менеджер #}
+  {% if request.user|in_groups:"manager" %}
+    <a href="{% url 'manager_dashboard' %}"
+       class="{% if request.resolver_match.url_name == 'manager_dashboard' %}active{% endif %}">
+      Менеджер
+    </a>
+  {% endif %}
+
+
+            {# warehouse #}
+  {% if request.user|in_groups:"warehouse" %}
+    <a href="{% url 'warehouse_dashboard' %}"
+       class="{% if request.resolver_match.url_name == 'warehouse_dashboard' %}active{% endif %}">
+      Кладовщик
+    </a>
+  {% endif %}
+
 
   {# Управляющий #}
   {% if request.user|in_groups:"director" %}
@@ -221,13 +242,19 @@ body{
     Товары
   </a>
 
+
+
   {# Склад — активен на нескольких экранах #}
   {% if request.user|in_groups:"warehouse,director" %}
               <a href="{% url 'warehouse_new_dashboard' %}"
-              class="{% if request.resolver_match.url_name == 'warehouse_new_dashboard' or request.resolver_match.url_name == 'warehouse_dashboard' or request.resolver_match.url_name == 'warehouse_detail' or request.resolver_match.url_name == 'put_away' or request.resolver_match.url_name == 'move_between_bins' %}active{% endif %}">
+              class="{% if request.resolver_match.url_name == 'warehouse_new_dashboard' or request.resolver_match.url_name == 'warehouse_detail' or request.resolver_match.url_name == 'put_away' or request.resolver_match.url_name == 'move_between_bins' %}active{% endif %}">
               Склад
               </a>
               {% endif %}
+
+
+
+
 
   {# Клиенты #}
   {% if show_clients_link %}

@@ -57,14 +57,6 @@ urlpatterns = [
     path("api/suggest/address/osm", views_counterparty.address_suggest_osm, name="address_suggest_osm"),
 
 
-# контрагенты
-
-    #path("counterparties/new/", v.counterparty_create, name="counterparty_create"),
-    #path("counterparties/lookup/", v.counterparty_lookup_inn, name="counterparty_lookup_inn"),
-    #path("counterparties/<int:pk>/", v.counterparty_detail, name="counterparty_detail"),
-
-
-
 
     path('operator/', views.operator_dashboard, name='operator_dashboard'),
     path('manager/', views.manager_dashboard, name='manager_dashboard'),
