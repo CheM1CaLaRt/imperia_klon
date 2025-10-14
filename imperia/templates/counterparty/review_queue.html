@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Подтверждение контрагентов{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-5">
+  <h1 class="text-2xl font-semibold">Заявки на подтверждение</h1>
+  {% if pending_count is not None %}
+    <span class="rounded-full bg-yellow-100 text-yellow-800 text-sm px-3 py-1">Ожидают: {{ pending_count }}</span>
+  {% endif %}
+</div>
+
+<form method="get" class="mb-4 grid gap-3 md:grid-cols-3">
+  <div class="md:col-span-2">
+    <input type="search" name="q" value="{{ request.GET.q|default:'' }}"
+           placeholder="Поиск по ИНН / наименованию / менеджеру…"
+           class="w-full rounded-xl border px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
+  </div>
+  <div class="flex items-center gap-2">
+    {% with s=request.GET.status %}
+      <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}status=pending"
+         class="rounded-full border px-3 py-1 text-sm {% if s|default:'pending' == 'pending' %}bg-yellow-500 text-white border-yellow-500{% else %}hover:bg-gray-100{% endif %}">Ожидают</a>
+      <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}status=approved"
+         class="rounded-full border px-3 py-1 text-sm {% if s == 'approved' %}bg-green-600 text-white border-green-600{% else %}hover:bg-gray-100{% endif %}">Подтверждённые</a>
+      <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}status=rejected"
+         class="rounded-full border px-3 py-1 text-sm {% if s == 'rejected' %}bg-red-600 text-white border-red-600{% else %}hover:bg-gray-100{% endif %}">Отклонённые</a>
+    {% endwith %}
+  </div>
+</form>
+
+{% if requests %}
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    {% for r in requests %}
+      <div class="rounded-2xl border bg-white shadow-sm hover:shadow-md transition p-5">
+        {# Шапка #}
+        <div class="flex items-start justify-between">
+          <div class="space-y-1">
+            <div class="text-xs text-gray-500">ИНН</div>
+            <div class="font-mono text-sm">{{ r.inn }}</div>
+            <div class="text-xs text-gray-500 mt-2">Менеджер</div>
+            <div class="text-sm">{{ r.manager.get_full_name|default:r.manager.username }}</div>
+          </div>
+          {% if r.status == 'pending' %}
+            <span class="rounded-full bg-yellow-100 text-yellow-800 text-xs px-2 py-1">Ожидает</span>
+          {% elif r.status == 'approved' %}
+            <span class="rounded-full bg-green-100 text-green-800 text-xs px-2 py-1">Подтверждена</span>
+          {% elif r.status == 'rejected' %}
+            <span class="rounded-full bg-red-100 text-red-800 text-xs px-2 py-1">Отклонена</span>
+          {% endif %}
+        </div>
+
+        {# Тело #}
+        <div class="mt-4">
+          <div class="text-sm text-gray-500">Наименование</div>
+          <div class="font-medium">{{ r.name }}</div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <div class="text-gray-500">Создана</div>
+            <div>{{ r.created_at|date:"d.m.Y H:i" }}</div>
+          </div>
+          <div>
+            <div class="text-gray-500">КПП</div>
+            <div>{{ r.kpp|default:"—" }}</div>
+          </div>
+          <div>
+            <div class="text-gray-500">Файлы</div>
+            <div>
+              {% with dc=r.documents.count %}
+                {% if dc %}<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs">{{ dc }}</span>{% else %}—{% endif %}
+              {% endwith %}
+            </div>
+          </div>
+        </div>
+
+        {% if r.address %}
+          <div class="mt-4 text-sm text-gray-700">
+            <span class="text-gray-500">Адрес:</span> {{ r.address }}
+          </div>
+        {% endif %}
+
+{# Футер — подтверждение + отклонение с поповером #}
+<div class="mt-5 flex flex-wrap items-center gap-2 relative">
+
+  {# Подтвердить #}
+  <form action="{% url 'core:counterparty_request_approve' r.pk %}" method="post" class="inline-flex">
+    {% csrf_token %}
+    <input type="hidden" name="comment" value="">
+    <button class="h-10 rounded-xl bg-green-600 text-white px-4 text-sm hover:opacity-90">
+      Подтвердить
+    </button>
+  </form>
+
+  {# Отклонить — открывает поповер #}
+  <button type="button"
+          class="h-10 rounded-xl bg-red-600 text-white px-4 text-sm hover:opacity-90"
+          data-reject-toggle="popover-{{ r.pk }}">
+    Отклонить
+  </button>
+
+  {# Поповер с причиной #}
+  <div id="popover-{{ r.pk }}"
+       class="hidden absolute bottom-12 right-0 z-20 w-[min(28rem,90vw)] rounded-2xl border bg-white p-3 shadow-lg">
+
+    <div class="text-sm text-gray-700 mb-2">Причина (необязательно)</div>
+
+    <div class="flex flex-wrap gap-2 mb-2">
+  {% for preset in presets %}
+    <button type="button"
+            class="rounded-full border px-3 py-1 text-xs hover:bg-gray-100"
+            data-reject-preset="preset-{{ r.pk }}">{{ preset }}</button>
+  {% endfor %}
+</div>
+
+    <form action="{% url 'core:counterparty_request_reject' r.pk %}" method="post" class="space-y-2" data-reject-form="{{ r.pk }}">
+      {% csrf_token %}
+      <textarea name="comment" rows="3"
+                class="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-400"
+                placeholder="Напишите причину (по желанию)…"></textarea>
+
+      <div class="flex items-center justify-end gap-2">
+        <button type="button"
+                class="h-10 rounded-xl border px-4 text-sm hover:bg-gray-50"
+                data-reject-cancel="{{ r.pk }}">Отмена</button>
+        <button class="h-10 rounded-xl bg-red-600 text-white px-4 text-sm hover:opacity-90">
+          Отклонить
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+        {% if r.status == 'rejected' and r.reviewer_comment %}
+          <div class="mt-3 rounded-xl bg-red-50 text-red-800 text-xs px-3 py-2">
+            Причина отклонения: {{ r.reviewer_comment }}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="rounded-2xl border border-dashed p-8 text-center text-gray-500">
+    Нет заявок по текущему фильтру.
+  </div>
+{% endif %}
+
+{% if page_obj %}
+  <div class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+      <a class="rounded-lg border px-3 py-1 hover:bg-gray-50"
+         href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Назад</a>
+    {% endif %}
+    <span class="text-sm text-gray-600">Стр. {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a class="rounded-lg border px-3 py-1 hover:bg-gray-50"
+         href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Вперёд</a>
+    {% endif %}
+  </div>
+{% endif %}
+
+<script>
+(function () {
+  // открыть/закрыть
+  document.addEventListener('click', function (e) {
+    const toggle = e.target.closest('[data-reject-toggle]');
+    const cancel = e.target.closest('[data-reject-cancel]');
+    const preset = e.target.closest('[data-reject-preset]');
+    const popovers = document.querySelectorAll('[id^="popover-"]');
+
+    // Кнопка "Отклонить" — открываем нужный поповер
+    if (toggle) {
+      const id = toggle.getAttribute('data-reject-toggle');
+      const box = document.getElementById(id);
+      if (!box) return;
+      // закрыть остальные
+      popovers.forEach(p => { if (p !== box) p.classList.add('hidden'); });
+      box.classList.toggle('hidden');
+      // фокус на textarea
+      const ta = box.querySelector('textarea[name="comment"]');
+      setTimeout(() => ta && ta.focus(), 30);
+      return;
+    }
+
+    // Кнопка "Отмена" — закрыть
+    if (cancel) {
+      const id = cancel.getAttribute('data-reject-cancel');
+      const box = document.getElementById('popover-' + id);
+      if (box) box.classList.add('hidden');
+      return;
+    }
+
+    // Клик по пресету — подставить текст в textarea
+    if (preset) {
+      const box = preset.closest('[id^="popover-"]');
+      if (!box) return;
+      const ta = box.querySelector('textarea[name="comment"]');
+      if (!ta) return;
+      const text = preset.textContent.trim();
+      ta.value = ta.value ? (ta.value.trim() + (ta.value.trim().endsWith('.')?'':'.') + ' ' + text) : text;
+      ta.focus();
+      return;
+    }
+
+    // Клик снаружи — закрыть все
+    if (![...popovers].some(p => p.contains(e.target))) {
+      popovers.forEach(p => p.classList.add('hidden'));
+    }
+  });
+
+  // ESC закрывает активные поповеры
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('[id^="popover-"]').forEach(p => p.classList.add('hidden'));
+    }
+  });
+})();
+</script>
+{% endblock %}

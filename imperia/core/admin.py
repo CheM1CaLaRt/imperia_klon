@@ -12,6 +12,7 @@ except Exception:
     ProfileForm = None
 
 from .models import Counterparty, CounterpartyFinance, CounterpartyContact
+from .models import CounterpartyCreateRequest, CounterpartyCreateRequestDocument
 
 
 
@@ -164,3 +165,14 @@ class CounterpartyContactAdmin(admin.ModelAdmin):
     search_fields = ("full_name", "counterparty__name", "email", "phone", "mobile")
     list_filter = ("position",)
 
+
+class CounterpartyCreateRequestDocumentInline(admin.TabularInline):
+    model = CounterpartyCreateRequestDocument
+    extra = 0
+
+@admin.register(CounterpartyCreateRequest)
+class CounterpartyCreateRequestAdmin(admin.ModelAdmin):
+    inlines = [CounterpartyCreateRequestDocumentInline]
+    list_display = ("id", "inn", "name", "manager", "status", "created_at", "reviewed_by", "reviewed_at")
+    list_filter = ("status", "manager")
+    search_fields = ("inn", "name", "full_name")

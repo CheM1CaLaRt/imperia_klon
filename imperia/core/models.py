@@ -9,6 +9,7 @@ from django.core.validators import MinValueValidator
 from django.db.models import Q
 from django.core.validators import RegexValidator
 from django.core.validators import URLValidator
+from django.db import transaction
 
 
 
@@ -420,5 +421,178 @@ class CounterpartyDeletionRequest(models.Model):
         return f"Удаление {self.counterparty} ({self.get_status_display()})"
 
 
+class CounterpartyCreateRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Ожидает подтверждения"
+        APPROVED = "approved", "Одобрено"
+        REJECTED = "rejected", "Отклонено"
+
+    # Данные будущего контрагента (копия основных полей)
+    inn = models.CharField("ИНН", max_length=12, validators=[inn_validator], db_index=True)
+    kpp = models.CharField("КПП", max_length=9, blank=True)
+    ogrn = models.CharField("ОГРН/ОГРНИП", max_length=15, blank=True)
+
+    name = models.CharField("Наименование", max_length=512)
+    full_name = models.CharField("Полное наименование", max_length=1024, blank=True)
+
+    registration_country = models.CharField("Страна регистрации", max_length=128, blank=True, default="РОССИЯ")
+    address = models.CharField("Адрес", max_length=1024, blank=True)
+    actual_address = models.CharField("Фактический адрес / адрес доставки", max_length=1024, blank=True)
+
+    bank_name = models.CharField("Банк (наименование)", max_length=255, blank=True)
+    bank_bik = models.CharField("БИК", max_length=20, blank=True)
+    bank_account = models.CharField("Номер счёта", max_length=34, blank=True)
+
+    website = models.URLField("Сайт", blank=True, null=True)
+
+    # Кто создал (менеджер) — сразу проставляется автор заявки
+    manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="counterparty_create_requests",
+        verbose_name="Менеджер-инициатор",
+    )
+
+    # Ссылка на созданного контрагента (заполняется при approve)
+    counterparty = models.ForeignKey(
+        "Counterparty",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="create_requests",
+        verbose_name="Созданный контрагент",
+    )
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="counterparty_create_reviews",
+        verbose_name="Кем рассмотрено",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewer_comment = models.TextField("Комментарий ревьюера", blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Заявка на добавление контрагента"
+        verbose_name_plural = "Заявки на добавление контрагентов"
+        constraints = [
+            # Не допускаем дубликатов PENDING по одному ИНН
+            models.UniqueConstraint(
+                fields=["inn"],
+                condition=Q(status="pending"),
+                name="uniq_pending_counterparty_create_by_inn",
+            )
+        ]
+
+    def __str__(self):
+        return f"Заявка на контрагента {self.name} ({self.inn}) — {self.get_status_display()}"
+
+    @transaction.atomic
+    def approve(self, reviewer, comment: str | None = None) -> "Counterparty":
+        if self.status != self.Status.PENDING:
+            raise ValueError("Заявка уже обработана")
+
+        # Если контрагент с таким ИНН уже есть — не создаём новый
+        cp, created = Counterparty.objects.get_or_create(
+            inn=self.inn,
+            defaults=dict(
+                kpp=self.kpp,
+                ogrn=self.ogrn,
+                name=self.name,
+                full_name=self.full_name,
+                registration_country=self.registration_country,
+                address=self.address,
+                actual_address=self.actual_address,
+                bank_name=self.bank_name,
+                bank_bik=self.bank_bik,
+                bank_account=self.bank_account,
+                website=self.website,
+            ),
+        )
+        # Обязательно закрепляем менеджера-инициатора
+        if self.manager:
+            cp.managers.add(self.manager)
+
+        # Мягкая синхронизация, если контрагент уже был
+        if not created:
+            fields_to_sync = [
+                "kpp", "ogrn", "name", "full_name", "registration_country",
+                "address", "actual_address", "bank_name", "bank_bik", "bank_account", "website",
+            ]
+            changed = False
+            for f in fields_to_sync:
+                new_val = getattr(self, f)
+                if new_val and getattr(cp, f) != new_val:
+                    setattr(cp, f, new_val)
+                    changed = True
+            if changed:
+                cp.save()
+
+        # Фиксируем решение и связь с контрагентом
+        self.status = self.Status.APPROVED
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.reviewer_comment = comment or ""
+        self.counterparty = cp                  # <<< ВАЖНО
+        self.save(update_fields=[
+            "status", "reviewed_by", "reviewed_at", "reviewer_comment", "counterparty"
+        ])
+
+        return cp
+
+    @transaction.atomic
+    def reject(self, reviewer, comment: str | None = None):
+        if self.status != self.Status.PENDING:
+            raise ValueError("Заявка уже обработана")
+
+        self.status = self.Status.REJECTED
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.reviewer_comment = comment or ""
+        self.save(update_fields=["status", "reviewed_by", "reviewed_at", "reviewer_comment"])
+
+class CounterpartyCreateRequestDocument(models.Model):
+    request = models.ForeignKey(
+        "CounterpartyCreateRequest",
+        on_delete=models.CASCADE,
+        related_name="documents",
+        verbose_name="Заявка",
+    )
+    title = models.CharField("Название", max_length=255, blank=True)
+    file = models.FileField("Файл", upload_to="counterparty_request_docs/%Y/%m/%d/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Файл заявки на контрагента"
+        verbose_name_plural = "Файлы заявки на контрагента"
+
+    def __str__(self):
+        return self.title or (self.file.name if self.file else "Файл")
+
+
+@receiver(post_delete, sender=Counterparty)
+def mark_requests_rejected_on_counterparty_delete(sender, instance: Counterparty, **kwargs):
+    """
+    Если удалили контрагента, все APPROVED-заявки, из которых он был создан,
+    переводим в REJECTED, чтобы у менеджера это отразилось как 'Отклонено'.
+    """
+    try:
+        CounterpartyCreateRequest.objects.filter(
+            counterparty=instance,
+            status=CounterpartyCreateRequest.Status.APPROVED
+        ).update(
+            status=CounterpartyCreateRequest.Status.REJECTED,
+            reviewed_by=None,
+            reviewed_at=timezone.now(),
+            reviewer_comment="Автоматически: контрагент удалён",
+        )
+    except Exception:
+        # Защита на случай миграций и т.п.
+        pass
 
 

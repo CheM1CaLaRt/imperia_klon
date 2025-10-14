@@ -21,6 +21,7 @@ from .models import (
     inn_validator,
 )
 from .models import CounterpartyDeletionRequest
+from .models import CounterpartyCreateRequest, CounterpartyCreateRequestDocument
 
 
 User = get_user_model()
@@ -429,3 +430,42 @@ class CounterpartyDeletionRequestForm(forms.ModelForm):
                 attrs={"rows": 3, "class": "w-full rounded-lg border px-3 py-2"}
             )
         }
+
+class CounterpartyCreateRequestForm(forms.ModelForm):
+    class Meta:
+        model = CounterpartyCreateRequest
+        fields = [
+            "inn", "kpp", "ogrn",
+            "name", "full_name",
+            "registration_country",
+            "address", "actual_address",
+            "bank_name", "bank_bik", "bank_account",
+            "website",
+        ]
+        widgets = {
+            "inn": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2", "placeholder": "ИНН"}),
+            "name": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "full_name": forms.Textarea(attrs={"rows": 2, "class": "w-full rounded-xl border px-3 py-2"}),
+            "kpp": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "ogrn": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "registration_country": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "address": forms.Textarea(attrs={"rows": 2, "class": "w-full rounded-xl border px-3 py-2"}),
+            "actual_address": forms.Textarea(attrs={"rows": 2, "class": "w-full rounded-xl border px-3 py-2"}),
+            "bank_name": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "bank_bik": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "bank_account": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "website": forms.URLInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+        }
+
+class CounterpartyCreateRequestDocumentForm(forms.ModelForm):
+    class Meta:
+        model = CounterpartyCreateRequestDocument
+        fields = ["title", "file"]
+
+CounterpartyCreateRequestDocFormSet = inlineformset_factory(
+    CounterpartyCreateRequest,
+    CounterpartyCreateRequestDocument,
+    form=CounterpartyCreateRequestDocumentForm,
+    extra=1,
+    can_delete=True,
+)

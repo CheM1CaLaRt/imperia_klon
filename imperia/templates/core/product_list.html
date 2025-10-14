@@ -7,7 +7,7 @@
 
   <!-- Панель поиска и сортировки -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <div class="md:col-span-2">
+    <div class="md:col-span-3">
       <label class="block text-sm font-medium text-gray-700 mb-1">Поиск (мин. 3 символа)</label>
       <input id="searchInput" type="search"
              placeholder="Название, штрихкод, артикул, бренд..."
@@ -16,19 +16,19 @@
       <p class="text-xs text-gray-500 mt-1">Введите 3+ символа — фильтр применится автоматически.</p>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">Сортировка</label>
-      <div class="flex gap-2">
-        <select id="sortSelect" class="flex-1 rounded-xl border border-gray-300 px-3 py-2 bg-white">
-          <option value="price"    {% if sort == 'price' %}selected{% endif %}>По цене</option>
-          <option value="supplier" {% if sort == 'supplier' %}selected{% endif %}>По поставщику</option>
-        </select>
-        <button id="orderBtn" type="button"
-                class="rounded-xl border border-gray-300 px-3 py-2 bg-white hover:bg-gray-50"
-                title="Изменить направление">
-          {% if order == 'desc' %}⬇️{% else %}⬆️{% endif %}
-        </button>
-      </div>
+<!--    <div>-->
+<!--      <label class="block text-sm font-medium text-gray-700 mb-1">Сортировка</label>-->
+<!--      <div class="flex gap-2">-->
+<!--        <select id="sortSelect" class="flex-1 rounded-xl border border-gray-300 px-3 py-2 bg-white">-->
+<!--          <option value="price"    {% if sort == 'price' %}selected{% endif %}>По цене</option>-->
+<!--          <option value="supplier" {% if sort == 'supplier' %}selected{% endif %}>По поставщику</option>-->
+<!--        </select>-->
+<!--        <button id="orderBtn" type="button"-->
+<!--                class="rounded-xl border border-gray-300 px-3 py-2 bg-white hover:bg-gray-50"-->
+<!--                title="Изменить направление">-->
+<!--          {% if order == 'desc' %}⬇️{% else %}⬆️{% endif %}-->
+<!--        </button>-->
+<!--      </div>-->
     </div>
   </div>
 

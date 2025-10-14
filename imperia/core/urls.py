@@ -1,10 +1,17 @@
 # core/urls.py
 from django.urls import path
 from . import views_counterparty as vc
+from . import views_counterparty_requests as vcr   # <<< ВАЖНО: был views_counterparty
 
 app_name = "core"
 
 urlpatterns = [
+
+    path("counterparty/requests/new/", vcr.counterparty_request_create, name="counterparty_request_create"),
+    path("dashboard/manager/counterparty/requests/", vcr.manager_counterparty_requests, name="manager_counterparty_requests"),
+    path("dashboard/review/counterparty/", vcr.counterparty_review_queue, name="counterparty_review_queue"),
+    path("dashboard/review/counterparty/<int:pk>/approve/", vcr.counterparty_request_approve, name="counterparty_request_approve"),
+    path("dashboard/review/counterparty/<int:pk>/reject/", vcr.counterparty_request_reject, name="counterparty_request_reject"),
     # Клиенты
     path("counterparties/", vc.counterparty_list, name="counterparty_list"),
     path("counterparties/new/", vc.counterparty_create, name="counterparty_create"),

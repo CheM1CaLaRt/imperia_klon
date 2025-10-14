@@ -95,3 +95,5 @@ def delete_old_file_on_change(sender, instance: CounterpartyDocument, **kwargs):
         return
     if old.file and old.file != instance.file:
         old.file.delete(save=False)
+
+

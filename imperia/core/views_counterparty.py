@@ -130,7 +130,7 @@ def counterparty_update(request, pk: int):
 
 
 @login_required
-@user_passes_test(_is_operator_or_director)
+# @user_passes_test(_is_operator_or_director)
 @require_GET
 def counterparty_lookup_inn(request):
     """
