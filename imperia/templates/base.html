@@ -7,42 +7,9 @@
   <title>{% block title %}Imperia{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+ <style>
 
-<style>
-
-  html, body{height:100%}
-body{
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-  background:#F2F2F7;
-  color:var(--text);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica Neue,Arial,sans-serif;
-  font-size:16px;
-}
-
-/* основной контент растягиваем */
-.wrap{flex:1 0 auto}
-
-/* футер прижимается вниз */
-.footer{
-  margin-top:auto;                /* важно */
-  background:#fff;
-  border-top:1px solid var(--border);
-}
-.footer-inner{
-  max-width:1100px;margin:0 auto;padding:14px 16px;
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  color:var(--muted);font-size:14px;
-}
-.footer a{color:var(--primary);font-weight:600}
-.footer a:hover{text-decoration:underline}
-@media (max-width:940px){
-  .footer-inner{flex-direction:column;align-items:flex-start;gap:6px}
-}
-
-
-/* тема */
+  /* ====== Тема и переменные ====== */
   :root{
     color-scheme: light;
     --bg:#F2F2F7;
@@ -54,91 +21,86 @@ body{
     --ring:rgba(10,132,255,.22);
     --shadow:0 8px 18px rgba(0,0,0,.06);
     --r-md:14px; --r-lg:18px; --pad:20px;
+
+    /* контейнер и боковые отступы */
+    --container:1280px;
+    --gutter-x:24px;
   }
+  @media (min-width:1600px){
+    :root{ --container:1440px; --gutter-x:32px; }
+  }
+  @media (max-width:940px){
+    :root{ --gutter-x:16px; }
+  }
+
+  html,body{height:100%}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);
-       font-family:ui-sans-serif,-apple-system,"SF Pro Text","Segoe UI",Roboto,Arial}
-  a{color:inherit;text-decoration:none}
-
-  /* topbar */
-  .topbar{
-    position:sticky; top:0; z-index:40;
-    background:rgba(255,255,255,.86);
-    backdrop-filter:saturate(180%) blur(18px);
-    -webkit-backdrop-filter:saturate(180%) blur(18px);
-    border-bottom:1px solid var(--border);
+  body{
+    margin:0; min-height:100vh; display:flex; flex-direction:column;
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Noto Sans","Helvetica Neue",Arial,sans-serif;
+    font-size:16px;
   }
+  a{color:inherit; text-decoration:none}
+
+  /* Topbar */
+  .topbar{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.86);
+          backdrop-filter:saturate(180%) blur(18px);-webkit-backdrop-filter:saturate(180%) blur(18px);
+          border-bottom:1px solid var(--border)}
   .topbar-inner{display:flex;align-items:center;justify-content:space-between;
-                max-width:1100px;margin:0 auto;padding:12px 16px;gap:12px}
-  .brand{font-weight:800}
-  .brand a{color:var(--primary)}
+                max-width:var(--container);margin:0 auto;padding:12px var(--gutter-x);gap:12px}
 
-/* NAV */
-.nav{display:flex;align-items:center;gap:6px;margin-left:10px}
-.nav a{
-  padding:8px 12px;border-radius:10px;font-weight:600;font-size:14px;
-}
-.nav a:hover{background:#222; color:#fff}      /* при наведении — тёмный */
-.nav a.active{
-  background:#000;                              /* активная — чёрный фон */
-  color:#fff;                                   /* белый текст */
-}
-.nav a.active:hover{
-  background:#000;                              /* не меняем при hover */
-  color:#fff;
-}
+  /* NAV */
+  .nav{display:flex;align-items:center;gap:6px;margin-left:10px}
+  .nav a{padding:8px 12px;border-radius:10px;font-weight:600;font-size:14px}
+  .nav a:hover{background:#222;color:#fff}
+  .nav a.active{background:#000;color:#fff}
+  .nav a.active:hover{background:#000;color:#fff}
 
-  /* user box */
-  .avatar-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;
-             background:#E9E9EB;display:grid;place-items:center;font-weight:700;
-             color:#374151;pointer-events:none;box-shadow:inset 0 0 0 1px var(--border)}
+  /* User */
+  .avatar-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;background:#E9E9EB;
+             display:grid;place-items:center;font-weight:700;color:#374151;pointer-events:none;
+             box-shadow:inset 0 0 0 1px var(--border)}
   .userbox{position:relative;display:flex;align-items:center;gap:10px}
   .hello{font-size:13px;color:var(--muted)} .name{font-weight:700}
-  .userbtn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
-           background:#fff;border:1px solid var(--border);cursor:pointer;
-           transition:box-shadow .15s,border-color .15s,transform .05s}
-  .userbtn:hover{border-color:rgba(60,60,67,.18)}
-  .userbtn:active{transform:translateY(1px)}
-  .userbtn:focus{outline:none;box-shadow:0 0 0 6px var(--ring)}
-  .caret{font-size:12px;opacity:.6}
-
-  .menu{
-    position:absolute;right:0;top:calc(100% + 8px);
-    background:#fff;border:1px solid var(--border);border-radius:18px;
-    box-shadow:var(--shadow);min-width:220px;display:none;overflow:hidden;
-  }
+  .userbtn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#fff;
+           border:1px solid var(--border);cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .05s}
+  .userbtn:hover{border-color:rgba(60,60,67,.18)} .userbtn:active{transform:translateY(1px)}
+  .userbtn:focus{outline:none;box-shadow:0 0 0 6px var(--ring)} .caret{font-size:12px;opacity:.6}
+  .menu{position:absolute;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--border);
+        border-radius:18px;box-shadow:var(--shadow);min-width:220px;display:none;overflow:hidden}
   .menu.open{display:block}
-  .menu a,.menu button{
-    display:flex;align-items:center;gap:10px;width:100%;
-    padding:12px 14px;background:transparent;border:0;cursor:pointer;font-size:14px;
-    color:var(--text);
-  }
+  .menu a,.menu button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:transparent;
+                       border:0;cursor:pointer;font-size:14px;color:var(--text)}
   .menu a:hover,.menu button:hover{background:#EAF2FF;color:#0A84FF}
   .menu a:active,.menu button:active{background:#DDEBFF}
 
-  /* content */
-  .wrap{max-width:1100px;margin:0 auto;padding:var(--pad)}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
-        box-shadow:var(--shadow);padding:var(--pad)}
-  .card h1,.card h2{margin:0 0 14px}
-  .muted{color:var(--muted)}
+  /* Content */
+/* базовое правило */
+.wrap{
+  flex: 1 0 auto;
+  max-width: var(--container);   /* 1280px по умолчанию */
+  margin: 0 auto;
+  padding: var(--pad) var(--gutter-x);
+  width: 100%;
+}
 
-  /* forms */
+/* модификаторы — идут ПОСЛЕ базового и выигрывают по специфичности */
+main.wrap.wrap--xl ~ footer .footer-inner     { max-width: 1440px; }
+main.wrap.wrap--xxl ~ footer .footer-inner    { max-width: 1600px; }
+main.wrap.wrap--fluid ~ footer .footer-inner  { max-width: min(92vw, 1680px); }
+
+  /* Forms */
   .field{margin:12px 0}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
   input[type="text"],input[type="email"],input[type="url"],input[type="tel"],
   input[type="date"],input[type="number"],input[type="password"],textarea,select{
-    width:100%;padding:12px 14px;background:#fff;border:1px solid var(--border);
-    border-radius:12px;font-size:15px;line-height:1.35;
-    transition:border-color .15s,box-shadow .15s,background .15s;
-  }
+    width:100%;padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:12px;font-size:15px;line-height:1.35;
+    transition:border-color .15s,box-shadow .15s,background .15s}
   textarea{min-height:120px;resize:vertical}
-  input:focus,textarea:focus,select:focus{
-    outline:none;border-color:rgba(10,132,255,.45);box-shadow:0 0 0 6px var(--ring);
-  }
+  input:focus,textarea:focus,select:focus{outline:none;border-color:rgba(10,132,255,.45);box-shadow:0 0 0 6px var(--ring)}
 
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;
-       padding:0 16px;border-radius:12px;border:1px solid transparent;font-weight:600;cursor:pointer}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 16px;border-radius:12px;border:1px solid transparent;font-weight:600;cursor:pointer}
   .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
   .btn-primary:hover{background:var(--primary-600)}
   .btn-secondary{background:#F2F3F5;color:#1C1C1E;border:1px solid var(--border)}
@@ -146,40 +108,32 @@ body{
 
   .grid{display:grid;gap:16px}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-  @media (max-width:940px){.grid-2{grid-template-columns:1fr}.wrap{padding:16px}.topbar-inner{padding:10px 12px}}
-  /* --- Profile helpers --- */
-.profile-header{display:flex;align-items:center;gap:16px;margin:12px 0 20px}
-.avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#E9E9EB;
-        box-shadow:inset 0 0 0 1px var(--border);flex:0 0 88px}
-.avatar--placeholder{display:grid;place-items:center;color:var(--muted);font-weight:700}
+  @media (max-width:940px){
+    .grid-2{grid-template-columns:1fr}
+    .topbar-inner{padding:10px var(--gutter-x)}
+  }
 
-/* превью большого аватара рядом с кнопкой "Изменить" */
-.avatar-lg{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#E9E9EB;
-           box-shadow:inset 0 0 0 1px var(--border);flex:0 0 120px}
+  /* Footer */
+  .footer{margin-top:auto;background:#fff;border-top:1px solid var(--border)}
+  .footer-inner{max-width:var(--container);margin:0 auto;padding:14px var(--gutter-x);
+                display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px}
+  .footer a{color:var(--primary);font-weight:600}
+  .footer a:hover{text-decoration:underline}
+  @media (max-width:940px){.footer-inner{flex-direction:column;align-items:flex-start;gap:6px}}
 
-/* чипы ролей */
-.badges span{display:inline-block;background:#EAF2FF;color:#0A84FF;border-radius:999px;
-             padding:4px 10px;margin-right:6px;font-weight:600}
-
-/* сетка формы 2 колонки (у тебя уже есть .grid-2, оставляем на всякий случай) */
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media (max-width:940px){.grid-2{grid-template-columns:1fr}}
-
-/* мелкие подписи */
-.note{color:var(--muted)}
-
-/* спрятать "На данный момент / Очистить" у стандартного ClearableFileInput */
-.clearable-file-input a,
-.clearable-file-input label[for$="-clear_id"],
-.clearable-file-input input[type="checkbox"]{display:none !important}
-
-/* спрятать сам <input type="file">, клик по кнопке pickAvatar */
-#id_avatar{
-  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
-  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
-}
-
+  /* Разное */
+  .profile-header{display:flex;align-items:center;gap:16px;margin:12px 0 20px}
+  .avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#E9E9EB;box-shadow:inset 0 0 0 1px var(--border);flex:0 0 88px}
+  .avatar--placeholder{display:grid;place-items:center;color:var(--muted);font-weight:700}
+  .avatar-lg{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#E9E9EB;box-shadow:inset 0 0 0 1px var(--border);flex:0 0 120px}
+  .badges span{display:inline-block;background:#EAF2FF;color:#0A84FF;border-radius:999px;padding:4px 10px;margin-right:6px;font-weight:600}
+  .note{color:var(--muted)}
+  .clearable-file-input a,
+  .clearable-file-input label[for$="-clear_id"],
+  .clearable-file-input input[type="checkbox"]{display:none!important}
+  #id_avatar{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 </style>
+
   <script>
   // отключаем reset от Tailwind, чтобы не сбивать существующие стили
   tailwind = { config: { corePlugins: { preflight: false } } };
@@ -188,6 +142,7 @@ body{
 
   {% block extra_head %}{% endblock %}
 </head>
+
 <body>
   <header class="topbar">
      <div class="topbar-inner">
@@ -267,7 +222,6 @@ body{
 </nav>
         {% endwith %}
       </div>
-
       <div class="userbox">
         {% if request.user.is_authenticated %}
           {% if profile and profile.avatar %}
@@ -296,9 +250,9 @@ body{
     </div>
   </header>
 
-  <main class="wrap">
-    {% block content %}{% endblock %}
-  </main>
+<main class="wrap {% block wrap_mod %}{% endblock %}">
+  {% block content %}{% endblock %}
+</main>  <!-- НЕ забыть закрыть -->
 
   <script>
     (function(){
