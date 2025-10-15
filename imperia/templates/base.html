@@ -264,20 +264,6 @@ body{
     </a>
   {% endif %}
 
-            {# Менеджер: создать и смотреть свои заявки #}
-{% if request.user|in_groups:"manager" %}
-  <a href="{% url 'core:counterparty_request_create' %}" class="{% if request.resolver_match.url_name == 'counterparty_request_create' %}active{% endif %}">Новая заявка (контрагент)</a>
-  <a href="{% url 'core:manager_counterparty_requests' %}" class="{% if request.resolver_match.url_name == 'manager_counterparty_requests' %}active{% endif %}">Мои заявки</a>
-{% endif %}
-
-{# Оператор/Директор: очередь на подтверждение #}
-{% if request.user|in_groups:"operator,director" %}
-  <a href="{% url 'core:counterparty_review_queue' %}" class="{% if request.resolver_match.url_name == 'counterparty_review_queue' %}active{% endif %}">
-    Подтверждение контрагентов
-    {# Можно вывести бейдж кол-ва pending, если передаёшь в контекст pending_count #}
-    {# <span class="badge">{{ pending_count }}</span> #}
-  </a>
-{% endif %}
 </nav>
         {% endwith %}
       </div>
