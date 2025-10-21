@@ -43,7 +43,7 @@
     </div>
 
     {% if price_min %}
-      <div class="text-lg font-semibold">от {{ price_min|floatformat:2 }} ₽</div>
+      <div class="text-lg font-semibold">{{ price_min|floatformat:2 }} ₽</div>
     {% endif %}
 
     {% if product.description %}
