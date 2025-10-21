@@ -363,6 +363,7 @@ class CounterpartyContact(models.Model):
     phone = models.CharField("Телефон", max_length=50, blank=True)
     mobile = models.CharField("Моб. телефон", max_length=50, blank=True)
     note = models.CharField("Комментарий", max_length=500, blank=True)
+    birthday = models.DateField(null=True, blank=True, verbose_name="День рождения")
 
     created_at = models.DateTimeField(auto_now_add=True)
 

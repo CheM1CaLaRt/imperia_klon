@@ -382,7 +382,16 @@ class CounterpartyCreateForm(forms.ModelForm):
 class CounterpartyContactForm(forms.ModelForm):
     class Meta:
         model = CounterpartyContact
-        fields = ["full_name", "position", "email", "phone", "mobile", "note"]
+        fields = ["full_name", "position", "email", "phone", "mobile", "note", "birthday"]
+        widgets = {
+            "birthday": forms.DateInput(
+                attrs={
+                    "type": "date",
+                    "class": "w-full rounded-xl border border-gray-300 bg-white px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500",
+                    "placeholder": "ДД.ММ.ГГГГ",
+                }
+            ),
+        }
 
 
 ContactFormSet = inlineformset_factory(

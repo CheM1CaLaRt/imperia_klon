@@ -103,19 +103,27 @@ def parse_counterparty_payload(payload: dict) -> dict:
     if "СвИП" in payload or "ИП" in payload:
         ip = payload.get("СвИП") or payload.get("ИП") or {}
         attrs = ip.get("@attributes", {}) or {}
-        inn = attrs.get("ИННФЛ", "") or attrs.get("ИНН", "")
-        ogrn = attrs.get("ОГРНИП", "") or attrs.get("ОГРН", "")
 
-        # ФИО
-        fio = [
-            _get(ip, "СвФЛ", "@attributes", "Фамилия", default=""),
-            _get(ip, "СвФЛ", "@attributes", "Имя", default=""),
-            _get(ip, "СвФЛ", "@attributes", "Отчество", default=""),
-        ]
-        full_name = " ".join([p for p in fio if p]).strip()
-        name = f"ИП {full_name}" if full_name else "ИП"
+        # ИНН и ОГРНИП
+        inn = (
+            attrs.get("ИННФЛ")
+            or _get(ip, "СвУчетНО", "@attributes", "ИННФЛ", default="")
+            or attrs.get("ИНН", "")
+        )
+        ogrnip = attrs.get("ОГРНИП", "") or _get(ip, "СвРегИП", "@attributes", "ОГРНИП", default="")
 
-        # Адрес у ИП встречается реже; пытаемся собрать, если есть
+        # ФИО (лежит в СвФЛ → ФИОРус → @attributes)
+        fio_attrs = _get(ip, "СвФЛ", "ФИОРус", "@attributes", default={}) or {}
+        last = fio_attrs.get("Фамилия", "")
+        first = fio_attrs.get("Имя", "")
+        middle = fio_attrs.get("Отчество", "")
+        fio = " ".join([p for p in (last, first, middle) if p]).strip()
+
+        # Названия
+        name = f"ИП {fio}".strip() if fio else "ИП"
+        full_name = f"Индивидуальный предприниматель {fio}".strip() if fio else "Индивидуальный предприниматель"
+
+        # Адрес (если есть)
         address = ""
         addr_rf = _get(ip, "СвАдресМЖ", "АдресРФ", default={})
         if addr_rf:
@@ -123,10 +131,10 @@ def parse_counterparty_payload(payload: dict) -> dict:
 
         return {
             "inn": str(inn or "").strip(),
-            "kpp": "",  # у ИП нет КПП
-            "ogrn": str(ogrn or "").strip(),
-            "name": name,
-            "full_name": name if not full_name else full_name,
+            "kpp": "",                         # у ИП нет КПП
+            "ogrn": str(ogrnip or "").strip(), # используем именно ОГРНИП
+            "name": name,                      # ИП + ФИО
+            "full_name": full_name,            # Индивидуальный предприниматель + ФИО
             "address": str(address or "").strip(),
             "registration_country": "РОССИЯ",
             "meta_json": payload,
