@@ -250,16 +250,31 @@ def director_dashboard(request):
 
 @warehouse_or_director_required
 def product_list(request):
-    q = (request.GET.get("q") or "").strip()
-    sort = (request.GET.get("sort") or "name").lower()
-    order = (request.GET.get("order") or "asc").lower()
-    page = int(request.GET.get("page") or 1)
-    per_page = int(request.GET.get("per_page") or 24)
+    q        = (request.GET.get("q") or "").strip()
+    supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
+    sort     = (request.GET.get("sort") or "").lower()       # '' | 'price'
+    order    = (request.GET.get("order") or "asc").lower()
 
-    qs = Product.objects.all().select_related("supplier").prefetch_related("images", "prices")
+    try:
+        page = int(request.GET.get("page") or 1)
+    except ValueError:
+        page = 1
+    try:
+        per_page = int(request.GET.get("per_page") or 24)
+    except ValueError:
+        per_page = 24
 
+    # База + min_price
+    base_qs = (
+        Product.objects
+        .select_related("supplier")
+        .prefetch_related("images", "prices")
+        .annotate(min_price=Min("prices__value"))
+    )
+
+    # Поиск (3+ символа)
     if len(q) >= 3:
-        qs = qs.filter(
+        base_qs = base_qs.filter(
             Q(name__icontains=q) |
             Q(barcode__startswith=q) |
             Q(sku__icontains=q) |
@@ -267,33 +282,46 @@ def product_list(request):
             Q(vendor_code__icontains=q)
         )
 
-    qs = qs.annotate(min_price=Min("prices__value"))
+    # Список поставщиков из текущей выборки
+    suppliers_raw = (
+        base_qs
+        .values_list("supplier__code", "supplier__name")
+        .distinct()
+        .order_by("supplier__name", "supplier__code")
+    )
+    suppliers = [{"code": c or "", "name": n or ""} for c, n in suppliers_raw if c]
 
+    # Фильтр по выбранному поставщику
+    qs = base_qs
+    if supplier:
+        qs = qs.filter(supplier__code=supplier)
+
+    # Сортировка — только по цене (или без сортировки)
     if sort == "price":
         qs = qs.order_by(
-            OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True), "id"
-        )
-    elif sort == "supplier":
-        qs = qs.order_by(
-            OrderBy(F("supplier__name"), descending=(order == "desc")), "id"
+            OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True),
+            "id",
         )
     else:
+        # «без сортировки» — пусть будет по имени (asc/desc) как дефолт
         sort_field = "name"
         if order == "desc":
             sort_field = "-" + sort_field
         qs = qs.order_by(sort_field, "id")
 
+    # Пагинация
     paginator = Paginator(qs, per_page)
     page_obj = paginator.get_page(page)
 
     return render(request, "core/product_list.html", {
         "page_obj": page_obj,
         "q": q,
+        "supplier": supplier,
+        "suppliers": suppliers,
         "sort": sort,
         "order": order,
         "per_page": per_page,
     })
-
 
 @login_required
 def home(request):
