@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Новая заявка{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Новая заявка</h1>
+<form method="post" class="space-y-4">{% csrf_token %}
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>{{ form.title.label_tag }} {{ form.title }}</div>
+    <div>{{ form.counterparty.label_tag }} {{ form.counterparty }}</div>
+  </div>
+
+  <div>{{ form.comment_internal.label_tag }} {{ form.comment_internal }}</div>
+
+  {# НОВОЕ: bulk-позиции #}
+  {% if form.items_bulk %}
+  <div>
+    {{ form.items_bulk.label_tag }}
+    {{ form.items_bulk }}
+    {% if form.items_bulk.help_text %}<div class="text-sm text-gray-500 mt-1">{{ form.items_bulk.help_text }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="flex gap-2">
+    <button name="draft" class="btn">Сохранить черновик</button>
+    <button name="submit" class="btn btn-primary">Отправить</button>
+  </div>
+</form>
+{% endblock %}

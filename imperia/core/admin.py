@@ -13,6 +13,7 @@ except Exception:
 
 from .models import Counterparty, CounterpartyFinance, CounterpartyContact
 from .models import CounterpartyCreateRequest, CounterpartyCreateRequestDocument
+from .admin_requests import *  # noqa
 
 
 

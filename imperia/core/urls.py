@@ -2,6 +2,7 @@
 from django.urls import path
 from . import views_counterparty as vc
 from . import views_counterparty_requests as vcr   # <<< ВАЖНО: был views_counterparty
+from . import views_requests as rq
 
 app_name = "core"
 
@@ -12,6 +13,16 @@ urlpatterns = [
     path("dashboard/review/counterparty/", vcr.counterparty_review_queue, name="counterparty_review_queue"),
     path("dashboard/review/counterparty/<int:pk>/approve/", vcr.counterparty_request_approve, name="counterparty_request_approve"),
     path("dashboard/review/counterparty/<int:pk>/reject/", vcr.counterparty_request_reject, name="counterparty_request_reject"),
+
+    # Заявки
+    path("requests/", rq.request_list, name="request_list"),
+    path("requests/new/", rq.request_create, name="request_create"),
+    path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
+    path("requests/<int:pk>/add-item/", rq.request_add_item, name="request_add_item"),
+    path("requests/<int:pk>/item/<int:item_id>/update/", rq.request_update_item, name="request_update_item"),
+    path("requests/<int:pk>/item/<int:item_id>/delete/", rq.request_delete_item, name="request_delete_item"),
+    path("requests/<int:pk>/status/", rq.request_change_status, name="request_change_status"),
+
     # Клиенты
     path("counterparties/", vc.counterparty_list, name="counterparty_list"),
     path("counterparties/new/", vc.counterparty_create, name="counterparty_create"),

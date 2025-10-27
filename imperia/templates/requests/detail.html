@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load access %}
+{% block title %}Заявка #{{ obj.number }}{% endblock %}
+
+{% block content %}
+<div class="rq-container">
+
+  <!-- Шапка -->
+  <div class="rq-header">
+    <div>
+      <h1 class="rq-title">Заявка <span class="rq-mono">#{{ obj.number }}</span> — {{ obj.title }}</h1>
+      <div class="rq-meta">
+        <span class="rq-chip rq-chip--{{ obj.status }}">{{ obj.get_status_display }}</span>
+        <span>Инициатор: <b>{{ obj.initiator }}</b></span>
+        {% if obj.counterparty %}
+          <span>Контрагент: <b>{{ obj.counterparty.name }}</b></span>
+        {% endif %}
+        <span>Создана: {{ obj.created_at|date:"d.m.Y H:i" }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Прогресс-этапы -->
+  <ol class="rq-steps">
+    {% comment %} простой мэппинг: подсветить шаги, которые уже пройдены {% endcomment %}
+    {% with s=obj.status %}
+      <li class="rq-step {% if s in 'submitted approved to_pick in_progress ready_to_ship done' %}is-done{% endif %}">Создана</li>
+      <li class="rq-step {% if s in 'approved to_pick in_progress ready_to_ship done' %}is-done{% endif %}">Подтверждена</li>
+      <li class="rq-step {% if s in 'to_pick in_progress ready_to_ship done' %}is-done{% endif %}">Передана на склад</li>
+      <li class="rq-step {% if s in 'in_progress ready_to_ship done' %}is-done{% endif %}">Собирается</li>
+      <li class="rq-step {% if s in 'ready_to_ship done' %}is-done{% endif %}">Готова к отгрузке</li>
+      <li class="rq-step {% if s in 'done' %}is-done{% endif %}">Завершена</li>
+    {% endwith %}
+  </ol>
+
+  <!-- Панель действий -->
+  <div class="rq-actions">
+    <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="rq-actions__row">
+      {% csrf_token %}
+
+      {% if request.user|in_groups:"operator,director" %}
+        <button class="btn btn-primary" name="to" value="approved">Согласовать</button>
+        <button class="btn" name="to" value="rejected">Отклонить</button>
+        <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+      {% endif %}
+
+      {% if request.user|in_groups:"manager,director" %}
+        <button class="btn" name="to" value="submitted">Отправить</button>
+      {% endif %}
+
+      {% if request.user|in_groups:"warehouse,director" %}
+        <button class="btn" name="to" value="in_progress">В работу</button>
+        <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
+        <button class="btn" name="to" value="done">Завершить</button>
+      {% endif %}
+
+      {% if request.user|in_groups:"manager,operator,director" %}
+        <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+      {% endif %}
+    </form>
+  </div>
+  <!-- Внутренний комментарий -->
+  <section class="rq-card">
+    <div class="rq-card__head">
+      <h2>Комментарий</h2>
+    </div>
+    <div style="padding:12px 14px;">
+      {% if obj.comment_internal %}
+        {{ obj.comment_internal|linebreaksbr }}
+      {% else %}
+        <span class="muted">—</span>
+      {% endif %}
+    </div>
+  </section>
+  <!-- Позиции -->
+  <section class="rq-card">
+    <div class="rq-card__head">
+      <h2>Позиции</h2>
+      {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
+        <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
+          {% csrf_token %}
+          <div class="rq-additem__field">{{ item_form.title }}</div>
+          <div class="rq-additem__qty">{{ item_form.quantity }}</div>
+          <div class="rq-additem__note">{{ item_form.note }}</div>
+          <button class="btn">Добавить</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if obj.items.all %}
+      <div class="rq-table">
+        <div class="rq-trow rq-trow--head">
+          <div>Наименование</div>
+          <div class="ta-right">Кол-во</div>
+          <div>Примечание</div>
+        </div>
+        {% for it in obj.items.all %}
+          <div class="rq-trow">
+            <div>
+              {% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}
+            </div>
+            <div class="ta-right">{{ it.quantity }}</div>
+            <div class="muted">{{ it.note }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="rq-empty">Пока пусто</div>
+    {% endif %}
+  </section>
+
+
+  <!-- История -->
+  <section class="rq-card">
+    <div class="rq-card__head">
+      <h2>История</h2>
+    </div>
+    {% if obj.history.all %}
+      <ul class="rq-history">
+        {% for h in obj.history.all %}
+          <li>
+            <span class="rq-mono">{{ h.created_at|date:"d.m.Y H:i" }}</span>
+            — <b>{{ h.author }}</b>:
+            <span class="rq-mono">{{ h.from_status|default:"—" }}</span>
+            → <span class="rq-mono">{{ h.to_status }}</span>
+            <span class="muted">{{ h.note }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="rq-empty">Пусто</div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

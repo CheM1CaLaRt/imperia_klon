@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load access %}
+{% block title %}Заявки{% endblock %}
+{% block content %}
+<h1 class="rq-title">Заявки</h1>
+
+<div class="mb-3 flex flex-wrap gap-6">
+  <a href="{% url 'core:request_list' %}" class="btn {% if not status %}btn-primary{% endif %}">Все</a>
+  <a href="?status=submitted" class="btn {% if status == 'submitted' %}btn-primary{% endif %}">На согласовании</a>
+  <a href="?status=approved" class="btn {% if status == 'approved' %}btn-primary{% endif %}">Согласованы</a>
+  <a href="?status=to_pick" class="btn {% if status == 'to_pick' %}btn-primary{% endif %}">В сборку</a>
+  <a href="?status=in_progress" class="btn {% if status == 'in_progress' %}btn-primary{% endif %}">Собираются</a>
+  <a href="?status=ready_to_ship" class="btn {% if status == 'ready_to_ship' %}btn-primary{% endif %}">Готовы к отгрузке</a>
+  <a href="?status=done" class="btn {% if status == 'done' %}btn-primary{% endif %}">Завершены</a>
+
+  {% if request.user|in_groups:"manager,operator,director" %}
+    <a href="{% url 'core:request_create' %}" class="btn">Новая заявка</a>
+  {% endif %}
+</div>
+
+<div class="rq-list">
+  {% for r in requests %}
+    <a class="rq-item" href="{% url 'core:request_detail' r.pk %}">
+      <div class="rq-item__top">
+        <div class="rq-item__title">#{{ r.number }} — {{ r.title }}</div>
+        <span class="rq-chip rq-chip--{{ r.status }}">{{ r.get_status_display }}</span>
+      </div>
+      <div class="rq-item__meta">
+        Инициатор: {{ r.initiator }}
+        {% if r.counterparty %} · Контрагент: {{ r.counterparty.name }}{% endif %}
+        · {{ r.created_at|date:"d.m.Y H:i" }}
+      </div>
+    </a>
+  {% empty %}
+    <div class="rq-empty">Заявок нет</div>
+  {% endfor %}
+</div>
+
+<style>
+.rq-list { display:grid; gap:8px; }
+.rq-item { display:block; padding:12px 14px; border:1px solid #e6e6ea; border-radius:12px; background:#fff; }
+.rq-item:hover { background:#fafafa; }
+.rq-item__top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.rq-item__title { font-weight:600; }
+.rq-item__meta { color:#777; margin-top:4px; font-size:14px; }
+</style>
+{% endblock %}

@@ -9,6 +9,13 @@ from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
 from .models import CounterpartyDocument
 
+# === [МОИ ДОБАВЛЕНИЯ: импорты для заявок] ===============================
+# ВАЖНО: модели заявок находятся в отдельном модуле models_requests,
+# поэтому импортируем их отсюда, а не из .models
+from .models_requests import Request as RequestModel, RequestHistory as RequestHistoryModel
+from django.utils import timezone
+# =======================================================================
+
 
 def _remove_file(f):
     """Безопасно удалить файл на диске, если он существует."""
@@ -96,4 +103,28 @@ def delete_old_file_on_change(sender, instance: CounterpartyDocument, **kwargs):
     if old.file and old.file != instance.file:
         old.file.delete(save=False)
 
+
+# ======================== МОИ ДОБАВЛЕНИЯ ДЛЯ «ЗАЯВОК» =========================
+# Номер заявки при создании: формат R-YYYYMMDD-0001
+@receiver(pre_save, sender=RequestModel)
+def set_request_number_on_create(sender, instance: RequestModel, **kwargs):
+    # Присваиваем номер только при создании
+    if instance._state.adding and not instance.number:
+        today = timezone.localdate()
+        prefix = f"R-{today:%Y%m%d}-"
+        last = RequestModel.objects.filter(number__startswith=prefix).order_by("-number").first()
+        seq = int(last.number.split("-")[-1]) + 1 if (last and last.number and last.number.startswith(prefix)) else 1
+        instance.number = f"{prefix}{seq:04d}"
+
+# Первая запись об истории — сразу после создания
+@receiver(post_save, sender=RequestModel)
+def add_request_history_on_create(sender, instance: RequestModel, created, **kwargs):
+    if created:
+        RequestHistoryModel.objects.create(
+            request=instance,
+            author=instance.initiator,
+            to_status=instance.status,
+            note="Создана",
+        )
+# ============================================================================
 
