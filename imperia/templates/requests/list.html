@@ -7,6 +7,7 @@
 <div class="mb-3 flex flex-wrap gap-6">
   <a href="{% url 'core:request_list' %}" class="btn {% if not status %}btn-primary{% endif %}">Все</a>
   <a href="?status=submitted" class="btn {% if status == 'submitted' %}btn-primary{% endif %}">На согласовании</a>
+  <a href="?status=quote" class="btn {% if status == 'quote' %}btn-primary{% endif %}">КП</a>
   <a href="?status=approved" class="btn {% if status == 'approved' %}btn-primary{% endif %}">Согласованы</a>
   <a href="?status=to_pick" class="btn {% if status == 'to_pick' %}btn-primary{% endif %}">В сборку</a>
   <a href="?status=in_progress" class="btn {% if status == 'in_progress' %}btn-primary{% endif %}">Собираются</a>

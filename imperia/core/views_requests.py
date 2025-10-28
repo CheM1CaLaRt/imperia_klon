@@ -1,7 +1,6 @@
 # core/views_requests.py
 from decimal import Decimal, InvalidOperation
 import re
-
 from django.contrib import messages
 from django.db.models import Q, ForeignKey
 from django.http import HttpResponseBadRequest
@@ -16,8 +15,9 @@ from .forms_requests import (
     RequestCreateForm,
     RequestItemForm,
     RequestItemEditForm,
+    RequestQuoteForm,
 )
-from .models_requests import Request, RequestItem, RequestStatus, RequestHistory
+from .models_requests import Request, RequestItem, RequestStatus, RequestHistory, RequestQuote
 
 
 # ---------- Список заявок ----------
@@ -43,22 +43,17 @@ def request_list(request):
         is_manager_fk_to_user = False
 
     if u.groups.filter(name="warehouse").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Склад видит только заявки, переданные ему
+        # Склад видит только то, что ему передано/в работе
         qs = qs.filter(status__in=[RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP])
     elif u.groups.filter(name="manager").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Менеджер — свои заявки и по своим клиентам (если есть FK manager)
+        # Менеджер — только свои и по своим клиентам (если есть FK manager)
         if is_manager_fk_to_user:
             qs = qs.filter(Q(initiator=u) | Q(counterparty__manager=u))
         else:
             qs = qs.filter(initiator=u)
     elif u.groups.filter(name="operator").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Оператор видит ВСЕ заявки, которые он может обрабатывать
-        qs = qs.filter(status__in=[
-            RequestStatus.SUBMITTED,   # на согласование
-            RequestStatus.APPROVED,    # уже согласованы (можно отправлять на склад)
-            RequestStatus.REJECTED,    # отклонённые (для контроля/повторной отправки)
-            RequestStatus.CANCELED,    # отменённые (для контроля)
-        ]) | qs.filter(initiator=u)     # + всегда свои собственные, если он тоже создаёт
+        # ОПЕРАТОР — ВИДИТ КАК ДИРЕКТОР (никаких фильтров)
+        pass
     else:
         # Директор/суперпользователь — всё
         pass
@@ -69,6 +64,14 @@ def request_list(request):
     ctx = {"requests": qs.order_by("-created_at")[:500], "status": status, "statuses": RequestStatus}
     return render(request, "requests/list.html", ctx)
 
+def _parse_qty(v: str) -> Decimal:
+    v = (v or "").strip().replace(",", ".")
+    if not v:
+        return Decimal("1")
+    try:
+        return Decimal(v)
+    except InvalidOperation:
+        return Decimal("1")
 
 @require_groups("manager", "operator", "director")
 def request_create(request):
@@ -125,10 +128,19 @@ def request_detail(request, pk: int):
             edit_item = None
             edit_form = None
 
+    quote_form = RequestQuoteForm()
+
     return render(
         request,
         "requests/detail.html",
-        {"obj": obj, "item_form": item_form, "edit_item": edit_item, "edit_form": edit_form, "statuses": RequestStatus},
+        {
+            "obj": obj,
+            "item_form": item_form,
+            "edit_item": edit_item,
+            "edit_form": edit_form,
+            "quote_form": quote_form,  # ← ВАЖНО: всегда передаём
+            "statuses": RequestStatus,
+        },
     )
 
 
@@ -190,30 +202,51 @@ def request_change_status(request, pk: int):
     obj = get_object_or_404(Request, pk=pk)
     to = request.POST.get("to")
     u = request.user
+    groups = {g.name for g in u.groups.all()}
 
-    # оператор утверждает/отклоняет и может отправить на склад
-    allowed = {
-        "manager": {RequestStatus.SUBMITTED, RequestStatus.CANCELED},  # менеджер не утверждает
+    # Базовые разрешения по ролям
+    role_allowed = {
+        "manager": set(),  # менеджеру задаём ниже по текущему статусу
         "operator": {
             RequestStatus.SUBMITTED,
-            RequestStatus.APPROVED,
-            RequestStatus.REJECTED,
+            RequestStatus.QUOTE,
             RequestStatus.CANCELED,
-            RequestStatus.TO_PICK,
+            RequestStatus.TO_PICK,  # передать на склад
+            RequestStatus.IN_PROGRESS,  # при необходимости переводить складские этапы
+            RequestStatus.READY_TO_SHIP,
+            RequestStatus.DONE,  # ← ТЕПЕРЬ оператор может завершить
         },
-        "warehouse": {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.DONE},
+        "warehouse": {
+            RequestStatus.IN_PROGRESS,
+            RequestStatus.READY_TO_SHIP,
+            # БЕЗ DONE для склада
+        },
         "director": set(s for s, _ in RequestStatus.choices),  # директор может всё
     }
-    user_groups = {g.name for g in u.groups.all()}
-    can = u.is_superuser or any(to in allowed.get(g, set()) for g in user_groups)
-    if not can:
+
+    # Менеджер:
+    # - из Черновика: Отправить/Отменить
+    # - из КП: Согласовать ИЛИ Не согласовали (approved/rejected)
+    if "manager" in groups and not u.is_superuser:
+        if obj.status == RequestStatus.DRAFT:
+            role_allowed["manager"] = {RequestStatus.SUBMITTED, RequestStatus.CANCELED}
+        elif obj.status == RequestStatus.QUOTE:
+            role_allowed["manager"] = {RequestStatus.APPROVED, RequestStatus.REJECTED}
+        else:
+            role_allowed["manager"] = set()
+
+    # Проверка прав
+    allowed_targets = set().union(*(role_allowed.get(g, set()) for g in groups))
+    if u.is_superuser:
+        allowed_targets = set(s for s, _ in RequestStatus.choices)
+    if to not in allowed_targets:
         return HttpResponseBadRequest("Недостаточно прав для смены статуса")
 
-    # склад трогает только после передачи в сборку
+    # Склад — только после передачи в сборку (если не директор)
     if (
         to in {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.DONE}
         and obj.status not in {RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP}
-        and not (u.is_superuser or "director" in user_groups)
+        and not (u.is_superuser or "director" in groups)
     ):
         return HttpResponseBadRequest("Заявка ещё не передана на склад")
 
@@ -222,4 +255,36 @@ def request_change_status(request, pk: int):
     obj.save(update_fields=["status", "updated_at"])
     RequestHistory.objects.create(request=obj, author=u, from_status=from_status, to_status=to)
     messages.success(request, "Статус обновлён")
+    return redirect("core:request_detail", pk=pk)
+
+# ---------- Загрузить файл КП ----------
+@require_POST
+@require_groups("operator", "director")  # только оператор/директор загружают
+def request_upload_quote(request, pk: int):
+    obj = get_object_or_404(Request, pk=pk)
+    form = RequestQuoteForm(request.POST, request.FILES)
+    if form.is_valid():
+        q = form.save(commit=False)
+        q.request = obj
+        q.uploaded_by = request.user
+        q.original_name = request.FILES["file"].name
+        q.save()
+        messages.success(request, "Коммерческое предложение прикреплено")
+        # если оператор сразу ставит статус "quote" — можно разрешить на UI отдельной кнопкой; тут только upload
+    else:
+        messages.error(request, "Не удалось загрузить файл КП")
+    return redirect("core:request_detail", pk=pk)
+
+
+# ---------- Удалить файл КП ----------
+@require_POST
+@require_groups("operator", "director")
+def request_delete_quote(request, pk: int, quote_id: int):
+    obj = get_object_or_404(Request, pk=pk)
+    q = get_object_or_404(RequestQuote, pk=quote_id, request=obj)
+    # оператор может удалить только свои файлы; директор — любые
+    if (q.uploaded_by_id != request.user.id) and (not request.user.groups.filter(name="director").exists()) and (not request.user.is_superuser):
+        return HttpResponseBadRequest("Можно удалять только свои файлы")
+    q.delete()
+    messages.success(request, "Файл КП удалён")
     return redirect("core:request_detail", pk=pk)

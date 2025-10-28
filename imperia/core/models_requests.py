@@ -2,14 +2,17 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+import os
 from django.utils.translation import gettext_lazy as _
+
 
 class RequestStatus(models.TextChoices):
     DRAFT = "draft", _("Черновик")
     SUBMITTED = "submitted", _("Отправлена")             # менеджер/оператор создал(а)
-    APPROVED = "approved", _("Согласована")              # оператор подтвердил
-    TO_PICK = "to_pick", _("В сборку (на склад)")        # передана складу
-    IN_PROGRESS = "in_progress", _("Собирается")         # склад собирает
+    QUOTE = "quote", _("Коммерческое предложение")       # оператор сформировал КП → менеджеру
+    APPROVED = "approved", _("Согласована")              # менеджер подтвердил КП
+    TO_PICK = "to_pick", _("В сборку (на склад)")
+    IN_PROGRESS = "in_progress", _("Собирается")
     READY_TO_SHIP = "ready_to_ship", _("Готова к отгрузке")
     DONE = "done", _("Завершена")
     REJECTED = "rejected", _("Отклонена")
@@ -71,3 +74,29 @@ class RequestHistory(models.Model):
     to_status = models.CharField(max_length=20, choices=RequestStatus.choices)
     created_at = models.DateTimeField(default=timezone.now)
     note = models.CharField(max_length=255, blank=True, default="")
+
+# --- Коммерческие предложения (вложения) ---
+
+
+def _quote_upload_to(instance, filename: str):
+    # created_at ещё нет до .save(), поэтому используем "сейчас" как безопасный дефолт
+    dt = getattr(instance, "created_at", None) or timezone.now()
+    # request_id уже есть (мы присваиваем q.request перед save)
+    req_id = getattr(instance, "request_id", None) or "tmp"
+    # чуть чистим имя файла
+    name = os.path.basename(filename)
+    return f"quotes/{dt:%Y/%m/%d}/{req_id}/{name}"
+
+class RequestQuote(models.Model):
+    request = models.ForeignKey(Request, on_delete=models.CASCADE, related_name="quotes")
+    file = models.FileField("Файл КП", upload_to=_quote_upload_to, max_length=500)
+    original_name = models.CharField("Оригинальное имя", max_length=255, blank=True, default="")
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="uploaded_quotes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.original_name or (self.file.name.split("/")[-1] if self.file else f"Quote #{self.pk}")
+

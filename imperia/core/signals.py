@@ -9,10 +9,11 @@ from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
 from .models import CounterpartyDocument
 
+
 # === [МОИ ДОБАВЛЕНИЯ: импорты для заявок] ===============================
 # ВАЖНО: модели заявок находятся в отдельном модуле models_requests,
 # поэтому импортируем их отсюда, а не из .models
-from .models_requests import Request as RequestModel, RequestHistory as RequestHistoryModel
+from .models_requests import Request as RequestModel, RequestHistory as RequestHistoryModel, RequestQuote
 from django.utils import timezone
 # =======================================================================
 
@@ -128,3 +129,20 @@ def add_request_history_on_create(sender, instance: RequestModel, created, **kwa
         )
 # ============================================================================
 
+# ... в самый низ файла добавь:
+
+@receiver(post_delete, sender=RequestQuote)
+def delete_quote_file_on_delete(sender, instance: RequestQuote, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
+
+@receiver(pre_save, sender=RequestQuote)
+def replace_quote_file_cleanup(sender, instance: RequestQuote, **kwargs):
+    if not instance.pk:
+        return
+    try:
+        old = sender.objects.only("file").get(pk=instance.pk).file
+    except sender.DoesNotExist:
+        return
+    if old and old != instance.file:
+        old.delete(save=False)

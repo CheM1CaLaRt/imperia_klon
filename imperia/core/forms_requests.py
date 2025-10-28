@@ -4,7 +4,7 @@ from django.apps import apps
 from django.conf import settings
 from django.db.models import ForeignKey
 
-from .models_requests import Request, RequestItem
+from .models_requests import Request, RequestItem, RequestQuote
 from .models import Counterparty
 
 
@@ -101,3 +101,21 @@ class RequestItemEditForm(forms.ModelForm):
             "quantity": forms.NumberInput(attrs={"step": "0.001", "min": "0"}),
             "note": forms.TextInput(attrs={"placeholder": "Примечание"}),
         }
+
+class RequestQuoteForm(forms.ModelForm):
+    class Meta:
+        model = RequestQuote
+        fields = ("file",)
+        widgets = {
+            "file": forms.ClearableFileInput(attrs={
+                "accept": ".pdf,.doc,.docx,.xls,.xlsx,.ods,.odt,.rtf,.csv,.txt,image/*"
+            })
+        }
+
+    def clean_file(self):
+        f = self.cleaned_data["file"]
+        # простейшая защита: до 20 МБ
+        max_mb = 20
+        if f.size > max_mb * 1024 * 1024:
+            raise forms.ValidationError(f"Файл слишком большой (>{max_mb} МБ)")
+        return f

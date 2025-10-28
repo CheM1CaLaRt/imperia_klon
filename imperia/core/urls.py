@@ -22,6 +22,8 @@ urlpatterns = [
     path("requests/<int:pk>/item/<int:item_id>/update/", rq.request_update_item, name="request_update_item"),
     path("requests/<int:pk>/item/<int:item_id>/delete/", rq.request_delete_item, name="request_delete_item"),
     path("requests/<int:pk>/status/", rq.request_change_status, name="request_change_status"),
+    path("requests/<int:pk>/quote/upload/", rq.request_upload_quote, name="request_upload_quote"),
+    path("requests/<int:pk>/quote/<int:quote_id>/delete/", rq.request_delete_quote, name="request_delete_quote"),
 
     # Клиенты
     path("counterparties/", vc.counterparty_list, name="counterparty_list"),
