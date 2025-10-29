@@ -59,4 +59,10 @@ urlpatterns = [
         vc.deletion_requests_clear_rejected,
         name="deletion_requests_clear_rejected",
     ),
+    path(
+        "requests/<int:pk>/quote/<int:quote_id>/preview/",
+        rq.request_quote_preview,
+        name="request_quote_preview",
+    ),
+    path("requests/<int:pk>/toggle-payment/", rq.request_toggle_payment, name="request_toggle_payment"),
 ]

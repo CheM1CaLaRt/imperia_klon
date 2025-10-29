@@ -18,6 +18,10 @@ from .forms_requests import (
     RequestQuoteForm,
 )
 from .models_requests import Request, RequestItem, RequestStatus, RequestHistory, RequestQuote
+from mimetypes import guess_type
+from django.http import FileResponse, Http404
+from django.views.decorators.clickjacking import xframe_options_exempt
+
 
 
 # ---------- Список заявок ----------
@@ -202,58 +206,65 @@ def request_change_status(request, pk: int):
     obj = get_object_or_404(Request, pk=pk)
     to = request.POST.get("to")
     u = request.user
-    groups = {g.name for g in u.groups.all()}
 
-    # Базовые разрешения по ролям
-    role_allowed = {
-        "manager": set(),  # менеджеру задаём ниже по текущему статусу
-        "operator": {
-            RequestStatus.SUBMITTED,
-            RequestStatus.QUOTE,
-            RequestStatus.CANCELED,
-            RequestStatus.TO_PICK,  # передать на склад
-            RequestStatus.IN_PROGRESS,  # при необходимости переводить складские этапы
-            RequestStatus.READY_TO_SHIP,
-            RequestStatus.DONE,  # ← ТЕПЕРЬ оператор может завершить
+    # защита от незнакомых значений
+    if to not in dict(RequestStatus.choices):
+        return HttpResponseBadRequest("Неизвестный статус")
+
+    # Разрешения по ролям
+    allowed = {
+        # Менеджер: отправка/отмена своей заявки + решение по КП
+        "manager": {
+            RequestStatus.SUBMITTED,   # Отправить черновик
+            RequestStatus.CANCELED,    # Отменить
+            RequestStatus.APPROVED,    # ← Согласовано
+            RequestStatus.REJECTED,    # ← Не согласовали
         },
+
+        # Оператор: производственный путь, но НЕ утверждает КП и НЕ завершает
+        "operator": {
+            RequestStatus.QUOTE,
+            RequestStatus.TO_PICK,
+            RequestStatus.IN_PROGRESS,
+            RequestStatus.READY_TO_SHIP,
+            RequestStatus.DELIVERED,
+            RequestStatus.CANCELED,
+        },
+
+        # Склад: только после передачи в сборку, доводит до «Доставлена»
         "warehouse": {
             RequestStatus.IN_PROGRESS,
             RequestStatus.READY_TO_SHIP,
-            # БЕЗ DONE для склада
+            # RequestStatus.DELIVERED,
         },
-        "director": set(s for s, _ in RequestStatus.choices),  # директор может всё
+
+        # Директор: всё
+        "director": set(s for s, _ in RequestStatus.choices),
     }
 
-    # Менеджер:
-    # - из Черновика: Отправить/Отменить
-    # - из КП: Согласовать ИЛИ Не согласовали (approved/rejected)
-    if "manager" in groups and not u.is_superuser:
-        if obj.status == RequestStatus.DRAFT:
-            role_allowed["manager"] = {RequestStatus.SUBMITTED, RequestStatus.CANCELED}
-        elif obj.status == RequestStatus.QUOTE:
-            role_allowed["manager"] = {RequestStatus.APPROVED, RequestStatus.REJECTED}
-        else:
-            role_allowed["manager"] = set()
-
-    # Проверка прав
-    allowed_targets = set().union(*(role_allowed.get(g, set()) for g in groups))
-    if u.is_superuser:
-        allowed_targets = set(s for s, _ in RequestStatus.choices)
-    if to not in allowed_targets:
+    user_groups = {g.name for g in u.groups.all()}
+    can = u.is_superuser or any(to in allowed.get(g, set()) for g in user_groups)
+    if not can:
         return HttpResponseBadRequest("Недостаточно прав для смены статуса")
 
-    # Склад — только после передачи в сборку (если не директор)
+    # Склад — двигается только после передачи в сборку
     if (
-        to in {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.DONE}
+        "warehouse" in user_groups
+        and to in {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.DELIVERED}
         and obj.status not in {RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP}
-        and not (u.is_superuser or "director" in groups)
+        and not (u.is_superuser or "director" in user_groups)
     ):
         return HttpResponseBadRequest("Заявка ещё не передана на склад")
 
     from_status = obj.status
     obj.status = to
+
+    # Авто-завершение: если доставлена и оплачено — завершить
+    if to == RequestStatus.DELIVERED and getattr(obj, "is_paid", False):
+        obj.status = RequestStatus.DONE
+
     obj.save(update_fields=["status", "updated_at"])
-    RequestHistory.objects.create(request=obj, author=u, from_status=from_status, to_status=to)
+    RequestHistory.objects.create(request=obj, author=u, from_status=from_status, to_status=obj.status)
     messages.success(request, "Статус обновлён")
     return redirect("core:request_detail", pk=pk)
 
@@ -287,4 +298,32 @@ def request_delete_quote(request, pk: int, quote_id: int):
         return HttpResponseBadRequest("Можно удалять только свои файлы")
     q.delete()
     messages.success(request, "Файл КП удалён")
+    return redirect("core:request_detail", pk=pk)
+
+
+# ---------- Просмотр файл КП ----------
+@xframe_options_exempt
+def request_quote_preview(request, pk: int, quote_id: int):
+    """Отдать файл КП для просмотра в iframe."""
+    q = get_object_or_404(RequestQuote, pk=quote_id, request_id=pk)
+    if not q.file:
+        raise Http404("Файл не найден")
+    ctype = guess_type(q.original_name or q.file.name)[0] or "application/pdf"
+    resp = FileResponse(q.file.open("rb"), content_type=ctype)
+    # Показываем в окне, а не скачиваем
+    resp["Content-Disposition"] = f'inline; filename="{q.original_name or q.file.name}"'
+    return resp
+
+
+# ---------- Смена статуса оплаты ----------
+@require_POST
+@require_groups("operator", "director")
+def request_toggle_payment(request, pk: int):
+    obj = get_object_or_404(Request, pk=pk)
+    obj.is_paid = "is_paid" in request.POST
+    # Если уже доставлен и теперь оплачен — завершаем
+    if obj.is_paid and obj.status == RequestStatus.DELIVERED:
+        obj.status = RequestStatus.DONE
+    obj.save(update_fields=["is_paid", "status", "updated_at"])
+    messages.success(request, "Статус оплаты обновлён")
     return redirect("core:request_detail", pk=pk)

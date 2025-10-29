@@ -7,16 +7,17 @@ from django.utils.translation import gettext_lazy as _
 
 
 class RequestStatus(models.TextChoices):
-    DRAFT = "draft", _("Черновик")
-    SUBMITTED = "submitted", _("Отправлена")             # менеджер/оператор создал(а)
-    QUOTE = "quote", _("Коммерческое предложение")       # оператор сформировал КП → менеджеру
-    APPROVED = "approved", _("Согласована")              # менеджер подтвердил КП
-    TO_PICK = "to_pick", _("В сборку (на склад)")
-    IN_PROGRESS = "in_progress", _("Собирается")
-    READY_TO_SHIP = "ready_to_ship", _("Готова к отгрузке")
-    DONE = "done", _("Завершена")
-    REJECTED = "rejected", _("Отклонена")
-    CANCELED = "canceled", _("Отменена")
+    DRAFT         = "draft",         "Черновик"
+    SUBMITTED     = "submitted",     "Отправлена"
+    QUOTE         = "quote",         "Коммерческое предложение"
+    APPROVED      = "approved",      "Согласована"
+    REJECTED      = "rejected",      "Не согласована"           # ← ДОБАВЛЕНО
+    TO_PICK       = "to_pick",       "Передана на склад"
+    IN_PROGRESS   = "in_progress",   "Собирается"
+    READY_TO_SHIP = "ready_to_ship", "Готова к отгрузке"
+    DELIVERED     = "delivered",     "Доставлена"
+    DONE          = "done",          "Завершена"
+    CANCELED      = "canceled",      "Отменена"
 
 class Request(models.Model):
     number = models.CharField("Номер", max_length=32, unique=True, blank=True)
@@ -37,6 +38,7 @@ class Request(models.Model):
     comment_internal = models.TextField("Внутренний комментарий", blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_paid = models.BooleanField("Оплачена", default=False)
 
     class Meta:
         ordering = ("-created_at",)
