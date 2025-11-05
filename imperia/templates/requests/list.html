@@ -1,126 +1,106 @@
 {% extends "base.html" %}
 {% load access %}
 {% block title %}Заявки{% endblock %}
+
 {% block content %}
-<h1 class="rq-title">Заявки</h1>
-
-<div class="mb-3 flex flex-wrap gap-6">
-  <a href="{% url 'core:request_list' %}" class="btn {% if not status %}btn-primary{% endif %}">Все</a>
-  <a href="?status=submitted" class="btn {% if status == 'submitted' %}btn-primary{% endif %}">На согласовании</a>
-  <a href="?status=quote" class="btn {% if status == 'quote' %}btn-primary{% endif %}">КП</a>
-  <a href="?status=approved" class="btn {% if status == 'approved' %}btn-primary{% endif %}">Согласованы</a>
-  <a href="?status=rejected" class="btn {% if status == 'rejected' %}btn-primary{% endif %}">Не согласованы</a>
-  <a href="?status=to_pick" class="btn {% if status == 'to_pick' %}btn-primary{% endif %}">В сборку</a>
-  <a href="?status=in_progress" class="btn {% if status == 'in_progress' %}btn-primary{% endif %}">Собираются</a>
-  <a href="?status=ready_to_ship" class="btn {% if status == 'ready_to_ship' %}btn-primary{% endif %}">Готовы к отгрузке</a>
-  <a href="?status={{ statuses.DELIVERED }}" class="btn {% if status == statuses.DELIVERED %}btn-primary{% endif %}">Доставлены</a>
-  <a href="?status=done" class="btn {% if status == 'done' %}btn-primary{% endif %}">Завершены</a>
-
+<header class="rq-header">
+  <h1 class="rq-title">Заявки</h1>
   {% if request.user|in_groups:"manager,operator,director" %}
-    <a href="{% url 'core:request_create' %}" class="btn">Новая заявка</a>
+    <a href="{% url 'core:request_create' %}" class="rq-cta">+ Новая заявка</a>
   {% endif %}
-</div>
+</header>
 
-<div class="rq-list">
+<nav class="rq-filters" aria-label="Фильтр по статусу">
+  <a href="{% url 'core:request_list' %}" class="rq-seg {% if not status %}is-active{% endif %}">Все</a>
+  <a href="?status=submitted" class="rq-seg {% if status == 'submitted' %}is-active{% endif %}">На согласовании</a>
+  <a href="?status=quote" class="rq-seg {% if status == 'quote' %}is-active{% endif %}">КП</a>
+  <a href="?status=approved" class="rq-seg {% if status == 'approved' %}is-active{% endif %}">Согласованы</a>
+  <a href="?status=rejected" class="rq-seg {% if status == 'rejected' %}is-active{% endif %}">Не согласованы</a>
+  <a href="?status=to_pick" class="rq-seg {% if status == 'to_pick' %}is-active{% endif %}">В сборку</a>
+  <a href="?status=in_progress" class="rq-seg {% if status == 'in_progress' %}is-active{% endif %}">Собираются</a>
+  <a href="?status=ready_to_ship" class="rq-seg {% if status == 'ready_to_ship' %}is-active{% endif %}">К отгрузке</a>
+  <a href="?status={{ statuses.DELIVERED }}" class="rq-seg {% if status == statuses.DELIVERED %}is-active{% endif %}">Доставлены</a>
+  <a href="?status=done" class="rq-seg {% if status == 'done' %}is-active{% endif %}">Завершены</a>
+</nav>
+
+<section class="rq-list" aria-live="polite">
   {% for r in requests %}
     <a class="rq-item" href="{% url 'core:request_detail' r.pk %}">
-      <div class="rq-item__top">
-        <div class="rq-item__title">#{{ r.number }} — {{ r.title }}</div>
-        <div class="rq-item__chips">
-          {# бейдж статуса #}
-          <span class="rq-chip rq-chip--{{ r.status }}">{{ r.get_status_display }}</span>
+      <div class="rq-item__row">
+        <div class="rq-item__main">
+          <div class="rq-item__title">#{{ r.number }} — {{ r.title }}</div>
+          <div class="rq-item__meta">
+            Инициатор: {{ r.initiator }}
+            {% if r.counterparty %} · Контрагент: {{ r.counterparty.name }}{% endif %}
+            · {{ r.created_at|date:"d.m.Y H:i" }}
+          </div>
+        </div>
 
-          {# бейдж оплаты #}
+        <div class="rq-item__badges">
+          {# ОСНОВНОЙ СТАТУС: если canceled — показываем «Завершена» #}
+          {% if r.status == 'canceled' %}
+            <span class="rq-chip rq-chip--done">Завершена</span>
+          {% else %}
+            <span class="rq-chip rq-chip--{{ r.status }}">{{ r.get_status_display }}</span>
+          {% endif %}
+
+          {# ДОП. ФЛАГИ: оплата и отмена — контурные бейджи #}
           {% if r.is_paid %}
-          <span class="rq-chip rq-chip--paid" title="Оплачено">
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5v2.05c1.84.26 3 1.31 3 2.78 0 1.76-1.7 2.67-3.88 3.18l-.12.03V17h-2v-1.86c-1.67-.25-3-1.1-3-2.64h2c0 .7.77 1.14 2 1.33 1.48-.31 2-.8 2-1.36 0-.57-.6-1.03-2-1.33-2.04-.44-4-1.13-4-3.15 0-1.5 1.3-2.56 3-2.9V5h2Z" />
-            </svg>
-            Оплачено
-          </span>
+            <span class="rq-chip rq-chip--flag">Оплачено</span>
+          {% endif %}
+          {% if r.status == 'canceled' %}
+            <span class="rq-chip rq-chip--flag">Отменена</span>
           {% endif %}
         </div>
-      </div>
-
-      <div class="rq-item__meta">
-        Инициатор: {{ r.initiator }}
-        {% if r.counterparty %} · Контрагент: {{ r.counterparty.name }}{% endif %}
-        · {{ r.created_at|date:"d.m.Y H:i" }}
       </div>
     </a>
   {% empty %}
     <div class="rq-empty">Заявок нет</div>
   {% endfor %}
-</div>
+</section>
 
 <style>
-.rq-list {
-  display: grid;
-  gap: 8px;
-}
+:root{ --bg:#f6f7f8; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --accent:#111; --radius:14px; }
 
-.rq-item {
-  display: block;
-  padding: 12px 14px;
-  border: 1px solid #e6e6ea;
-  border-radius: 12px;
-  background: #fff;
-  transition: background 0.2s ease;
-}
+.rq-title{font-size:28px;font-weight:700;color:var(--text);}
+.rq-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.rq-cta{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:#111;color:#fff;border:1px solid #111;font-weight:700;text-decoration:none}
+.rq-cta:hover{opacity:.92}
 
-.rq-item:hover {
-  background: #fafafa;
-}
+.rq-filters{position:sticky;top:0;z-index:3;background:transparent;padding:10px 0 12px;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.rq-seg{white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#111;font-weight:700;text-decoration:none}
+.rq-seg.is-active{background:#111;color:#fff;border-color:#111}
 
-.rq-item__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
+.rq-list{display:grid;gap:10px}
+.rq-item{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-decoration:none;color:inherit}
+.rq-item:hover{background:#fbfbfb;border-color:#dcdfe3}
+.rq-item__row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.rq-item__title{font-weight:800}
+.rq-item__meta{color:#6b7280;font-size:14px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rq-item__badges{display:flex;gap:8px;align-items:center}
 
-.rq-item__title {
-  font-weight: 600;
-}
+/* Чипы */
+.rq-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;color:#111}
+.rq-chip--done{background:#111;border-color:#111;color:#fff}
+.rq-chip--flag{background:#fff;border:1px dashed #111;color:#111}
 
-.rq-item__meta {
-  color: #777;
-  margin-top: 4px;
-  font-size: 14px;
-}
+/* Цветные статусы (если нужны для остальных этапов) */
+.rq-chip--submitted     { background:#eef2ff; border-color:#c7d2fe; color:#1f2937; }
+.rq-chip--quote         { background:#fef3c7; border-color:#fde68a; color:#78350f; }
+.rq-chip--approved      { background:#e0f2fe; border-color:#bae6fd; color:#075985; }
+.rq-chip--to_pick       { background:#f5f3ff; border-color:#ddd6fe; color:#3730a3; }
+.rq-chip--in_progress   { background:#ecfeff; border-color:#a5f3fc; color:#155e75; }
+.rq-chip--ready_to_ship { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
+.rq-chip--delivered     { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+.rq-chip--rejected      { background:#fee2e2; border-color:#fecaca; color:#7f1d1d; }
 
-.rq-item__chips {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
+/* Пусто */
+.rq-empty{display:grid;place-items:center;gap:10px;padding:26px;border:1px dashed var(--line);border-radius:12px;color:#6b7280;background:#fff}
 
-/* Базовый чип */
-.rq-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:3px 10px; border-radius:999px; font-size:12px; font-weight:500;
-  border:1px solid var(--border,#e5e7eb); background:#fff; color:#111827;
-}
-
-/* Статусы — мягкие фоны */
-.rq-chip--submitted     { background:#eef2ff; border-color:#c7d2fe; color:#1f2937; } /* На согласовании */
-.rq-chip--quote         { background:#fef3c7; border-color:#fde68a; color:#78350f; } /* КП */
-.rq-chip--approved      { background:#e0f2fe; border-color:#bae6fd; color:#075985; } /* Согласована */
-.rq-chip--to_pick       { background:#f5f3ff; border-color:#ddd6fe; color:#3730a3; } /* В сборку */
-.rq-chip--in_progress   { background:#ecfeff; border-color:#a5f3fc; color:#155e75; } /* Собирается */
-.rq-chip--ready_to_ship { background:#f0fdf4; border-color:#bbf7d0; color:#166534; } /* Готова к отгрузке */
-.rq-chip--delivered     { background:#fff7ed; border-color:#fed7aa; color:#9a3412; } /* Доставлена */
-.rq-chip--canceled      { background:#fee2e2; border-color:#fecaca; color:#7f1d1d; } /* Отменена */
-
-/* Завершена — акцентный тёмный бейдж */
-.rq-chip--done { background:#111; border-color:#111; color:#fff; }
-
-/* Бейдж оплаты (как раньше) */
-.rq-chip--paid{
-  border:1px solid #0ea5e9; background:#e0f2fe; color:#075985;
-}
-.rq-chip--paid svg{ fill:currentColor; display:block; }
-.rq-chip--rejected     { background:#ffe4e6; border-color:#fecdd3; color:#7f1d1d; } /* Не согласована */
+/* Адаптив */
+@media (max-width: 720px){
+  .rq-header{flex-direction:column; align-items:flex-start}
+  .rq-item__row{flex-direction:column; align-items:flex-start}
 }
 </style>
 {% endblock %}

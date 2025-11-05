@@ -5,254 +5,258 @@
 {% block content %}
 <div class="rq-container">
 
-  <!-- Шапка -->
-  <div class="rq-header">
+  <!-- ===== Шапка ===== -->
+  <header class="rq-header">
     <div>
       <h1 class="rq-title">Заявка <span class="rq-mono">#{{ obj.number }}</span> — {{ obj.title }}</h1>
       <div class="rq-meta">
-        <span class="rq-chip rq-chip--{{ obj.status }}">
-          {{ obj.get_status_display }}
-        </span>
+        {% if obj.status == 'canceled' %}
+          <span class="rq-chip rq-chip--done">Завершена</span>
+          <span class="rq-chip rq-chip--flag-danger">Отменена</span>
+        {% else %}
+          <span class="rq-chip rq-chip--{{ obj.status }}">{{ obj.get_status_display }}</span>
+        {% endif %}
         {% if obj.is_paid %}
-          <span class="rq-chip rq-chip--paid" title="Оплачено">
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5v2.05c1.84.26 3 1.31 3 2.78 0 1.76-1.7 2.67-3.88 3.18l-.12.03V17h-2v-1.86c-1.67-.25-3-1.1-3-2.64h2c0 .7.77 1.14 2 1.33 1.48-.31 2-.8 2-1.36 0-.57-.6-1.03-2-1.33-2.04-.44-4-1.13-4-3.15 0-1.5 1.3-2.56 3-2.9V5h2Z" />
-            </svg>
-            Оплачено
-          </span>
+          <span class="rq-chip rq-chip--paid" title="Оплачено">Оплачено</span>
         {% endif %}
         <span>Инициатор: <b>{{ obj.initiator }}</b></span>
-        {% if obj.counterparty %}
-          <span>Контрагент: <b>{{ obj.counterparty.name }}</b></span>
-        {% endif %}
+        {% if obj.counterparty %}<span>Контрагент: <b>{{ obj.counterparty.name }}</b></span>{% endif %}
         <span>Создана: {{ obj.created_at|date:"d.m.Y H:i" }}</span>
       </div>
     </div>
-  </div>
+  </header>
 
-  <!-- Прогресс-этапы -->
+  <!-- ===== Прогресс-этапы ===== -->
+  {% with s=obj.status %}
+  <ol class="rq-steps" aria-label="Этапы заявки">
+    <li class="rq-step {% if s != 'draft' %}is-done{% endif %}">Создана</li>
+    <li class="rq-step {% if s in 'submitted quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %}">На согласовании</li>
+    <li class="rq-step {% if s in 'quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %}">КП</li>
+    <li class="rq-step {% if s in 'approved to_pick in_progress ready_to_ship delivered done canceled' %}is-done{% endif %}">Согласована</li>
+    {% if s == 'rejected' %}<li class="rq-step rq-step--rejected is-done">Не согласована</li>{% endif %}
+    <li class="rq-step {% if s in 'in_progress ready_to_ship delivered done canceled' %}is-done{% endif %}">Собирается</li>
+    <li class="rq-step {% if s in 'ready_to_ship delivered done canceled' %}is-done{% endif %}">К отгрузке</li>
+    <li class="rq-step {% if s in 'delivered done canceled' %}is-done{% endif %}">Доставлена</li>
+    <li class="rq-step {% if s in 'done canceled' %}is-done{% endif %}">Завершена</li>
+  </ol>
+  {% endwith %}
 
-{% with s=obj.status %}
-<ol class="rq-steps">
-  <li class="rq-step {% if s != 'draft' %}is-done{% endif %}">Создана</li>
+  <!-- ===== Макет: 2 колонки ===== -->
+  <div class="rq-grid">
 
-  <li class="rq-step {% if s in 'submitted quote approved to_pick in_progress ready_to_ship delivered done rejected' %}is-done{% endif %}">
-    На согласовании
-  </li>
+    <!-- ===== Левая колонка ===== -->
+    <div class="rq-main">
 
-  <li class="rq-step {% if s in 'quote approved to_pick in_progress ready_to_ship delivered done rejected' %}is-done{% endif %}">
-    Коммерческое предложение
-  </li>
+      <!-- Коммерческое предложение -->
+      <section class="rq-card">
+        <div class="rq-card__head">
+          <h2>Коммерческое предложение</h2>
 
-  {# Согласована — только если approved и дальше, но НЕ при rejected #}
-  <li class="rq-step {% if s in 'approved to_pick in_progress ready_to_ship delivered done' %}is-done{% endif %}">
-    Согласована
-  </li>
+          {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
+          <form class="rq-upload" method="post" enctype="multipart/form-data"
+                action="{% url 'core:request_upload_quote' obj.pk %}">
+            {% csrf_token %}
+            <input id="quoteFile" type="file" name="file" class="rq-upload__input"
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.odt,.ods,.rtf,.png,.jpg,.jpeg"
+                   onchange="this.form.submit()">
+            <label for="quoteFile" class="rq-upload__label">Прикрепить файл</label>
+          </form>
+          {% endif %}
+        </div>
 
-  {# Если заявка отклонена — показываем отдельный шаг #}
-  {% if s == 'rejected' %}
-    <li class="rq-step rq-step--rejected is-done">Не согласована</li>
-  {% endif %}
+        {% if obj.quotes.all %}
+          <ul class="rq-history" style="padding:12px 14px;">
+            {% for q in obj.quotes.all %}
+              <li class="rq-file">
+                <div class="rq-file__meta">
+                  <span class="rq-mono">{{ q.created_at|date:"d.m.Y H:i" }}</span>
+                  — {{ q.original_name }}
+                  <span class="muted">, загрузил: {{ q.uploaded_by }}</span>
+                </div>
+                <div class="rq-file__actions">
+                  <button class="btn btn-ghost open-preview"
+                          data-url="{% url 'core:request_quote_preview' obj.pk q.pk %}"
+                          data-name="{{ q.original_name }}">Просмотр</button>
+                  <a class="btn" href="{{ q.file.url }}" download>Скачать</a>
+                  {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
+                  <form method="post" action="{% url 'core:request_quote_delete' obj.pk q.pk %}"
+                        onsubmit="return confirm('Удалить файл «{{ q.original_name }}»?');">
+                    {% csrf_token %}
+                    <button class="btn btn-danger" type="submit">Удалить</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="rq-empty">Файлы не прикреплены</div>
+        {% endif %}
+      </section>
 
-  <li class="rq-step {% if s in 'in_progress ready_to_ship delivered done' %}is-done{% endif %}">
-    Собирается
-  </li>
-  <li class="rq-step {% if s in 'ready_to_ship delivered done' %}is-done{% endif %}">
-    Готова к отгрузке
-  </li>
-  <li class="rq-step {% if s in 'delivered done' %}is-done{% endif %}">
-    Доставлена
-  </li>
-  <li class="rq-step {% if s == 'done' %}is-done{% endif %}">
-    Завершена
-  </li>
-</ol>
-{% endwith %}
+      <!-- Внутренний комментарий -->
+      <section class="rq-card">
+        <div class="rq-card__head"><h2>Комментарий</h2></div>
+        <div class="rq-card__body">
+          {% if obj.comment_internal %}
+            {{ obj.comment_internal|linebreaksbr }}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </div>
+      </section>
 
-  <!-- Панель действий -->
-  <div class="rq-actions">
-    <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="rq-actions__row">
-      {% csrf_token %}
+      <!-- Позиции -->
+      <section class="rq-card">
+        <div class="rq-card__head">
+          <h2>Позиции</h2>
+          {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
+            <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
+              {% csrf_token %}
+              <div class="rq-additem__field">{{ item_form.title }}</div>
+              <div class="rq-additem__qty">{{ item_form.quantity }}</div>
+              <div class="rq-additem__note">{{ item_form.note }}</div>
+              <button class="btn">Добавить</button>
+            </form>
+          {% endif %}
+        </div>
 
-      {# оператор — без завершения #}
-      {% if request.user|in_groups:"operator" %}
-        <button class="btn" name="to" value="quote">КП</button>
-        <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
-        <button class="btn" name="to" value="in_progress">В работу</button>
-        <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
-        <button class="btn" name="to" value="delivered">Доставлена</button>
-        <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-      {% endif %}
+        {% if obj.items.all %}
+          <div class="rq-table">
+            <div class="rq-trow rq-trow--head">
+              <div>Наименование</div>
+              <div class="ta-right">Кол-во</div>
+              <div>Примечание</div>
+            </div>
+            {% for it in obj.items.all %}
+              <div class="rq-trow">
+                <div>{% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}</div>
+                <div class="ta-right">{{ it.quantity }}</div>
+                <div class="muted">{{ it.note }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="rq-empty">Пока пусто</div>
+        {% endif %}
+      </section>
 
-      {# менеджер — согласование КП #}
-      {% if request.user|in_groups:"manager" %}
-        {% if obj.status == "draft" %}
-          <button class="btn" name="to" value="submitted">Отправить</button>
-          <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-        {% elif obj.status == "quote" %}
-          <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
-          <button class="btn" name="to" value="rejected">Не согласовали</button>
+      <!-- История -->
+      <section class="rq-card">
+        <div class="rq-card__head"><h2>История</h2></div>
+        {% if obj.history.all %}
+          <ul class="rq-history">
+            {% for h in obj.history.all %}
+              <li>
+                <span class="rq-mono">{{ h.created_at|date:"d.m.Y H:i" }}</span>
+                — <b>{{ h.author }}</b>:
+                <span class="rq-mono">{{ h.from_status|default:"—" }}</span>
+                → <span class="rq-mono">{{ h.to_status }}</span>
+                <span class="muted">{{ h.note }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="rq-empty">Пусто</div>
+        {% endif %}
+      </section>
+
+    </div>
+
+    <!-- ===== Правая колонка (Действия) ===== -->
+    <aside class="rq-aside">
+      <section class="rq-card rq-sticky">
+        <div class="rq-card__head"><h2>Действия</h2></div>
+
+        <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="rq-actions__col">
+          {% csrf_token %}
+
+          {# ОПЕРАТОР #}
+          {% if request.user|in_groups:"operator" %}
+            {% if obj.status == "draft" %}
+              <button class="btn" name="to" value="submitted">Отправить</button>
+              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            {% elif obj.status == "submitted" %}
+              <button class="btn" name="to" value="quote">КП</button>
+            {% elif obj.status == "rejected" %}
+              <button class="btn" name="to" value="quote">КП</button>
+              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            {% elif obj.status == "ready_to_ship" %}
+              <button class="btn" name="to" value="delivered">Доставлена</button>
+            {% endif %}
+          {% endif %}
+
+          {# МЕНЕДЖЕР #}
+          {% if request.user|in_groups:"manager" %}
+            {% if obj.status == "draft" %}
+              <button class="btn" name="to" value="submitted">Отправить</button>
+              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            {% elif obj.status == "quote" %}
+              <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
+              <button class="btn" name="to" value="rejected">Не согласовали</button>
+            {% endif %}
+          {% endif %}
+
+          {# СКЛАД #}
+          {% if request.user|in_groups:"warehouse" %}
+            {% if obj.status == "approved" %}
+              <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+            {% elif obj.status == "to_pick" %}
+              <button class="btn" name="to" value="in_progress">В работу</button>
+            {% elif obj.status == "in_progress" %}
+              <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
+            {% endif %}
+          {% endif %}
+
+          {# ДИРЕКТОР #}
+          {% if request.user|in_groups:"director" %}
+            {% if obj.status in "draft submitted quote approved to_pick in_progress ready_to_ship delivered" %}
+              <button class="btn" name="to" value="quote">КП</button>
+              <button class="btn" name="to" value="approved">Согласовано</button>
+              <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+              <button class="btn" name="to" value="in_progress">В работу</button>
+              <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
+              <button class="btn" name="to" value="delivered">Доставлена</button>
+            {% endif %}
+            {% if obj.status == "rejected" %}
+              <button class="btn" name="to" value="quote">КП</button>
+              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            {% endif %}
+            <button class="btn" name="to" value="done">Завершить</button>
+            <button class="btn" name="to" value="rejected">Не согласовали</button>
+            <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+          {% endif %}
+        </form>
+      </section>
+
+      {# ОПЛАТА: только директор/оператор И статус НЕ done/canceled #}
+      {% if request.user|in_groups:"director,operator" %}
+        {% if obj.status != 'done' and obj.status != 'canceled' %}
+        <section class="rq-card rq-sticky">
+          <div class="rq-card__head"><h2>Оплата</h2></div>
+          <form method="post" action="{% url 'core:request_toggle_payment' obj.pk %}">
+            {% csrf_token %}
+            <label class="rq-pay">
+              <input type="checkbox" name="is_paid" value="1" {% if obj.is_paid %}checked{% endif %} onchange="this.form.submit()">
+              <span>Оплачено</span>
+            </label>
+          </form>
+        </section>
         {% endif %}
       {% endif %}
-
-      {# директор — может всё, включая завершение #}
-      {% if request.user|in_groups:"director" %}
-        <button class="btn" name="to" value="quote">КП</button>
-        <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
-        <button class="btn" name="to" value="rejected">Не согласовали</button>
-        <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
-        <button class="btn" name="to" value="in_progress">В работу</button>
-        <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
-        <button class="btn" name="to" value="delivered">Доставлена</button>
-        <button class="btn" name="to" value="done">Завершить</button>
-        <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-      {% endif %}
-
-      {# склад — без завершения #}
-      {% if request.user|in_groups:"warehouse" %}
-        <button class="btn" name="to" value="in_progress">В работу</button>
-        <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
-
-      {% endif %}
-    </form>
+    </aside>
   </div>
-
-  <!-- Коммерческое предложение -->
-  <section class="rq-card">
-    <div class="rq-card__head">
-      <h2>Коммерческое предложение</h2>
-    </div>
-
-    {% if obj.quotes.all %}
-      <ul class="rq-history" style="padding:12px 14px;">
-        {% for q in obj.quotes.all %}
-          <li style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div>
-              <span class="rq-mono">{{ q.created_at|date:"d.m.Y H:i" }}</span>
-              — {{ q.original_name }}
-              <span class="muted">, загрузил: {{ q.uploaded_by }}</span>
-            </div>
-            <div class="flex gap-2">
-              <button class="btn btn-ghost open-preview"
-                      data-url="{% url 'core:request_quote_preview' obj.pk q.pk %}"
-                      data-name="{{ q.original_name }}">
-                Просмотр
-              </button>
-              <a class="btn" href="{{ q.file.url }}" download>Скачать</a>
-            </div>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="rq-empty">Файлы не прикреплены</div>
-    {% endif %}
-  </section>
-
-  {# модалка #}
-  <div id="previewModal"
-       class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50">
-    <div class="bg-white rounded-2xl shadow-xl w-11/12 max-w-5xl relative">
-      <button id="closePreview"
-              class="absolute top-2 right-3 text-gray-600 text-lg hover:text-black">✕</button>
-      <div id="previewTitle"
-           class="p-3 border-b text-sm font-semibold text-gray-700"></div>
-      <iframe id="previewFrame" src="" class="w-full h-[80vh] rounded-b-2xl"></iframe>
-    </div>
-  </div>
-
-  <!-- Внутренний комментарий -->
-  <section class="rq-card">
-    <div class="rq-card__head">
-      <h2>Комментарий</h2>
-    </div>
-    <div style="padding:12px 14px;">
-      {% if obj.comment_internal %}
-        {{ obj.comment_internal|linebreaksbr }}
-      {% else %}
-        <span class="muted">—</span>
-      {% endif %}
-    </div>
-  </section>
-
-  <!-- Оплата -->
-  {% if request.user|in_groups:"director" or request.user|in_groups:"operator" %}
-  <section class="rq-card">
-    <div class="rq-card__head">
-      <h2>Оплата</h2>
-    </div>
-    <form method="post" action="{% url 'core:request_toggle_payment' obj.pk %}">
-      {% csrf_token %}
-      <label class="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="is_paid" value="1" {% if obj.is_paid %}checked{% endif %}
-               onchange="this.form.submit()">
-        Оплачено
-      </label>
-    </form>
-  </section>
-  {% endif %}
-
-  <!-- Позиции -->
-  <section class="rq-card">
-    <div class="rq-card__head">
-      <h2>Позиции</h2>
-      {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
-        <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
-          {% csrf_token %}
-          <div class="rq-additem__field">{{ item_form.title }}</div>
-          <div class="rq-additem__qty">{{ item_form.quantity }}</div>
-          <div class="rq-additem__note">{{ item_form.note }}</div>
-          <button class="btn">Добавить</button>
-        </form>
-      {% endif %}
-    </div>
-
-    {% if obj.items.all %}
-      <div class="rq-table">
-        <div class="rq-trow rq-trow--head">
-          <div>Наименование</div>
-          <div class="ta-right">Кол-во</div>
-          <div>Примечание</div>
-        </div>
-        {% for it in obj.items.all %}
-          <div class="rq-trow">
-            <div>
-              {% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}
-            </div>
-            <div class="ta-right">{{ it.quantity }}</div>
-            <div class="muted">{{ it.note }}</div>
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="rq-empty">Пока пусто</div>
-    {% endif %}
-  </section>
-
-  <!-- История -->
-  <section class="rq-card">
-    <div class="rq-card__head">
-      <h2>История</h2>
-    </div>
-    {% if obj.history.all %}
-      <ul class="rq-history">
-        {% for h in obj.history.all %}
-          <li>
-            <span class="rq-mono">{{ h.created_at|date:"d.m.Y H:i" }}</span>
-            — <b>{{ h.author }}</b>:
-            <span class="rq-mono">{{ h.from_status|default:"—" }}</span>
-            → <span class="rq-mono">{{ h.to_status }}</span>
-            <span class="muted">{{ h.note }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="rq-empty">Пусто</div>
-    {% endif %}
-  </section>
-
 </div>
 
-{# Просмотр КП в модалке (один JS с fallback для office-файлов) #}
+{# ===== Модалка предпросмотра КП ===== #}
+<div id="previewModal" class="fixed inset-0 bg-black/60 hidden z-50">
+  <div class="bg-white rounded-2xl shadow-xl w-11/12 max-w-5xl mx-auto my-8 relative">
+    <button id="closePreview" class="absolute top-2 right-3 text-gray-600 text-lg hover:text-black">✕</button>
+    <div id="previewTitle" class="p-3 border-b text-sm font-semibold text-gray-700"></div>
+    <iframe id="previewFrame" src="" class="w-full h-[80vh] rounded-b-2xl"></iframe>
+  </div>
+</div>
+
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const modal = document.getElementById("previewModal");
@@ -262,11 +266,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openPreview(url, name) {
     title.textContent = name || "Просмотр";
-    frame.src = url; // наш preview-роут (xframe exempt + inline)
+    frame.src = url;
     modal.classList.remove("hidden");
     document.body.style.overflow = "hidden";
-
-    // Fallback для офисных форматов
     const lower = (name || "").toLowerCase();
     if (/\.(doc|docx|xls|xlsx|ppt|pptx|csv|odt|ods|rtf)$/.test(lower)) {
       frame.src = "https://docs.google.com/gview?embedded=true&url=" + encodeURIComponent(url);
@@ -288,36 +290,84 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 <style>
-/* Базовый чип */
-.rq-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:3px 10px; border-radius:999px; font-size:12px; font-weight:500;
-  border:1px solid var(--border,#e5e7eb); background:#fff; color:#111827;
+:root{ --bg:#f6f7f8; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --accent:#111; --radius:14px; }
+.rq-container{max-width:1100px;margin:0 auto;padding:10px 0 28px;}
+.rq-title{font-size:26px;font-weight:800;color:var(--text);}
+.rq-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;}
+.rq-header{margin-bottom:6px;}
+.rq-meta{display:flex;flex-wrap:wrap;gap:8px 12px;color:var(--muted);margin-top:6px;align-items:center}
+
+.rq-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;margin-top:10px;}
+.rq-main{display:grid;gap:12px;}
+.rq-aside{display:grid;gap:12px;}
+.rq-sticky{position:sticky; top:12px}
+
+.rq-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);}
+.rq-card__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.rq-card__head h2{font-size:16px;font-weight:800}
+.rq-card__body{padding:12px 14px}
+
+.rq-steps{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px;padding:0;list-style:none}
+.rq-step{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;font-weight:700;font-size:13px;color:#111}
+.rq-step.is-done{background:#111;color:#fff;border-color:#111}
+.rq-step--rejected{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border-radius:12px;border:1px solid #111;background:#111;color:#fff;font-weight:700;text-decoration:none}
+.btn:hover{opacity:.92}
+.btn:active{transform:translateY(1px)}
+.btn-ghost{background:#fff;color:#111;border-color:#111}
+.btn-primary{background:#111;color:#fff;border-color:#111}
+.btn-danger{background:#fff;color:#7f1d1d;border-color:#ef4444}
+.btn-danger:hover{background:#fee2e2}
+
+.rq-actions__col{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:8px;padding:10px 12px;}
+.rq-aside .btn{width:100%;padding:7px 10px;border-radius:10px;font-weight:600;font-size:14px;line-height:1.1;}
+.rq-aside .btn-ghost,.rq-aside .btn-danger,.rq-aside .btn-primary{padding:7px 10px;border-radius:10px;font-weight:600;}
+.rq-aside .rq-card__head{padding:10px 12px;}
+
+.rq-pay{display:flex;align-items:center;gap:8px;padding:12px 14px}
+.rq-pay input{width:18px;height:18px}
+
+.rq-upload{display:flex;gap:8px;align-items:center}
+.rq-upload__input{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+.rq-upload__label{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px dashed #111;border-radius:12px;background:#fff;color:#111;font-weight:700;cursor:pointer}
+.rq-upload__label:hover{background:#fbfbfb}
+
+.rq-table{display:grid;border-top:1px solid var(--line)}
+.rq-trow{display:grid;grid-template-columns:1fr 120px 1fr;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.rq-trow--head{background:#fbfbfb;font-weight:700}
+.ta-right{text-align:right}
+
+.rq-file{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dotted var(--line)}
+.rq-file:last-child{border-bottom:0}
+.rq-file__meta{min-width:0}
+.rq-file__actions{display:flex;gap:6px}
+.rq-file__actions form{display:inline}
+
+.rq-additem{display:grid;grid-template-columns:1fr 120px 1fr auto;gap:8px;align-items:center}
+.rq-additem__field input,.rq-additem__qty input,.rq-additem__note input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+
+.rq-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;color:#111}
+.rq-chip--paid{border-style:dashed}
+.rq-chip--done{background:#111;border-color:#111;color:#fff}
+.rq-chip--flag-danger{background:#fff;border:1px dashed #ef4444;color:#7f1d1d}
+
+.rq-empty{display:grid;place-items:center;gap:10px;padding:26px;border:1px dashed var(--line);border-radius:12px;color:#757b82;background:#fff}
+
+.rq-history{padding:12px 14px}
+.rq-history li{padding:6px 0;border-bottom:1px dotted var(--line)}
+.rq-history li:last-child{border-bottom:0}
+
+@media (max-width: 980px){
+  .rq-grid{grid-template-columns:1fr}
+  .rq-sticky{position:static}
+  .rq-additem{grid-template-columns:1fr 120px 1fr auto}
+  .rq-actions__col{grid-template-columns:1fr;}
 }
-
-/* Статусы — мягкие фоны */
-.rq-chip--submitted     { background:#eef2ff; border-color:#c7d2fe; color:#1f2937; } /* На согласовании */
-.rq-chip--quote         { background:#fef3c7; border-color:#fde68a; color:#78350f; } /* КП */
-.rq-chip--approved      { background:#e0f2fe; border-color:#bae6fd; color:#075985; } /* Согласована */
-.rq-chip--to_pick       { background:#f5f3ff; border-color:#ddd6fe; color:#3730a3; } /* В сборку */
-.rq-chip--in_progress   { background:#ecfeff; border-color:#a5f3fc; color:#155e75; } /* Собирается */
-.rq-chip--ready_to_ship { background:#f0fdf4; border-color:#bbf7d0; color:#166534; } /* Готова к отгрузке */
-.rq-chip--delivered     { background:#fff7ed; border-color:#fed7aa; color:#9a3412; } /* Доставлена */
-.rq-chip--canceled      { background:#fee2e2; border-color:#fecaca; color:#7f1d1d; } /* Отменена */
-
-/* Завершена — акцентный тёмный бейдж */
-.rq-chip--done { background:#111; border-color:#111; color:#fff; }
-
-/* Бейдж оплаты (как раньше) */
-.rq-chip--paid{
-  border:1px solid #0ea5e9; background:#e0f2fe; color:#075985;
-}
-.rq-chip--paid svg{ fill:currentColor; display:block; }
-  /* красный шаг для "Не согласована" */
-.rq-step--rejected {
-  border-color: #fecaca;
-  background: #fee2e2;
-  color: #7f1d1d;
+@media (max-width: 560px){
+  .rq-additem{grid-template-columns:1fr 1fr;gap:6px}
+  .rq-additem__note{grid-column:1 / -1}
+  .rq-trow{grid-template-columns:1fr 90px 1fr}
 }
 </style>
 {% endblock %}

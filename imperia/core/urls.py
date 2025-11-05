@@ -64,5 +64,8 @@ urlpatterns = [
         rq.request_quote_preview,
         name="request_quote_preview",
     ),
+    path("requests/<int:pk>/quotes/<int:qpk>/delete/",
+         rq.request_quote_delete,
+         name="request_quote_delete"),
     path("requests/<int:pk>/toggle-payment/", rq.request_toggle_payment, name="request_toggle_payment"),
 ]

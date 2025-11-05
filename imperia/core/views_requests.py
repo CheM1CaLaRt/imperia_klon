@@ -2,12 +2,14 @@
 from decimal import Decimal, InvalidOperation
 import re
 from django.contrib import messages
-from django.db.models import Q, ForeignKey
-from django.http import HttpResponseBadRequest
+from django.db.models import Q, ForeignKey, OneToOneField, ManyToManyField
+from django.http import HttpResponseBadRequest, FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.apps import apps
 from django.conf import settings
+from django.views.decorators.clickjacking import xframe_options_exempt
+from django.core.exceptions import FieldDoesNotExist
 
 from .permissions import require_groups
 from .forms_requests import (
@@ -17,56 +19,83 @@ from .forms_requests import (
     RequestItemEditForm,
     RequestQuoteForm,
 )
-from .models_requests import Request, RequestItem, RequestStatus, RequestHistory, RequestQuote
+from .models_requests import (
+    Request,
+    RequestItem,
+    RequestStatus,
+    RequestHistory,
+    RequestQuote,
+)
 from mimetypes import guess_type
-from django.http import FileResponse, Http404
-from django.views.decorators.clickjacking import xframe_options_exempt
-
 
 
 # ---------- Список заявок ----------
 @require_groups("manager", "operator", "warehouse", "director")
 def request_list(request):
     status = request.GET.get("status")
-    qs = Request.objects.select_related("initiator", "assignee", "counterparty")
-
     u = request.user
+
     Counterparty = apps.get_model("core", "Counterparty")
 
-    # Проверим: Counterparty.manager — FK на пользователя? (для менеджера)
-    is_manager_fk_to_user = False
+    # Понимаем, какие связи с менеджером реально есть у Counterparty
+    has_cp_manager_fk = False        # Counterparty.manager -> User (FK/OneToOne)
+    has_cp_managers_m2m = False      # Counterparty.managers -> User (M2M)
+
     try:
         fld = Counterparty._meta.get_field("manager")
-        if isinstance(fld, ForeignKey):
-            remote = fld.remote_field.model
-            is_manager_fk_to_user = (
-                remote == settings.AUTH_USER_MODEL
-                or (hasattr(remote, "_meta") and hasattr(u, "_meta") and remote._meta.label == u._meta.label)
-            )
-    except Exception:
-        is_manager_fk_to_user = False
+        has_cp_manager_fk = isinstance(fld, (ForeignKey, OneToOneField))
+    except FieldDoesNotExist:
+        has_cp_manager_fk = False
 
+    try:
+        fld = Counterparty._meta.get_field("managers")
+        has_cp_managers_m2m = isinstance(fld, ManyToManyField)
+    except FieldDoesNotExist:
+        has_cp_managers_m2m = False
+
+    # Базовый queryset
+    qs = Request.objects.select_related("initiator", "assignee", "counterparty")
+    if has_cp_manager_fk:
+        qs = qs.select_related("counterparty__manager")
+
+    # -------- Ролевые ограничения --------
     if u.groups.filter(name="warehouse").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Склад видит только то, что ему передано/в работе
-        qs = qs.filter(status__in=[RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP])
+        qs = qs.filter(status__in=[RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatusREADY_TO_SHIP])
+
     elif u.groups.filter(name="manager").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Менеджер — только свои и по своим клиентам (если есть FK manager)
-        if is_manager_fk_to_user:
-            qs = qs.filter(Q(initiator=u) | Q(counterparty__manager=u))
-        else:
-            qs = qs.filter(initiator=u)
+        # Менеджер видит:
+        #  - свои заявки (initiator)
+        #  - заявки на «свои» компании (через Counterparty.manager ИЛИ Counterparty.managers)
+        #  - заявки, назначенные на него (assignee)
+        cond = Q(initiator=u) | Q(assignee=u)
+        if has_cp_manager_fk:
+            cond |= Q(counterparty__manager=u)
+        if has_cp_managers_m2m:
+            cond |= Q(counterparty__managers=u)
+        qs = qs.filter(cond)
+
     elif u.groups.filter(name="operator").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # ОПЕРАТОР — ВИДИТ КАК ДИРЕКТОР (никаких фильтров)
+        # Оператор видит всё
         pass
     else:
-        # Директор/суперпользователь — всё
+        # Директор/супер — всё
         pass
 
+    # --------- Фильтрация по статусу из GET ---------
     if status:
-        qs = qs.filter(status=status)
+        # «Завершены» = DONE ИЛИ CANCELED
+        if status == RequestStatus.DONE:
+            qs = qs.filter(Q(status=RequestStatus.DONE) | Q(status=RequestStatus.CANCELED))
+        else:
+            qs = qs.filter(status=status)
 
-    ctx = {"requests": qs.order_by("-created_at")[:500], "status": status, "statuses": RequestStatus}
+    ctx = {
+        "requests": qs.order_by("-created_at")[:500],
+        "status": status,
+        "statuses": RequestStatus,
+    }
     return render(request, "requests/list.html", ctx)
+
 
 def _parse_qty(v: str) -> Decimal:
     v = (v or "").strip().replace(",", ".")
@@ -76,6 +105,7 @@ def _parse_qty(v: str) -> Decimal:
         return Decimal(v)
     except InvalidOperation:
         return Decimal("1")
+
 
 @require_groups("manager", "operator", "director")
 def request_create(request):
@@ -112,7 +142,7 @@ def request_create(request):
 def request_detail(request, pk: int):
     obj = get_object_or_404(
         Request.objects.select_related("initiator", "assignee", "counterparty").prefetch_related(
-            "items",  # без items__product — не тянем каталог
+            "items",
             "history",
             "comments",
         ),
@@ -142,7 +172,7 @@ def request_detail(request, pk: int):
             "item_form": item_form,
             "edit_item": edit_item,
             "edit_form": edit_form,
-            "quote_form": quote_form,  # ← ВАЖНО: всегда передаём
+            "quote_form": quote_form,
             "statuses": RequestStatus,
         },
     )
@@ -217,8 +247,8 @@ def request_change_status(request, pk: int):
         "manager": {
             RequestStatus.SUBMITTED,   # Отправить черновик
             RequestStatus.CANCELED,    # Отменить
-            RequestStatus.APPROVED,    # ← Согласовано
-            RequestStatus.REJECTED,    # ← Не согласовали
+            RequestStatus.APPROVED,    # Согласовано
+            RequestStatus.REJECTED,    # Не согласована
         },
 
         # Оператор: производственный путь, но НЕ утверждает КП и НЕ завершает
@@ -231,7 +261,7 @@ def request_change_status(request, pk: int):
             RequestStatus.CANCELED,
         },
 
-        # Склад: только после передачи в сборку, доводит до «Доставлена»
+        # Склад: только после передачи в сборку, доводит до «Готова к отгрузке»
         "warehouse": {
             RequestStatus.IN_PROGRESS,
             RequestStatus.READY_TO_SHIP,
@@ -268,6 +298,7 @@ def request_change_status(request, pk: int):
     messages.success(request, "Статус обновлён")
     return redirect("core:request_detail", pk=pk)
 
+
 # ---------- Загрузить файл КП ----------
 @require_POST
 @require_groups("operator", "director")  # только оператор/директор загружают
@@ -281,7 +312,6 @@ def request_upload_quote(request, pk: int):
         q.original_name = request.FILES["file"].name
         q.save()
         messages.success(request, "Коммерческое предложение прикреплено")
-        # если оператор сразу ставит статус "quote" — можно разрешить на UI отдельной кнопкой; тут только upload
     else:
         messages.error(request, "Не удалось загрузить файл КП")
     return redirect("core:request_detail", pk=pk)
@@ -327,3 +357,27 @@ def request_toggle_payment(request, pk: int):
     obj.save(update_fields=["is_paid", "status", "updated_at"])
     messages.success(request, "Статус оплаты обновлён")
     return redirect("core:request_detail", pk=pk)
+
+
+# ---------- Удалить прикреплённый файл КП (вариант 2) ----------
+@require_POST
+@require_groups("operator", "director")
+def request_quote_delete(request, pk: int, qpk: int):
+    """Удалить прикреплённый файл КП у заявки."""
+    obj = get_object_or_404(Request, pk=pk)
+    quote = get_object_or_404(RequestQuote, pk=qpk, request=obj)
+
+    # Доп. защита: нельзя править, если заявка не редактируемая
+    if hasattr(obj, "is_editable") and not obj.is_editable:
+        messages.error(request, "Заявка недоступна для редактирования.")
+        return redirect("core:request_detail", pk=obj.pk)
+
+    try:
+        if quote.file:
+            quote.file.delete(save=False)
+        quote.delete()
+        messages.success(request, "Файл удалён.")
+    except Exception as e:
+        messages.error(request, f"Не удалось удалить файл: {e}")
+
+    return redirect("core:request_detail", pk=obj.pk)
