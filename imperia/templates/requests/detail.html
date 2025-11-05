@@ -141,6 +141,45 @@
         {% endif %}
       </section>
 
+      <!-- Секция «Сборка со склада» (оператор/директор при статусе approved) -->
+      {% if show_pick_section %}
+        {% include "core/_pick_section.html" with req=obj formset=pick_formset csrf_token=csrf_token %}
+      {% endif %}
+
+      {# Список к сборке для склада #}
+      {% if latest_pick and pick_items %}
+        <div class="mt-6 border border-gray-200 rounded-xl">
+          <div class="px-4 py-3 border-b bg-white flex items-center justify-between">
+            <div class="font-semibold">К сборке (лист №{{ latest_pick.id }})</div>
+            <div class="text-sm text-gray-500">Создал: {{ latest_pick.created_by }} · {{ latest_pick.created_at|date:"d.m.Y H:i" }}</div>
+          </div>
+          <div class="p-4 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-gray-500 border-b">
+                <tr class="text-left">
+                  <th class="py-2 pr-3">Штрихкод</th>
+                  <th class="py-2 pr-3">Название</th>
+                  <th class="py-2 pr-3">Ячейка</th>
+                  <th class="py-2 pr-3">Ед.</th>
+                  <th class="py-2 pr-3 text-right">Кол-во</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in pick_items %}
+                  <tr class="border-b last:border-0">
+                    <td class="py-2 pr-3">{{ it.barcode }}</td>
+                    <td class="py-2 pr-3">{{ it.name }}</td>
+                    <td class="py-2 pr-3">{{ it.location|default:"—" }}</td>
+                    <td class="py-2 pr-3">{{ it.unit }}</td>
+                    <td class="py-2 pr-3 text-right">{{ it.qty }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+
       <!-- История -->
       <section class="rq-card">
         <div class="rq-card__head"><h2>История</h2></div>
@@ -171,7 +210,7 @@
         <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="rq-actions__col">
           {% csrf_token %}
 
-          {# ОПЕРАТОР: добавлен кейс approved -> to_pick #}
+          {# ОПЕРАТОР #}
           {% if request.user|in_groups:"operator" %}
             {% if obj.status == "draft" %}
               <button class="btn" name="to" value="submitted">Отправить</button>
@@ -179,7 +218,14 @@
             {% elif obj.status == "submitted" %}
               <button class="btn" name="to" value="quote">КП</button>
             {% elif obj.status == "approved" %}
-              <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+              {% if latest_pick %}
+                <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+              {% else %}
+                <button type="button" class="btn"
+                        onclick="document.getElementById('pick-section')?.scrollIntoView({behavior:'smooth'})">
+                  В сборку (склад)
+                </button>
+              {% endif %}
             {% elif obj.status == "rejected" %}
               <button class="btn" name="to" value="quote">КП</button>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
@@ -199,11 +245,9 @@
             {% endif %}
           {% endif %}
 
-          {# СКЛАД #}
+          {# СКЛАД — только после передачи в сборку #}
           {% if request.user|in_groups:"warehouse" %}
-            {% if obj.status == "approved" %}
-              <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
-            {% elif obj.status == "to_pick" %}
+            {% if obj.status == "to_pick" %}
               <button class="btn" name="to" value="in_progress">В работу</button>
             {% elif obj.status == "in_progress" %}
               <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
@@ -215,7 +259,20 @@
             {% if obj.status in "draft submitted quote approved to_pick in_progress ready_to_ship delivered" %}
               <button class="btn" name="to" value="quote">КП</button>
               <button class="btn" name="to" value="approved">Согласовано</button>
-              <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+
+              {% if obj.status == "approved" %}
+                {% if latest_pick %}
+                  <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+                {% else %}
+                  <button type="button" class="btn"
+                          onclick="document.getElementById('pick-section')?.scrollIntoView({behavior:'smooth'})">
+                    В сборку (склад)
+                  </button>
+                {% endif %}
+              {% else %}
+                <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
+              {% endif %}
+
               <button class="btn" name="to" value="in_progress">В работу</button>
               <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
               <button class="btn" name="to" value="delivered">Доставлена</button>

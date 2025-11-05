@@ -1,0 +1,102 @@
+{# core/_pick_section.html #}
+<section class="rq-card">
+  <div class="rq-card__head">
+    <h2>Сборка со склада</h2>
+    <div class="text-sm text-gray-500">Заполняет оператор/директор</div>
+  </div>
+
+  <form method="post" action="{% url 'core:pick_submit' req.pk %}" class="p-3">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="grid grid-cols-12 gap-3 text-sm text-gray-600 mb-2">
+      <div class="col-span-3">Штрихкод</div>
+      <div class="col-span-3">Название</div>
+      <div class="col-span-2">Ячейка</div>
+      <div class="col-span-2">Ед.</div>
+      <div class="col-span-1">Кол-во</div>
+      <div class="col-span-1"> </div>
+    </div>
+
+    {% for f in formset %}
+      <div class="grid grid-cols-12 gap-3 items-center mb-2">
+        <div class="col-span-3">{{ f.barcode }}</div>
+        <div class="col-span-3">{{ f.name }}</div>
+        <div class="col-span-2">{{ f.location }}</div>
+        <div class="col-span-2">{{ f.unit }}</div>
+        <div class="col-span-1">{{ f.qty }}</div>
+        <div class="col-span-1 flex items-center gap-2">
+          <label class="flex items-center gap-1 text-sm text-gray-600">
+            {{ f.DELETE }} Удалить
+          </label>
+        </div>
+        {# выводим ошибки конкретной формы #}
+        {% if f.errors %}
+          <div class="col-span-12 text-sm text-red-700">
+            {{ f.errors }}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <div class="flex gap-2 mt-3">
+      <button type="button" id="addRowBtn" class="btn btn-ghost">+ Добавить строку</button>
+      <button type="submit" class="btn">В сборку (склад)</button>
+    </div>
+  </form>
+</section>
+
+<script>
+  // Добавление строки формсета (простое клонирование по TOTAL_FORMS)
+  (function () {
+    const addBtn = document.getElementById('addRowBtn');
+    if (!addBtn) return;
+
+    addBtn.addEventListener('click', function () {
+      const totalInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+      const total = parseInt(totalInput.value, 10);
+      const forms = document.querySelectorAll('[name^="pick-"][name$="-barcode"]').length;
+
+      // берём последнюю форму, клонируем узлы строки
+      const rows = document.querySelectorAll('input[name^="pick-"][name$="-barcode"]');
+      if (rows.length === 0) return;
+
+      const last = rows[rows.length - 1].closest('.grid');
+      const clone = last.cloneNode(true);
+
+      // обновляем индексы name/id внутри клона
+      clone.querySelectorAll('input,select,textarea').forEach(el => {
+        if (el.name) el.name = el.name.replace(/pick-(\d+)-/g, `pick-${forms}-`);
+        if (el.id)   el.id   = el.id.replace(/pick-(\d+)-/g, `pick-${forms}-`);
+        if (el.type !== 'checkbox') el.value = '';
+        if (el.type === 'checkbox') el.checked = false;
+      });
+
+      last.parentNode.insertBefore(clone, last.nextSibling);
+      totalInput.value = String(forms + 1);
+    });
+
+    // Автоподстановка по штрихкоду
+    document.addEventListener('input', async (e) => {
+      const el = e.target;
+      if (!el.name || !el.name.endsWith('-barcode')) return;
+      const bc = el.value.trim();
+      if (bc.length < 6) return;
+
+      try {
+        const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.ok) return;
+
+        const row = el.closest('.grid');
+        row.querySelector('[name$="-name"]').value = data.name || '';
+        row.querySelector('[name$="-location"]').value = data.location || '';
+        row.querySelector('[name$="-unit"]').value = data.unit || '';
+        if (!row.querySelector('[name$="-qty"]').value) {
+          row.querySelector('[name$="-qty"]').value = 1;
+        }
+      } catch (_) {}
+    });
+  })();
+</script>

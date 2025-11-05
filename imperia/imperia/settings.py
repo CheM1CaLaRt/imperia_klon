@@ -100,6 +100,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.user_profile",  # ← добавить
                 "core.context_processors.nav_flags",
+                "django.template.context_processors.csrf",     # ← добавь ЭТО
             ],
         },
     },

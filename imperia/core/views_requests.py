@@ -1,13 +1,14 @@
 # core/views_requests.py
 from decimal import Decimal, InvalidOperation
 import re
+from mimetypes import guess_type
+
 from django.contrib import messages
 from django.db.models import Q, ForeignKey, OneToOneField, ManyToManyField
 from django.http import HttpResponseBadRequest, FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.apps import apps
-from django.conf import settings
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.exceptions import FieldDoesNotExist
 
@@ -26,7 +27,18 @@ from .models_requests import (
     RequestHistory,
     RequestQuote,
 )
-from mimetypes import guess_type
+
+# ✅ безопасный импорт формсета сборки (операторская секция)
+try:
+    from .forms_pick import PickItemFormSet
+except Exception:
+    PickItemFormSet = None
+
+# ✅ безопасный импорт моделей листа сборки (для просмотра складом)
+try:
+    from .models_pick import PickList
+except Exception:
+    PickList = None
 
 
 # ---------- Список заявок ----------
@@ -54,15 +66,20 @@ def request_list(request):
     if has_cp_manager_fk:
         qs = qs.select_related("counterparty__manager")
 
-    # --- Ролевые ограничения ---
-    if u.groups.filter(name="warehouse").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        qs = qs.filter(status__in=[
-            RequestStatus.TO_PICK,
-            RequestStatus.IN_PROGRESS,
-            RequestStatus.READY_TO_SHIP,   # ← тут была опечатка
-        ])
-
-    elif u.groups.filter(name="manager").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
+    # --- Ролевые фильтры ---
+    if u.groups.filter(name="warehouse").exists() and not (
+        u.is_superuser or u.groups.filter(name="director").exists()
+    ):
+        qs = qs.filter(
+            status__in=[
+                RequestStatus.TO_PICK,
+                RequestStatus.IN_PROGRESS,
+                RequestStatus.READY_TO_SHIP,
+            ]
+        )
+    elif u.groups.filter(name="manager").exists() and not (
+        u.is_superuser or u.groups.filter(name="director").exists()
+    ):
         cond = Q(initiator=u) | Q(assignee=u)
         if has_cp_manager_fk:
             cond |= Q(counterparty__manager=u)
@@ -70,19 +87,21 @@ def request_list(request):
             cond |= Q(counterparty__managers=u)
         qs = qs.filter(cond)
 
-    # оператор/директор видят всё
-
     if status:
         qs = qs.filter(status=status)
 
-    ctx = {
-        "requests": qs.order_by("-created_at")[:500],
-        "status": status,
-        "statuses": RequestStatus,
-    }
-    return render(request, "requests/list.html", ctx)
+    return render(
+        request,
+        "requests/list.html",
+        {
+            "requests": qs.order_by("-created_at")[:500],
+            "status": status,
+            "statuses": RequestStatus,
+        },
+    )
 
 
+# ---------- Утилиты ----------
 def _parse_qty(v: str) -> Decimal:
     v = (v or "").strip().replace(",", ".")
     if not v:
@@ -93,6 +112,11 @@ def _parse_qty(v: str) -> Decimal:
         return Decimal("1")
 
 
+def _in_groups(user, names):
+    return user.is_authenticated and user.groups.filter(name__in=names).exists()
+
+
+# ---------- Создание заявки ----------
 @require_groups("manager", "operator", "director")
 def request_create(request):
     if request.method == "POST":
@@ -100,10 +124,14 @@ def request_create(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.initiator = request.user
-            obj.status = RequestStatus.SUBMITTED if "submit" in request.POST else RequestStatus.DRAFT
+            obj.status = (
+                RequestStatus.SUBMITTED
+                if "submit" in request.POST
+                else RequestStatus.DRAFT
+            )
             obj.save()
 
-            # создаём позиции из textarea (каждая строка — одна позиция)
+            # bulk-позиции
             bulk = form.cleaned_data.get("items_bulk", "") or ""
             for raw in bulk.splitlines():
                 line = raw.strip()
@@ -114,7 +142,9 @@ def request_create(request):
                 qty = _parse_qty(parts[1] if len(parts) > 1 else "")
                 note = parts[2] if len(parts) > 2 else ""
                 if title:
-                    RequestItem.objects.create(request=obj, title=title, quantity=qty, note=note)
+                    RequestItem.objects.create(
+                        request=obj, title=title, quantity=qty, note=note
+                    )
 
             messages.success(request, "Заявка создана")
             return redirect("core:request_detail", pk=obj.pk)
@@ -127,16 +157,14 @@ def request_create(request):
 @require_groups("manager", "operator", "warehouse", "director")
 def request_detail(request, pk: int):
     obj = get_object_or_404(
-        Request.objects.select_related("initiator", "assignee", "counterparty").prefetch_related(
-            "items",
-            "history",
-            "comments",
-        ),
+        Request.objects.select_related(
+            "initiator", "assignee", "counterparty"
+        ).prefetch_related("items", "history", "comments"),
         pk=pk,
     )
     item_form = RequestItemForm()
 
-    # поддержка инлайн-редактирования: ?edit=<item_id>
+    # inline-редактирование
     edit_item = None
     edit_form = None
     edit_id = request.GET.get("edit")
@@ -145,10 +173,36 @@ def request_detail(request, pk: int):
             edit_item = obj.items.get(pk=int(edit_id))
             edit_form = RequestItemEditForm(instance=edit_item)
         except (ValueError, RequestItem.DoesNotExist):
-            edit_item = None
-            edit_form = None
+            pass
 
     quote_form = RequestQuoteForm()
+
+    # --- сборка: форма для оператора/директора при статусе approved ---
+    try:
+        from .forms_pick import PickItemFormSet
+    except Exception:
+        PickItemFormSet = None
+
+    is_approved = obj.status == RequestStatus.APPROVED
+    can_pick = _in_groups(request.user, ["operator", "director"])
+    show_pick_section = bool(PickItemFormSet and can_pick and is_approved)
+    pick_formset = PickItemFormSet(prefix="pick") if show_pick_section else None
+
+    # --- список «к сборке» для склада ---
+    latest_pick = None
+    pick_items = []
+    try:
+        from .models_pick import PickList, PickItem
+        latest_pick = PickList.objects.filter(request=obj).order_by("-id").first()
+        if latest_pick:
+            pick_items = list(
+                PickItem.objects.filter(pick_list=latest_pick)
+                .order_by("id")
+                .values("barcode", "name", "location", "unit", "qty")
+            )
+    except Exception:
+        latest_pick = None
+        pick_items = []
 
     return render(
         request,
@@ -160,6 +214,10 @@ def request_detail(request, pk: int):
             "edit_form": edit_form,
             "quote_form": quote_form,
             "statuses": RequestStatus,
+            "show_pick_section": show_pick_section,
+            "pick_formset": pick_formset,
+            "latest_pick": latest_pick,
+            "pick_items": pick_items,
         },
     )
 
@@ -182,7 +240,7 @@ def request_add_item(request, pk: int):
     return redirect("core:request_detail", pk=pk)
 
 
-# ---------- Обновить позицию (инлайн) ----------
+# ---------- Обновить позицию ----------
 @require_POST
 @require_groups("manager", "operator", "director")
 def request_update_item(request, pk: int, item_id: int):
@@ -223,21 +281,16 @@ def request_change_status(request, pk: int):
     to = request.POST.get("to")
     u = request.user
 
-    # защита от незнакомых значений
     if to not in dict(RequestStatus.choices):
         return HttpResponseBadRequest("Неизвестный статус")
 
-    # Разрешения по ролям
     allowed = {
-        # Менеджер: отправка/отмена своей заявки + решение по КП
         "manager": {
-            RequestStatus.SUBMITTED,   # Отправить черновик
-            RequestStatus.CANCELED,    # Отменить
-            RequestStatus.APPROVED,    # Согласовано
-            RequestStatus.REJECTED,    # Не согласована
+            RequestStatus.SUBMITTED,
+            RequestStatus.CANCELED,
+            RequestStatus.APPROVED,
+            RequestStatus.REJECTED,
         },
-
-        # Оператор: производственный путь, но НЕ утверждает КП и НЕ завершает
         "operator": {
             RequestStatus.QUOTE,
             RequestStatus.TO_PICK,
@@ -246,15 +299,10 @@ def request_change_status(request, pk: int):
             RequestStatus.DELIVERED,
             RequestStatus.CANCELED,
         },
-
-        # Склад: только после передачи в сборку, доводит до «Готова к отгрузке»
         "warehouse": {
             RequestStatus.IN_PROGRESS,
             RequestStatus.READY_TO_SHIP,
-            # RequestStatus.DELIVERED,
         },
-
-        # Директор: всё
         "director": set(s for s, _ in RequestStatus.choices),
     }
 
@@ -263,7 +311,7 @@ def request_change_status(request, pk: int):
     if not can:
         return HttpResponseBadRequest("Недостаточно прав для смены статуса")
 
-    # Склад — двигается только после передачи в сборку
+    # ✅ склад двигает только после передачи в сборку
     if (
         "warehouse" in user_groups
         and to in {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.DELIVERED}
@@ -272,22 +320,32 @@ def request_change_status(request, pk: int):
     ):
         return HttpResponseBadRequest("Заявка ещё не передана на склад")
 
+    # ✅ оператор/директор не могут отправить "в работу" без листа сборки
+    if to == RequestStatus.TO_PICK and PickList is not None:
+        has_items = PickList.objects.filter(request=obj).filter(items__isnull=False).exists()
+        if not has_items:
+            return HttpResponseBadRequest(
+                "Сначала заполните «Сборка со склада», затем отправляйте в работу."
+            )
+
     from_status = obj.status
     obj.status = to
 
-    # Авто-завершение: если доставлена и оплачено — завершить
+    # авто-завершение
     if to == RequestStatus.DELIVERED and getattr(obj, "is_paid", False):
         obj.status = RequestStatus.DONE
 
     obj.save(update_fields=["status", "updated_at"])
-    RequestHistory.objects.create(request=obj, author=u, from_status=from_status, to_status=obj.status)
+    RequestHistory.objects.create(
+        request=obj, author=u, from_status=from_status, to_status=obj.status
+    )
     messages.success(request, "Статус обновлён")
     return redirect("core:request_detail", pk=pk)
 
 
-# ---------- Загрузить файл КП ----------
+# ---------- Загрузить КП ----------
 @require_POST
-@require_groups("operator", "director")  # только оператор/директор загружают
+@require_groups("operator", "director")
 def request_upload_quote(request, pk: int):
     obj = get_object_or_404(Request, pk=pk)
     form = RequestQuoteForm(request.POST, request.FILES)
@@ -303,41 +361,41 @@ def request_upload_quote(request, pk: int):
     return redirect("core:request_detail", pk=pk)
 
 
-# ---------- Удалить файл КП ----------
+# ---------- Удалить КП ----------
 @require_POST
 @require_groups("operator", "director")
 def request_delete_quote(request, pk: int, quote_id: int):
     obj = get_object_or_404(Request, pk=pk)
     q = get_object_or_404(RequestQuote, pk=quote_id, request=obj)
-    # оператор может удалить только свои файлы; директор — любые
-    if (q.uploaded_by_id != request.user.id) and (not request.user.groups.filter(name="director").exists()) and (not request.user.is_superuser):
+    if (q.uploaded_by_id != request.user.id) and (
+        not request.user.groups.filter(name="director").exists()
+    ) and (not request.user.is_superuser):
         return HttpResponseBadRequest("Можно удалять только свои файлы")
     q.delete()
     messages.success(request, "Файл КП удалён")
     return redirect("core:request_detail", pk=pk)
 
 
-# ---------- Просмотр файл КП ----------
+# ---------- Просмотр КП ----------
 @xframe_options_exempt
 def request_quote_preview(request, pk: int, quote_id: int):
-    """Отдать файл КП для просмотра в iframe."""
     q = get_object_or_404(RequestQuote, pk=quote_id, request_id=pk)
     if not q.file:
         raise Http404("Файл не найден")
     ctype = guess_type(q.original_name or q.file.name)[0] or "application/pdf"
     resp = FileResponse(q.file.open("rb"), content_type=ctype)
-    # Показываем в окне, а не скачиваем
-    resp["Content-Disposition"] = f'inline; filename="{q.original_name or q.file.name}"'
+    resp["Content-Disposition"] = (
+        f'inline; filename="{q.original_name or q.file.name}"'
+    )
     return resp
 
 
-# ---------- Смена статуса оплаты ----------
+# ---------- Смена оплаты ----------
 @require_POST
 @require_groups("operator", "director")
 def request_toggle_payment(request, pk: int):
     obj = get_object_or_404(Request, pk=pk)
     obj.is_paid = "is_paid" in request.POST
-    # Если уже доставлен и теперь оплачен — завершаем
     if obj.is_paid and obj.status == RequestStatus.DELIVERED:
         obj.status = RequestStatus.DONE
     obj.save(update_fields=["is_paid", "status", "updated_at"])
@@ -345,19 +403,15 @@ def request_toggle_payment(request, pk: int):
     return redirect("core:request_detail", pk=pk)
 
 
-# ---------- Удалить прикреплённый файл КП (вариант 2) ----------
+# ---------- Удалить файл КП (вариант 2) ----------
 @require_POST
 @require_groups("operator", "director")
 def request_quote_delete(request, pk: int, qpk: int):
-    """Удалить прикреплённый файл КП у заявки."""
     obj = get_object_or_404(Request, pk=pk)
     quote = get_object_or_404(RequestQuote, pk=qpk, request=obj)
-
-    # Доп. защита: нельзя править, если заявка не редактируемая
     if hasattr(obj, "is_editable") and not obj.is_editable:
         messages.error(request, "Заявка недоступна для редактирования.")
         return redirect("core:request_detail", pk=obj.pk)
-
     try:
         if quote.file:
             quote.file.delete(save=False)
@@ -365,5 +419,4 @@ def request_quote_delete(request, pk: int, qpk: int):
         messages.success(request, "Файл удалён.")
     except Exception as e:
         messages.error(request, f"Не удалось удалить файл: {e}")
-
     return redirect("core:request_detail", pk=obj.pk)
