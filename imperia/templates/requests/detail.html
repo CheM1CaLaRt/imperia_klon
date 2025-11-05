@@ -171,13 +171,15 @@
         <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="rq-actions__col">
           {% csrf_token %}
 
-          {# ОПЕРАТОР #}
+          {# ОПЕРАТОР: добавлен кейс approved -> to_pick #}
           {% if request.user|in_groups:"operator" %}
             {% if obj.status == "draft" %}
               <button class="btn" name="to" value="submitted">Отправить</button>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
             {% elif obj.status == "submitted" %}
               <button class="btn" name="to" value="quote">КП</button>
+            {% elif obj.status == "approved" %}
+              <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
             {% elif obj.status == "rejected" %}
               <button class="btn" name="to" value="quote">КП</button>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
@@ -257,38 +259,6 @@
   </div>
 </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const modal = document.getElementById("previewModal");
-  const frame = document.getElementById("previewFrame");
-  const title = document.getElementById("previewTitle");
-  const closeBtn = document.getElementById("closePreview");
-
-  function openPreview(url, name) {
-    title.textContent = name || "Просмотр";
-    frame.src = url;
-    modal.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-    const lower = (name || "").toLowerCase();
-    if (/\.(doc|docx|xls|xlsx|ppt|pptx|csv|odt|ods|rtf)$/.test(lower)) {
-      frame.src = "https://docs.google.com/gview?embedded=true&url=" + encodeURIComponent(url);
-    }
-  }
-
-  document.querySelectorAll(".open-preview").forEach(btn => {
-    btn.addEventListener("click", () => openPreview(btn.dataset.url, btn.dataset.name));
-  });
-
-  function close() {
-    modal.classList.add("hidden");
-    frame.src = "";
-    document.body.style.overflow = "";
-  }
-  closeBtn.addEventListener("click", close);
-  modal.addEventListener("click", e => { if (e.target === modal) close(); });
-});
-</script>
-
 <style>
 :root{ --bg:#f6f7f8; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --accent:#111; --radius:14px; }
 .rq-container{max-width:1100px;margin:0 auto;padding:10px 0 28px;}
@@ -326,12 +296,9 @@ document.addEventListener("DOMContentLoaded", () => {
 .rq-aside .rq-card__head{padding:10px 12px;}
 
 .rq-pay{display:flex;align-items:center;gap:8px;padding:12px 14px}
-.rq-pay input{width:18px;height:18px}
-
 .rq-upload{display:flex;gap:8px;align-items:center}
 .rq-upload__input{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
 .rq-upload__label{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px dashed #111;border-radius:12px;background:#fff;color:#111;font-weight:700;cursor:pointer}
-.rq-upload__label:hover{background:#fbfbfb}
 
 .rq-table{display:grid;border-top:1px solid var(--line)}
 .rq-trow{display:grid;grid-template-columns:1fr 120px 1fr;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}

@@ -37,36 +37,32 @@ def request_list(request):
 
     Counterparty = apps.get_model("core", "Counterparty")
 
-    # Понимаем, какие связи с менеджером реально есть у Counterparty
-    has_cp_manager_fk = False        # Counterparty.manager -> User (FK/OneToOne)
-    has_cp_managers_m2m = False      # Counterparty.managers -> User (M2M)
-
+    has_cp_manager_fk = False
+    has_cp_managers_m2m = False
     try:
         fld = Counterparty._meta.get_field("manager")
         has_cp_manager_fk = isinstance(fld, (ForeignKey, OneToOneField))
     except FieldDoesNotExist:
-        has_cp_manager_fk = False
-
+        pass
     try:
         fld = Counterparty._meta.get_field("managers")
         has_cp_managers_m2m = isinstance(fld, ManyToManyField)
     except FieldDoesNotExist:
-        has_cp_managers_m2m = False
+        pass
 
-    # Базовый queryset
     qs = Request.objects.select_related("initiator", "assignee", "counterparty")
     if has_cp_manager_fk:
         qs = qs.select_related("counterparty__manager")
 
-    # -------- Ролевые ограничения --------
+    # --- Ролевые ограничения ---
     if u.groups.filter(name="warehouse").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        qs = qs.filter(status__in=[RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatusREADY_TO_SHIP])
+        qs = qs.filter(status__in=[
+            RequestStatus.TO_PICK,
+            RequestStatus.IN_PROGRESS,
+            RequestStatus.READY_TO_SHIP,   # ← тут была опечатка
+        ])
 
     elif u.groups.filter(name="manager").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Менеджер видит:
-        #  - свои заявки (initiator)
-        #  - заявки на «свои» компании (через Counterparty.manager ИЛИ Counterparty.managers)
-        #  - заявки, назначенные на него (assignee)
         cond = Q(initiator=u) | Q(assignee=u)
         if has_cp_manager_fk:
             cond |= Q(counterparty__manager=u)
@@ -74,20 +70,10 @@ def request_list(request):
             cond |= Q(counterparty__managers=u)
         qs = qs.filter(cond)
 
-    elif u.groups.filter(name="operator").exists() and not (u.is_superuser or u.groups.filter(name="director").exists()):
-        # Оператор видит всё
-        pass
-    else:
-        # Директор/супер — всё
-        pass
+    # оператор/директор видят всё
 
-    # --------- Фильтрация по статусу из GET ---------
     if status:
-        # «Завершены» = DONE ИЛИ CANCELED
-        if status == RequestStatus.DONE:
-            qs = qs.filter(Q(status=RequestStatus.DONE) | Q(status=RequestStatus.CANCELED))
-        else:
-            qs = qs.filter(status=status)
+        qs = qs.filter(status=status)
 
     ctx = {
         "requests": qs.order_by("-created_at")[:500],
