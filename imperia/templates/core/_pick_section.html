@@ -1,87 +1,190 @@
 {# core/_pick_section.html #}
+
 <section class="rq-card">
   <div class="rq-card__head">
     <h2>Сборка со склада</h2>
     <div class="text-sm text-gray-500">Заполняет оператор/директор</div>
   </div>
 
-  <form method="post" action="{% url 'core:pick_submit' req.pk %}" class="p-3">
-    {% csrf_token %}
-    {{ formset.management_form }}
+  <div class="p-3 space-y-2">
+    <div class="text-sm font-medium">Позиции к сборке:</div>
+    <ul id="pickPreview" class="text-sm text-gray-700 space-y-1">
+      <li class="text-gray-400">Пока пусто</li>
+    </ul>
 
-    <div class="grid grid-cols-12 gap-3 text-sm text-gray-600 mb-2">
-      <div class="col-span-3">Штрихкод</div>
-      <div class="col-span-3">Название</div>
-      <div class="col-span-2">Ячейка</div>
-      <div class="col-span-2">Ед.</div>
-      <div class="col-span-1">Кол-во</div>
-      <div class="col-span-1"> </div>
-    </div>
-
-    {% for f in formset %}
-      <div class="grid grid-cols-12 gap-3 items-center mb-2">
-        <div class="col-span-3">{{ f.barcode }}</div>
-        <div class="col-span-3">{{ f.name }}</div>
-        <div class="col-span-2">{{ f.location }}</div>
-        <div class="col-span-2">{{ f.unit }}</div>
-        <div class="col-span-1">{{ f.qty }}</div>
-        <div class="col-span-1 flex items-center gap-2">
-          <label class="flex items-center gap-1 text-sm text-gray-600">
-            {{ f.DELETE }} Удалить
-          </label>
-        </div>
-        {# выводим ошибки конкретной формы #}
-        {% if f.errors %}
-          <div class="col-span-12 text-sm text-red-700">
-            {{ f.errors }}
-          </div>
-        {% endif %}
-      </div>
-    {% endfor %}
-
-    <div class="flex gap-2 mt-3">
-      <button type="button" id="addRowBtn" class="btn btn-ghost">+ Добавить строку</button>
-      <button type="submit" class="btn">В сборку (склад)</button>
-    </div>
-  </form>
+    <button type="button" id="openPickModal" class="btn">
+      Открыть форму сборки
+    </button>
+  </div>
 </section>
 
+{# === МОДАЛКА === #}
+<div id="pickModal"
+     class="fixed inset-0 hidden items-start justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="pickModalTitle">
+  <!-- overlay -->
+  <div class="absolute inset-0 bg-black/40" data-close></div>
+
+  <!-- dialog -->
+  <div class="relative mt-10 w-[min(1100px,95vw)] max-h-[85vh] overflow-auto
+              rounded-2xl bg-white shadow-xl border border-gray-200">
+    <div class="flex items-center justify-between px-5 py-4 border-b">
+      <h3 id="pickModalTitle" class="text-xl font-semibold">Сборка со склада</h3>
+      <button type="button" class="text-gray-500 hover:text-black text-2xl leading-none"
+              title="Закрыть" data-close>&times;</button>
+    </div>
+
+    <form id="pickForm" method="post" action="{% url 'core:pick_submit' req.pk %}" class="p-5">
+      {% csrf_token %}
+      {{ formset.management_form }}
+
+      <div class="grid grid-cols-12 gap-3 text-sm text-gray-600 mb-2">
+        <div class="col-span-3">Штрихкод</div>
+        <div class="col-span-3">Название</div>
+        <div class="col-span-2">Ячейка</div>
+        <div class="col-span-1">Ед.</div>
+        <div class="col-span-1">Кол-во</div>
+        <div class="col-span-1">Цена</div>
+        <div class="col-span-1"> </div>
+      </div>
+
+      {% for f in formset %}
+        <div class="grid grid-cols-12 gap-3 items-center mb-2" data-form-row>
+          <div class="col-span-3">{{ f.barcode }}</div>
+          <div class="col-span-3">{{ f.name }}</div>
+          <div class="col-span-2">{{ f.location }}</div>
+          <div class="col-span-1">{{ f.unit }}</div>
+          <div class="col-span-1">{{ f.qty }}</div>
+          <div class="col-span-1">
+            {# новое поле цена: ожидается в formset как f.price #}
+            {{ f.price }}
+          </div>
+          <div class="col-span-1 flex items-center justify-center">
+            {% if f.DELETE %}<span class="hidden">{{ f.DELETE }}</span>{% endif %}
+            <button type="button" class="delete-btn" title="Удалить" data-remove>✖</button>
+          </div>
+
+          {% if f.errors %}
+            <div class="col-span-12 text-sm text-red-700">
+              {{ f.errors }}
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      <div class="flex flex-wrap gap-2 mt-4">
+        <button type="button" id="addRowBtn" class="btn btn-ghost">+ Добавить строку</button>
+
+        {# Сохранить — AJAX, закрывает модалку при успехе #}
+        <button type="button" id="savePickBtn" class="btn">Сохранить</button>
+
+        {# Отменить — просто закрыть без отправки #}
+        <button type="button" class="btn btn-ghost" data-close>Отменить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .delete-btn {
+    color: #dc2626;
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: transform .1s ease, color .1s ease;
+  }
+  .delete-btn:hover { color:#b91c1c; transform:scale(1.2); }
+  body.modal-open { overflow: hidden; }
+</style>
+
 <script>
-  // Добавление строки формсета (простое клонирование по TOTAL_FORMS)
   (function () {
-    const addBtn = document.getElementById('addRowBtn');
-    if (!addBtn) return;
+    // --- modal open/close ---
+    const modal   = document.getElementById('pickModal');
+    const openBtn = document.getElementById('openPickModal');
+    const form    = document.getElementById('pickForm');
+    const saveBtn = document.getElementById('savePickBtn');
+    const addBtn  = document.getElementById('addRowBtn');
+    const totalInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
+    const preview = document.getElementById('pickPreview');
 
-    addBtn.addEventListener('click', function () {
-      const totalInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
-      const total = parseInt(totalInput.value, 10);
-      const forms = document.querySelectorAll('[name^="pick-"][name$="-barcode"]').length;
+    function openModal() {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.classList.add('modal-open');
+      const firstInput = modal.querySelector('input,select,textarea,button');
+      if (firstInput) firstInput.focus();
+    }
+    function closeModal() {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('modal-open');
+      renderPreview(); // обновим список над кнопкой
+    }
+    if (openBtn) openBtn.addEventListener('click', openModal);
+    modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (!modal.classList.contains('hidden') && e.key === 'Escape') closeModal(); });
 
-      // берём последнюю форму, клонируем узлы строки
-      const rows = document.querySelectorAll('input[name^="pick-"][name$="-barcode"]');
-      if (rows.length === 0) return;
+    // --- formset helpers ---
+    function renumberForms() {
+      const rows = form.querySelectorAll('[data-form-row]');
+      rows.forEach((row, idx) => {
+        row.querySelectorAll('input, select, textarea, label').forEach(el => {
+          if (el.name) el.name = el.name.replace(/pick-(\d+)-/g, `pick-${idx}-`);
+          if (el.id)   el.id   = el.id.replace(/pick-(\d+)-/g, `pick-${idx}-`);
+          if (el.hasAttribute('for'))
+            el.setAttribute('for', el.getAttribute('for').replace(/pick-(\d+)-/g, `pick-${idx}-`));
+        });
+      });
+      if (totalInput) totalInput.value = String(rows.length);
+    }
 
-      const last = rows[rows.length - 1].closest('.grid');
+    function cloneLastRow() {
+      const rows = form.querySelectorAll('[data-form-row]');
+      if (!rows.length) return;
+      const last = rows[rows.length - 1];
       const clone = last.cloneNode(true);
 
-      // обновляем индексы name/id внутри клона
       clone.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.name) el.name = el.name.replace(/pick-(\d+)-/g, `pick-${forms}-`);
-        if (el.id)   el.id   = el.id.replace(/pick-(\d+)-/g, `pick-${forms}-`);
-        if (el.type !== 'checkbox') el.value = '';
         if (el.type === 'checkbox') el.checked = false;
+        else el.value = '';
       });
 
       last.parentNode.insertBefore(clone, last.nextSibling);
-      totalInput.value = String(forms + 1);
+      renumberForms();
+    }
+    if (addBtn) addBtn.addEventListener('click', cloneLastRow);
+
+    // удаление (крестик)
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-remove]');
+      if (!btn) return;
+      const row = btn.closest('[data-form-row]');
+      if (!row) return;
+
+      const idField  = row.querySelector('input[name$="-id"]');
+      const delField = row.querySelector('input[name$="-DELETE"]');
+      const hasExistingId = idField && idField.value;
+
+      if (hasExistingId && delField) {
+        delField.checked = true;
+        row.style.display = 'none';
+      } else {
+        row.remove();
+        renumberForms();
+      }
+      renderPreview();
     });
 
-    // Автоподстановка по штрихкоду
+    // автоподстановка по штрихкоду
     document.addEventListener('input', async (e) => {
       const el = e.target;
       if (!el.name || !el.name.endsWith('-barcode')) return;
       const bc = el.value.trim();
-      if (bc.length < 6) return;
+      if (bc.length < 6) { renderPreview(); return; }
 
       try {
         const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
@@ -89,14 +192,75 @@
         const data = await resp.json();
         if (!data.ok) return;
 
-        const row = el.closest('.grid');
-        row.querySelector('[name$="-name"]').value = data.name || '';
-        row.querySelector('[name$="-location"]').value = data.location || '';
-        row.querySelector('[name$="-unit"]').value = data.unit || '';
-        if (!row.querySelector('[name$="-qty"]').value) {
-          row.querySelector('[name$="-qty"]').value = 1;
-        }
-      } catch (_) {}
+        const row = el.closest('[data-form-row]');
+        if (!row) return;
+
+        const nameEl = row.querySelector('[name$="-name"]');
+        const locEl  = row.querySelector('[name$="-location"]');
+        const unitEl = row.querySelector('[name$="-unit"]');
+        const qtyEl  = row.querySelector('[name$="-qty"]');
+
+        if (nameEl) nameEl.value = data.name || '';
+        if (locEl)  locEl.value  = data.location || '';
+        if (unitEl) unitEl.value = data.unit || '';
+        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+      } catch (_) { /* ignore */ }
+      renderPreview();
     });
+
+    // любое изменение — обновляем превью
+    form.addEventListener('input', renderPreview);
+
+    // AJAX сохранение
+    async function saveFormAjax() {
+      if (!form) return;
+      saveBtn.disabled = true;
+      const fd = new FormData(form);
+
+      try {
+        const resp = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd
+        });
+        if (!resp.ok) throw new Error('Server error');
+
+        // не разбираем ответ — считаем, что сервер принял (в т.ч. с редиректом)
+        closeModal();
+      } catch (err) {
+        alert('Не удалось сохранить. Проверьте соединение или поля формы.');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+    if (saveBtn) saveBtn.addEventListener('click', saveFormAjax);
+
+    // превью над кнопкой
+    function renderPreview() {
+      const rows = [...form.querySelectorAll('[data-form-row]')].filter(r => r.style.display !== 'none');
+      const items = rows.map(r => {
+        const n = r.querySelector('[name$="-name"]')?.value?.trim();
+        const q = r.querySelector('[name$="-qty"]')?.value?.trim();
+        const u = r.querySelector('[name$="-unit"]')?.value?.trim();
+        const p = r.querySelector('[name$="-price"]')?.value?.trim();
+        if (!n && !q && !p) return null;
+        return { n, q, u, p };
+      }).filter(Boolean);
+
+      preview.innerHTML = '';
+      if (!items.length) {
+        preview.innerHTML = '<li class="text-gray-400">Пока пусто</li>';
+        return;
+      }
+      items.forEach(it => {
+        const li = document.createElement('li');
+        li.textContent = `${it.n || '—'} — ${it.q || 0} ${it.u || ''}${it.p ? ` · ${it.p}` : ''}`;
+        preview.appendChild(li);
+      });
+    }
+
+    // стартовая синхронизация
+    if (totalInput) totalInput.value = String(form.querySelectorAll('[data-form-row]').length);
+    renderPreview();
   })();
 </script>

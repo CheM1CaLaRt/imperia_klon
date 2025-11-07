@@ -26,6 +26,10 @@ class PickItem(models.Model):
     location = models.CharField(max_length=64, default="", blank=True)  # код ячейки на момент брони
     unit = models.CharField(max_length=16, default="шт")
     qty = models.DecimalField(max_digits=12, decimal_places=3)
+    price = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        null=True, blank=True, verbose_name="Цена"
+    )
 
     class Meta:
         indexes = [models.Index(fields=["barcode"])]
