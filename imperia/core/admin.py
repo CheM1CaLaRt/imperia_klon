@@ -15,6 +15,8 @@ from .models import Counterparty, CounterpartyFinance, CounterpartyContact
 from .models import CounterpartyCreateRequest, CounterpartyCreateRequestDocument
 from .admin_requests import *  # noqa
 
+from .models_pick import PickItem
+
 
 
 class ProfileInline(admin.StackedInline):
@@ -177,3 +179,9 @@ class CounterpartyCreateRequestAdmin(admin.ModelAdmin):
     list_display = ("id", "inn", "name", "manager", "status", "created_at", "reviewed_by", "reviewed_at")
     list_filter = ("status", "manager")
     search_fields = ("inn", "name", "full_name")
+
+@admin.register(PickItem)
+class PickItemAdmin(admin.ModelAdmin):
+    list_display = ("id", "request", "name", "barcode", "qty", "price", "location", "unit")
+    list_filter  = ("request",)
+    search_fields = ("name", "barcode", "request__id")

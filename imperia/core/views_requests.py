@@ -156,12 +156,14 @@ def request_create(request):
 # ---------- Детали заявки ----------
 @require_groups("manager", "operator", "warehouse", "director")
 def request_detail(request, pk: int):
+    # подтянем все нужные связи + pick_items для одной выборки
     obj = get_object_or_404(
         Request.objects.select_related(
             "initiator", "assignee", "counterparty"
-        ).prefetch_related("items", "history", "comments"),
+        ).prefetch_related("items", "history", "comments", "pick_items"),
         pk=pk,
     )
+
     item_form = RequestItemForm()
 
     # inline-редактирование
@@ -186,23 +188,31 @@ def request_detail(request, pk: int):
     is_approved = obj.status == RequestStatus.APPROVED
     can_pick = _in_groups(request.user, ["operator", "director"])
     show_pick_section = bool(PickItemFormSet and can_pick and is_approved)
-    pick_formset = PickItemFormSet(prefix="pick") if show_pick_section else None
 
-    # --- список «к сборке» для склада ---
+    # Подставляем сохранённые строки в формсет (если показываем секцию)
+    pick_formset = None
+    if show_pick_section:
+        initial = [
+            {
+                "barcode": it.barcode,
+                "name": it.name,
+                "location": it.location,
+                "unit": it.unit,
+                "qty": it.qty,
+                "price": it.price,
+            }
+            for it in obj.pick_items.all().order_by("id")
+        ]
+        pick_formset = PickItemFormSet(prefix="pick", initial=initial or [{}])
+
+    # --- список «к сборке» для склада/просмотра ---
+    # вместо PickList берём напрямую сохранённые PickItem
+    pick_items = list(
+        obj.pick_items.order_by("id").values("barcode", "name", "location", "unit", "qty", "price")
+    )
+
+    # шаблон раньше ожидал latest_pick — оставим None для совместимости
     latest_pick = None
-    pick_items = []
-    try:
-        from .models_pick import PickList, PickItem
-        latest_pick = PickList.objects.filter(request=obj).order_by("-id").first()
-        if latest_pick:
-            pick_items = list(
-                PickItem.objects.filter(pick_list=latest_pick)
-                .order_by("id")
-                .values("barcode", "name", "location", "unit", "qty")
-            )
-    except Exception:
-        latest_pick = None
-        pick_items = []
 
     return render(
         request,
@@ -216,8 +226,8 @@ def request_detail(request, pk: int):
             "statuses": RequestStatus,
             "show_pick_section": show_pick_section,
             "pick_formset": pick_formset,
-            "latest_pick": latest_pick,
-            "pick_items": pick_items,
+            "latest_pick": latest_pick,   # совместимость со старым шаблоном
+            "pick_items": pick_items,     # теперь всегда из obj.pick_items
         },
     )
 
