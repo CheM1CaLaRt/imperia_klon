@@ -1,9 +1,9 @@
-# core/forms_pick.py
 from django import forms
 from django.forms import formset_factory
 
+
 class PickItemForm(forms.Form):
-    barcode  = forms.CharField(
+    barcode = forms.CharField(
         required=False,
         label="Штрихкод",
         widget=forms.TextInput(attrs={
@@ -13,7 +13,7 @@ class PickItemForm(forms.Form):
             "inputmode": "numeric",
         })
     )
-    name     = forms.CharField(
+    name = forms.CharField(
         required=False,
         label="Название",
         widget=forms.TextInput(attrs={
@@ -31,7 +31,7 @@ class PickItemForm(forms.Form):
             "autocomplete": "off",
         })
     )
-    unit     = forms.CharField(
+    unit = forms.CharField(
         required=False,
         label="Ед.",
         widget=forms.TextInput(attrs={
@@ -40,7 +40,7 @@ class PickItemForm(forms.Form):
             "autocomplete": "off",
         })
     )
-    qty      = forms.IntegerField(
+    qty = forms.IntegerField(
         required=False,
         min_value=1,
         label="Кол-во",
@@ -49,6 +49,23 @@ class PickItemForm(forms.Form):
             "placeholder": "1",
         })
     )
-    DELETE   = forms.BooleanField(required=False, label="Удалить")
+
+    # НОВОЕ: Цена
+    price = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=12,
+        decimal_places=2,
+        label="Цена",
+        widget=forms.NumberInput(attrs={
+            "class": "w-full",
+            "placeholder": "0.00",
+            "step": "0.01",
+            "inputmode": "decimal",
+        })
+    )
+
+    DELETE = forms.BooleanField(required=False, label="Удалить")
+
 
 PickItemFormSet = formset_factory(PickItemForm, extra=1, can_delete=True)
