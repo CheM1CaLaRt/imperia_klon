@@ -217,6 +217,7 @@
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
             {% elif obj.status == "submitted" %}
               <button class="btn" name="to" value="quote">КП</button>
+              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
             {% elif obj.status == "approved" %}
               {% if latest_pick %}
                 <button class="btn" name="to" value="to_pick">В сборку (склад)</button>

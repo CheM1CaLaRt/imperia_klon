@@ -1,3 +1,4 @@
+{% load access %}
 <section class="rq-card">
   <div class="rq-card__head">
     <h2>Сборка со склада</h2>
@@ -16,12 +17,14 @@
   </div>
 </section>
 
+<!-- МОДАЛКА -->
 <div id="pickModal"
      class="fixed inset-0 hidden items-start justify-center z-50"
      role="dialog" aria-modal="true" aria-labelledby="pickModalTitle">
   <div class="absolute inset-0 bg-black/40" data-close></div>
 
-  <div class="relative mt-10 w-[min(1100px,95vw)] max-h-[85vh] overflow-auto
+  <!-- шире: до 1400px или 98vw -->
+  <div class="relative mt-10 w-[min(1400px,98vw)] max-h-[90vh] overflow-auto
               rounded-2xl bg-white shadow-xl border border-gray-200">
     <div class="flex items-center justify-between px-5 py-4 border-b">
       <h3 id="pickModalTitle" class="text-xl font-semibold">Сборка со склада</h3>
@@ -30,10 +33,11 @@
     </div>
 
     <form id="pickForm" method="post" action="{% url 'core:pick_submit' req.pk %}" class="p-5">
-       {% csrf_token %}
-        {{ formset.management_form }}
-          <!-- важно: по умолчанию просто сохраняем -->
-           <input type="hidden" name="commit" id="pickCommit" value="save">
+      {% csrf_token %}
+      {{ formset.management_form }}
+      <input type="hidden" name="commit" id="pickCommit" value="save">
+
+      <!-- Шапка -->
       <div class="grid grid-cols-12 gap-3 text-sm text-gray-600 mb-2">
         <div class="col-span-3">Штрихкод</div>
         <div class="col-span-3">Название</div>
@@ -41,17 +45,25 @@
         <div class="col-span-1">Ед.</div>
         <div class="col-span-1">Кол-во</div>
         <div class="col-span-1">Цена</div>
-        <div class="col-span-1"> </div>
+        <div class="col-span-1"></div>
       </div>
 
       {% for f in formset %}
-        <div class="grid grid-cols-12 gap-3 items-center mb-2" data-form-row>
+        <div class="grid grid-cols-12 gap-3 items-start mb-2" data-form-row>
           <div class="col-span-3">{{ f.barcode }}</div>
           <div class="col-span-3">{{ f.name }}</div>
-          <div class="col-span-2">{{ f.location }}</div>
+
+          <div class="col-span-2 space-y-1">
+            {{ f.location }}
+            {% if request.user|in_groups:"operator,director" %}
+              <div class="loc-hint text-xs text-red-600 hidden">нет на складе</div>
+            {% endif %}
+          </div>
+
           <div class="col-span-1">{{ f.unit }}</div>
           <div class="col-span-1">{{ f.qty }}</div>
           <div class="col-span-1">{{ f.price }}</div>
+
           <div class="col-span-1 flex items-center justify-center">
             {% if f.DELETE %}<span class="hidden">{{ f.DELETE }}</span>{% endif %}
             <button type="button" class="delete-btn" title="Удалить" data-remove>✖</button>
@@ -68,23 +80,26 @@
       <div class="flex flex-wrap gap-2 mt-4">
         <button type="button" id="addRowBtn" class="btn btn-ghost">+ Добавить строку</button>
       </div>
+
       <div class="flex flex-wrap gap-2 mt-4">
         <button type="button" id="savePickBtn" class="btn">Сохранить</button>
         <button type="button" class="btn btn-ghost" data-close>Отменить</button>
       </div>
     </form>
   </div>
-</div>
 
+</div>
 <style>
   .delete-btn{color:#dc2626;font-size:18px;font-weight:bold;line-height:1;background:none;border:none;cursor:pointer;transition:transform .1s ease,color .1s ease}
   .delete-btn:hover{color:#b91c1c;transform:scale(1.2)}
   body.modal-open{overflow:hidden}
+
+  /* Новое: подсветка ошибки поля */
+  .field-error{outline:2px solid #dc2626; outline-offset:0; border-color:#fca5a5}
 </style>
 
 <script>
   (function () {
-    // --- modal open/close ---
     const modal   = document.getElementById('pickModal');
     const openBtn = document.getElementById('openPickModal');
     const form    = document.getElementById('pickForm');
@@ -93,24 +108,104 @@
     const totalInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
     const preview = document.getElementById('pickPreview');
 
+    const DRAFT_KEY = 'pick_draft_req_{{ req.pk }}';
+    let saveTimer = null;
+
+    // ---------- Draft helpers ----------
+    function getRowsData() {
+      const rows = [...form.querySelectorAll('[data-form-row]')].filter(r => r.style.display !== 'none');
+      return rows.map(r => ({
+        barcode : r.querySelector('[name$="-barcode"]')?.value || '',
+        name    : r.querySelector('[name$="-name"]')?.value || '',
+        location: r.querySelector('[name$="-location"]')?.value || '',
+        unit    : r.querySelector('[name$="-unit"]')?.value || '',
+        qty     : r.querySelector('[name$="-qty"]')?.value || '',
+        price   : r.querySelector('[name$="-price"]')?.value || '',
+        notfound: r.hasAttribute('data-notfound') ? 1 : 0,
+      }));
+    }
+    function setRowsData(data) {
+      if (!Array.isArray(data)) return;
+      // Подготовим нужное количество строк
+      let current = form.querySelectorAll('[data-form-row]').length;
+      while (current < data.length) { cloneLastRow(true); current++; }
+      while (current > data.length && current > 1) { // одну оставим
+        const last = form.querySelectorAll('[data-form-row]')[current - 1];
+        last.remove();
+        current--;
+      }
+      renumberForms();
+
+      // Заполним
+      const rows = form.querySelectorAll('[data-form-row]');
+      data.forEach((d, i) => {
+        const r = rows[i];
+        r.querySelector('[name$="-barcode"]')?.setAttribute('value',''); // чтобы не мешали атрибуты
+        r.querySelector('[name$="-name"]')?.setAttribute('value','');
+        r.querySelector('[name$="-location"]')?.setAttribute('value','');
+
+        const b = r.querySelector('[name$="-barcode"]'); if (b) b.value = d.barcode || '';
+        const n = r.querySelector('[name$="-name"]'); if (n) n.value = d.name || '';
+        const l = r.querySelector('[name$="-location"]'); if (l) l.value = d.location || '';
+        const u = r.querySelector('[name$="-unit"]'); if (u) u.value = d.unit || '';
+        const q = r.querySelector('[name$="-qty"]'); if (q) q.value = d.qty || '';
+        const p = r.querySelector('[name$="-price"]'); if (p) p.value = d.price || '';
+        if (d.notfound) r.setAttribute('data-notfound', '1'); else r.removeAttribute('data-notfound');
+      });
+
+      renderPreview();
+      updateRowHints();
+    }
+    function saveDraft() {
+      // небольшая защита от спама записью
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const payload = { rows: getRowsData() };
+        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(payload)); } catch (_) {}
+      }, 150);
+    }
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && Array.isArray(parsed.rows) ? parsed.rows : null;
+      } catch (_) { return null; }
+    }
+    function clearDraft() {
+      try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+    }
+
+    // ---------- Modal open/close ----------
     function openModal() {
       modal.classList.remove('hidden');
       modal.classList.add('flex');
       document.body.classList.add('modal-open');
+
+      // если все строки пустые — пробуем восстановить черновик
+      const hasAnyValue = getRowsData().some(r => r.barcode || r.name || r.location || r.qty || r.price);
+      if (!hasAnyValue) {
+        const draft = loadDraft();
+        if (draft && draft.length) setRowsData(draft);
+      }
+
       const firstInput = modal.querySelector('input,select,textarea,button');
       if (firstInput) firstInput.focus();
+      updateRowHints();
     }
     function closeModal() {
+      // перед закрытием всегда сохраняем черновик
+      saveDraft();
       modal.classList.add('hidden');
       modal.classList.remove('flex');
       document.body.classList.remove('modal-open');
-      renderPreview(); // обновим список над кнопкой
+      renderPreview();
     }
     if (openBtn) openBtn.addEventListener('click', openModal);
     modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (!modal.classList.contains('hidden') && e.key === 'Escape') closeModal(); });
 
-    // --- formset helpers ---
+    // ---------- Formset helpers ----------
     function renumberForms() {
       const rows = form.querySelectorAll('[data-form-row]');
       rows.forEach((row, idx) => {
@@ -122,9 +217,10 @@
         });
       });
       if (totalInput) totalInput.value = String(rows.length);
+      updateRowHints();
     }
 
-    function cloneLastRow() {
+    function cloneLastRow(silent) {
       const rows = form.querySelectorAll('[data-form-row]');
       if (!rows.length) return;
       const last = rows[rows.length - 1];
@@ -134,13 +230,15 @@
         if (el.type === 'checkbox') el.checked = false;
         else el.value = '';
       });
+      clone.removeAttribute('data-notfound');
 
       last.parentNode.insertBefore(clone, last.nextSibling);
       renumberForms();
+      if (!silent) saveDraft();
     }
-    if (addBtn) addBtn.addEventListener('click', cloneLastRow);
+    if (addBtn) addBtn.addEventListener('click', () => cloneLastRow(false));
 
-    // удаление (крестик)
+    // удаление
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-remove]');
       if (!btn) return;
@@ -159,24 +257,44 @@
         renumberForms();
       }
       renderPreview();
+      saveDraft();
     });
 
-    // автоподстановка по штрихкоду
+    // ---------- Barcode lookup ----------
     document.addEventListener('input', async (e) => {
       const el = e.target;
-      if (!el.name || !el.name.endsWith('-barcode')) return;
+      if (!el.closest('#pickForm')) return;
+
+      // любое изменение — сразу подсказки + автосейв
+      updateRowHints();
+      saveDraft();
+
+      if (!el.name || !el.name.endsWith('-barcode')) {
+        renderPreview();
+        return;
+      }
+
+      const row = el.closest('[data-form-row]');
+      if (row) row.removeAttribute('data-notfound'); // сбрасываем флаг
+
       const bc = el.value.trim();
-      if (bc.length < 6) { renderPreview(); return; }
+      if (bc.length < 6) { renderPreview(); updateRowHints(); return; }
 
       try {
         const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          if (row) row.setAttribute('data-notfound', '1');
+          updateRowHints(); saveDraft();
+          return;
+        }
         const data = await resp.json();
-        if (!data.ok) return;
+        if (!data.ok) {
+          if (row) row.setAttribute('data-notfound', '1');
+          updateRowHints(); saveDraft();
+          return;
+        }
 
-        const row = el.closest('[data-form-row]');
         if (!row) return;
-
         const nameEl = row.querySelector('[name$="-name"]');
         const locEl  = row.querySelector('[name$="-location"]');
         const unitEl = row.querySelector('[name$="-unit"]');
@@ -186,38 +304,18 @@
         if (locEl)  locEl.value  = data.location || '';
         if (unitEl) unitEl.value = data.unit || '';
         if (qtyEl && !qtyEl.value) qtyEl.value = 1;
-      } catch (_) { /* ignore */ }
+
+        row.removeAttribute('data-notfound');
+      } catch (_) {
+        if (row) row.setAttribute('data-notfound', '1');
+      }
+
       renderPreview();
+      updateRowHints();
+      saveDraft();
     });
 
-    // любое изменение — обновляем превью
-    form.addEventListener('input', renderPreview);
-
-    // AJAX сохранение
-    async function saveFormAjax() {
-      if (!form) return;
-      saveBtn.disabled = true;
-      const fd = new FormData(form);
-
-      try {
-        const resp = await fetch(form.action, {
-          method: 'POST',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-          body: fd
-        });
-        if (!resp.ok) throw new Error('Server error');
-
-        // не разбираем ответ — считаем, что сервер принял (в т.ч. с редиректом)
-        closeModal();
-      } catch (err) {
-        alert('Не удалось сохранить. Проверьте соединение или поля формы.');
-      } finally {
-        saveBtn.disabled = false;
-      }
-    }
-    if (saveBtn) saveBtn.addEventListener('click', saveFormAjax);
-
-    // превью над кнопкой
+    // ---------- Preview ----------
     function renderPreview() {
       const rows = [...form.querySelectorAll('[data-form-row]')].filter(r => r.style.display !== 'none');
       const items = rows.map(r => {
@@ -241,8 +339,51 @@
       });
     }
 
-    // стартовая синхронизация
+    // ---------- Hints (только после ввода штрихкода) ----------
+    function updateRowHints() {
+      form.querySelectorAll('[data-form-row]').forEach(row => {
+        const hint = row.querySelector('.loc-hint');               // у operator/director
+        const locInput = row.querySelector('[name$="-location"]');
+        const bcInput  = row.querySelector('[name$="-barcode"]');
+        if (!locInput || !bcInput) return;
+
+        const barcodeFilled = !!bcInput.value.trim();              // штрихкод введён?
+        const emptyLoc = !locInput.value.trim();                   // ячейка пустая?
+        const notFound = row.hasAttribute('data-notfound');        // не найден по API?
+        const show = barcodeFilled && (emptyLoc || notFound);      // правило показа
+
+        if (hint) hint.classList.toggle('hidden', !show);
+        locInput.classList.toggle('field-error', show);            // красная рамка — только при проблеме
+      });
+    }
+
+    // ---------- AJAX save ----------
+    async function saveFormAjax() {
+      if (!form) return;
+      saveBtn.disabled = true;
+      const fd = new FormData(form);
+
+      try {
+        const resp = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd
+        });
+        if (!resp.ok) throw new Error('Server error');
+        clearDraft(); // сервер принял — черновик больше не нужен
+        closeModal();
+      } catch (err) {
+        alert('Не удалось сохранить. Проверьте соединение или поля формы.');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+    if (saveBtn) saveBtn.addEventListener('click', saveFormAjax);
+
+    // ---------- Start ----------
     if (totalInput) totalInput.value = String(form.querySelectorAll('[data-form-row]').length);
     renderPreview();
+    updateRowHints();
   })();
 </script>
+
