@@ -1,5 +1,6 @@
 {% load access %}
-<section class="rq-card">
+
+<section class="rq-card" id="pick-section">
   <div class="rq-card__head">
     <h2>Сборка со склада</h2>
     <div class="text-sm text-gray-500">Заполняет оператор/директор</div>
@@ -11,9 +12,7 @@
       <li class="text-gray-400">Пока пусто</li>
     </ul>
 
-    <button type="button" id="openPickModal" class="btn">
-      Открыть форму сборки
-    </button>
+    <button type="button" id="openPickModal" class="btn">Открыть форму сборки</button>
   </div>
 </section>
 
@@ -23,7 +22,6 @@
      role="dialog" aria-modal="true" aria-labelledby="pickModalTitle">
   <div class="absolute inset-0 bg-black/40" data-close></div>
 
-  <!-- шире: до 1400px или 98vw -->
   <div class="relative mt-10 w-[min(1400px,98vw)] max-h-[90vh] overflow-auto
               rounded-2xl bg-white shadow-xl border border-gray-200">
     <div class="flex items-center justify-between px-5 py-4 border-b">
@@ -32,12 +30,11 @@
               title="Закрыть" data-close>&times;</button>
     </div>
 
-    <form id="pickForm" method="post" action="{% url 'core:pick_submit' req.pk %}" class="p-5">
+    <form id="pickForm" method="post" action="{% url 'core:pick_submit' obj.pk %}" class="p-5">
       {% csrf_token %}
-      {{ formset.management_form }}
+      {{ pick_formset.management_form }}
       <input type="hidden" name="commit" id="pickCommit" value="save">
 
-      <!-- Шапка -->
       <div class="grid grid-cols-12 gap-3 text-sm text-gray-600 mb-2">
         <div class="col-span-3">Штрихкод</div>
         <div class="col-span-3">Название</div>
@@ -48,7 +45,7 @@
         <div class="col-span-1"></div>
       </div>
 
-      {% for f in formset %}
+      {% for f in pick_formset %}
         <div class="grid grid-cols-12 gap-3 items-start mb-2" data-form-row>
           <div class="col-span-3">{{ f.barcode }}</div>
           <div class="col-span-3">{{ f.name }}</div>
@@ -87,303 +84,270 @@
       </div>
     </form>
   </div>
-
 </div>
+
 <style>
   .delete-btn{color:#dc2626;font-size:18px;font-weight:bold;line-height:1;background:none;border:none;cursor:pointer;transition:transform .1s ease,color .1s ease}
   .delete-btn:hover{color:#b91c1c;transform:scale(1.2)}
   body.modal-open{overflow:hidden}
-
-  /* Новое: подсветка ошибки поля */
   .field-error{outline:2px solid #dc2626; outline-offset:0; border-color:#fca5a5}
 </style>
 
 <script>
-  (function () {
-    const modal   = document.getElementById('pickModal');
-    const openBtn = document.getElementById('openPickModal');
-    const form    = document.getElementById('pickForm');
-    const saveBtn = document.getElementById('savePickBtn');
-    const addBtn  = document.getElementById('addRowBtn');
-    const totalInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
-    const preview = document.getElementById('pickPreview');
+(function () {
+  const modal   = document.getElementById('pickModal');
+  const openBtn = document.getElementById('openPickModal');
+  const form    = document.getElementById('pickForm');
+  const saveBtn = document.getElementById('savePickBtn');
+  const addBtn  = document.getElementById('addRowBtn');
+  const totalInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
+  const preview = document.getElementById('pickPreview');
 
-    const DRAFT_KEY = 'pick_draft_req_{{ req.pk }}';
-    let saveTimer = null;
+  // Кол-во строк сборки на сервере (рендерится из view)
+  const serverPickCount = {{ pick_items|length|default:0 }};
+  const DRAFT_KEY = 'pick_draft_req_{{ obj.pk }}';
+  let saveTimer = null;
 
-    // ---------- Draft helpers ----------
-    function getRowsData() {
-      const rows = [...form.querySelectorAll('[data-form-row]')].filter(r => r.style.display !== 'none');
-      return rows.map(r => ({
-        barcode : r.querySelector('[name$="-barcode"]')?.value || '',
-        name    : r.querySelector('[name$="-name"]')?.value || '',
-        location: r.querySelector('[name$="-location"]')?.value || '',
-        unit    : r.querySelector('[name$="-unit"]')?.value || '',
-        qty     : r.querySelector('[name$="-qty"]')?.value || '',
-        price   : r.querySelector('[name$="-price"]')?.value || '',
-        notfound: r.hasAttribute('data-notfound') ? 1 : 0,
-      }));
+  // ---------- helpers ----------
+  function rows() {
+    return [...form.querySelectorAll('[data-form-row]')].filter(r => r.style.display !== 'none');
+  }
+  function rowToData(r) {
+    return {
+      barcode : r.querySelector('[name$="-barcode"]')?.value || '',
+      name    : r.querySelector('[name$="-name"]')?.value || '',
+      location: r.querySelector('[name$="-location"]')?.value || '',
+      unit    : r.querySelector('[name$="-unit"]')?.value || '',
+      qty     : r.querySelector('[name$="-qty"]')?.value || '',
+      price   : r.querySelector('[name$="-price"]')?.value || '',
+      notfound: r.hasAttribute('data-notfound') ? 1 : 0,
+    };
+  }
+  function getRowsData() { return rows().map(rowToData); }
+  function rowsAreAllEmpty() {
+    return getRowsData().every(d => !d.barcode && !d.name && !d.location && !d.qty && !d.price);
+  }
+
+  function setRowsData(data) {
+    if (!Array.isArray(data)) return;
+    // подготовим нужное кол-во строк
+    let current = rows().length;
+    while (current < data.length) { cloneLastRow(true); current++; }
+    while (current > data.length && current > 1) {
+      const r = rows()[current - 1]; r.remove(); current--;
     }
-    function setRowsData(data) {
-      if (!Array.isArray(data)) return;
-      // Подготовим нужное количество строк
-      let current = form.querySelectorAll('[data-form-row]').length;
-      while (current < data.length) { cloneLastRow(true); current++; }
-      while (current > data.length && current > 1) { // одну оставим
-        const last = form.querySelectorAll('[data-form-row]')[current - 1];
-        last.remove();
-        current--;
-      }
-      renumberForms();
+    renumberForms();
 
-      // Заполним
-      const rows = form.querySelectorAll('[data-form-row]');
-      data.forEach((d, i) => {
-        const r = rows[i];
-        r.querySelector('[name$="-barcode"]')?.setAttribute('value',''); // чтобы не мешали атрибуты
-        r.querySelector('[name$="-name"]')?.setAttribute('value','');
-        r.querySelector('[name$="-location"]')?.setAttribute('value','');
-
-        const b = r.querySelector('[name$="-barcode"]'); if (b) b.value = d.barcode || '';
-        const n = r.querySelector('[name$="-name"]'); if (n) n.value = d.name || '';
-        const l = r.querySelector('[name$="-location"]'); if (l) l.value = d.location || '';
-        const u = r.querySelector('[name$="-unit"]'); if (u) u.value = d.unit || '';
-        const q = r.querySelector('[name$="-qty"]'); if (q) q.value = d.qty || '';
-        const p = r.querySelector('[name$="-price"]'); if (p) p.value = d.price || '';
-        if (d.notfound) r.setAttribute('data-notfound', '1'); else r.removeAttribute('data-notfound');
-      });
-
-      renderPreview();
-      updateRowHints();
-    }
-    function saveDraft() {
-      // небольшая защита от спама записью
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => {
-        const payload = { rows: getRowsData() };
-        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(payload)); } catch (_) {}
-      }, 150);
-    }
-    function loadDraft() {
-      try {
-        const raw = localStorage.getItem(DRAFT_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed && Array.isArray(parsed.rows) ? parsed.rows : null;
-      } catch (_) { return null; }
-    }
-    function clearDraft() {
-      try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
-    }
-
-    // ---------- Modal open/close ----------
-    function openModal() {
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      document.body.classList.add('modal-open');
-
-      // если все строки пустые — пробуем восстановить черновик
-      const hasAnyValue = getRowsData().some(r => r.barcode || r.name || r.location || r.qty || r.price);
-      if (!hasAnyValue) {
-        const draft = loadDraft();
-        if (draft && draft.length) setRowsData(draft);
-      }
-
-      const firstInput = modal.querySelector('input,select,textarea,button');
-      if (firstInput) firstInput.focus();
-      updateRowHints();
-    }
-    function closeModal() {
-      // перед закрытием всегда сохраняем черновик
-      saveDraft();
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      document.body.classList.remove('modal-open');
-      renderPreview();
-    }
-    if (openBtn) openBtn.addEventListener('click', openModal);
-    modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
-    document.addEventListener('keydown', (e) => { if (!modal.classList.contains('hidden') && e.key === 'Escape') closeModal(); });
-
-    // ---------- Formset helpers ----------
-    function renumberForms() {
-      const rows = form.querySelectorAll('[data-form-row]');
-      rows.forEach((row, idx) => {
-        row.querySelectorAll('input, select, textarea, label').forEach(el => {
-          if (el.name) el.name = el.name.replace(/pick-(\d+)-/g, `pick-${idx}-`);
-          if (el.id)   el.id   = el.id.replace(/pick-(\d+)-/g, `pick-${idx}-`);
-          if (el.hasAttribute('for'))
-            el.setAttribute('for', el.getAttribute('for').replace(/pick-(\d+)-/g, `pick-${idx}-`));
-        });
-      });
-      if (totalInput) totalInput.value = String(rows.length);
-      updateRowHints();
-    }
-
-    function cloneLastRow(silent) {
-      const rows = form.querySelectorAll('[data-form-row]');
-      if (!rows.length) return;
-      const last = rows[rows.length - 1];
-      const clone = last.cloneNode(true);
-
-      clone.querySelectorAll('input,select,textarea').forEach(el => {
-        if (el.type === 'checkbox') el.checked = false;
-        else el.value = '';
-      });
-      clone.removeAttribute('data-notfound');
-
-      last.parentNode.insertBefore(clone, last.nextSibling);
-      renumberForms();
-      if (!silent) saveDraft();
-    }
-    if (addBtn) addBtn.addEventListener('click', () => cloneLastRow(false));
-
-    // удаление
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-remove]');
-      if (!btn) return;
-      const row = btn.closest('[data-form-row]');
-      if (!row) return;
-
-      const idField  = row.querySelector('input[name$="-id"]');
-      const delField = row.querySelector('input[name$="-DELETE"]');
-      const hasExistingId = idField && idField.value;
-
-      if (hasExistingId && delField) {
-        delField.checked = true;
-        row.style.display = 'none';
-      } else {
-        row.remove();
-        renumberForms();
-      }
-      renderPreview();
-      saveDraft();
+    const list = rows();
+    data.forEach((d, i) => {
+      const r = list[i];
+      const set = (sel, v) => { const el = r.querySelector(sel); if (el) el.value = v || ''; };
+      set('[name$="-barcode"]',  d.barcode);
+      set('[name$="-name"]',     d.name);
+      set('[name$="-location"]', d.location);
+      set('[name$="-unit"]',     d.unit);
+      set('[name$="-qty"]',      d.qty);
+      set('[name$="-price"]',    d.price);
+      if (d.notfound) r.setAttribute('data-notfound', '1'); else r.removeAttribute('data-notfound');
     });
 
-    // ---------- Barcode lookup ----------
-    document.addEventListener('input', async (e) => {
-      const el = e.target;
-      if (!el.closest('#pickForm')) return;
-
-      // любое изменение — сразу подсказки + автосейв
-      updateRowHints();
-      saveDraft();
-
-      if (!el.name || !el.name.endsWith('-barcode')) {
-        renderPreview();
-        return;
-      }
-
-      const row = el.closest('[data-form-row]');
-      if (row) row.removeAttribute('data-notfound'); // сбрасываем флаг
-
-      const bc = el.value.trim();
-      if (bc.length < 6) { renderPreview(); updateRowHints(); return; }
-
-      try {
-        const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
-        if (!resp.ok) {
-          if (row) row.setAttribute('data-notfound', '1');
-          updateRowHints(); saveDraft();
-          return;
-        }
-        const data = await resp.json();
-        if (!data.ok) {
-          if (row) row.setAttribute('data-notfound', '1');
-          updateRowHints(); saveDraft();
-          return;
-        }
-
-        if (!row) return;
-        const nameEl = row.querySelector('[name$="-name"]');
-        const locEl  = row.querySelector('[name$="-location"]');
-        const unitEl = row.querySelector('[name$="-unit"]');
-        const qtyEl  = row.querySelector('[name$="-qty"]');
-
-        if (nameEl) nameEl.value = data.name || '';
-        if (locEl)  locEl.value  = data.location || '';
-        if (unitEl) unitEl.value = data.unit || '';
-        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
-
-        row.removeAttribute('data-notfound');
-      } catch (_) {
-        if (row) row.setAttribute('data-notfound', '1');
-      }
-
-      renderPreview();
-      updateRowHints();
-      saveDraft();
-    });
-
-    // ---------- Preview ----------
-    function renderPreview() {
-      const rows = [...form.querySelectorAll('[data-form-row]')].filter(r => r.style.display !== 'none');
-      const items = rows.map(r => {
-        const n = r.querySelector('[name$="-name"]')?.value?.trim();
-        const q = r.querySelector('[name$="-qty"]')?.value?.trim();
-        const u = r.querySelector('[name$="-unit"]')?.value?.trim();
-        const p = r.querySelector('[name$="-price"]')?.value?.trim();
-        if (!n && !q && !p) return null;
-        return { n, q, u, p };
-      }).filter(Boolean);
-
-      preview.innerHTML = '';
-      if (!items.length) {
-        preview.innerHTML = '<li class="text-gray-400">Пока пусто</li>';
-        return;
-      }
-      items.forEach(it => {
-        const li = document.createElement('li');
-        li.textContent = `${it.n || '—'} — ${it.q || 0} ${it.u || ''}${it.p ? ` · ${it.p}` : ''}`;
-        preview.appendChild(li);
-      });
-    }
-
-    // ---------- Hints (только после ввода штрихкода) ----------
-    function updateRowHints() {
-      form.querySelectorAll('[data-form-row]').forEach(row => {
-        const hint = row.querySelector('.loc-hint');               // у operator/director
-        const locInput = row.querySelector('[name$="-location"]');
-        const bcInput  = row.querySelector('[name$="-barcode"]');
-        if (!locInput || !bcInput) return;
-
-        const barcodeFilled = !!bcInput.value.trim();              // штрихкод введён?
-        const emptyLoc = !locInput.value.trim();                   // ячейка пустая?
-        const notFound = row.hasAttribute('data-notfound');        // не найден по API?
-        const show = barcodeFilled && (emptyLoc || notFound);      // правило показа
-
-        if (hint) hint.classList.toggle('hidden', !show);
-        locInput.classList.toggle('field-error', show);            // красная рамка — только при проблеме
-      });
-    }
-
-    // ---------- AJAX save ----------
-    async function saveFormAjax() {
-      if (!form) return;
-      saveBtn.disabled = true;
-      const fd = new FormData(form);
-
-      try {
-        const resp = await fetch(form.action, {
-          method: 'POST',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-          body: fd
-        });
-        if (!resp.ok) throw new Error('Server error');
-        clearDraft(); // сервер принял — черновик больше не нужен
-        closeModal();
-      } catch (err) {
-        alert('Не удалось сохранить. Проверьте соединение или поля формы.');
-      } finally {
-        saveBtn.disabled = false;
-      }
-    }
-    if (saveBtn) saveBtn.addEventListener('click', saveFormAjax);
-
-    // ---------- Start ----------
-    if (totalInput) totalInput.value = String(form.querySelectorAll('[data-form-row]').length);
     renderPreview();
     updateRowHints();
-  })();
-</script>
+  }
 
+  // ---------- draft ----------
+  function saveDraft() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const payload = { rows: getRowsData(), ts: Date.now() };
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(payload)); } catch (_) {}
+    }, 120);
+  }
+  function loadDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.rows)) return null;
+      // Только если есть реально непустые строки
+      const hasMeaning = parsed.rows.some(d => d.barcode || d.name || d.location || d.qty || d.price);
+      return hasMeaning ? parsed.rows : null;
+    } catch (_) { return null; }
+  }
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+  }
+
+  // ---------- modal ----------
+  function openModal() {
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+    document.body.classList.add('modal-open');
+
+    // ВОССТАНОВЛЕНИЕ ЧЕРНОВИКА:
+    //  - текущее состояние пустое
+    //  - на сервере сейчас пусто (serverPickCount == 0)
+    //  - в storage есть непустой черновик
+    const isEmptyNow = rowsAreAllEmpty();
+    if (isEmptyNow && serverPickCount === 0) {
+      const draft = loadDraft();
+      if (draft) setRowsData(draft);
+    }
+
+    renderPreview(); updateRowHints();
+    const first = modal.querySelector('input,select,textarea,button'); if (first) first.focus();
+  }
+  function closeModal() {
+    // Если всё пусто — очищаем storage. Иначе сохраняем.
+    if (rowsAreAllEmpty()) clearDraft(); else saveDraft();
+    modal.classList.add('hidden'); modal.classList.remove('flex');
+    document.body.classList.remove('modal-open');
+    renderPreview();
+  }
+  if (openBtn) openBtn.addEventListener('click', openModal);
+  modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (!modal.classList.contains('hidden') && e.key === 'Escape') closeModal(); });
+
+  // ---------- formset ----------
+  function renumberForms() {
+    rows().forEach((row, idx) => {
+      row.querySelectorAll('input, select, textarea, label').forEach(el => {
+        if (el.name) el.name = el.name.replace(/pick-(\d+)-/g, `pick-${idx}-`);
+        if (el.id)   el.id   = el.id.replace(/pick-(\d+)-/g, `pick-${idx}-`);
+        if (el.hasAttribute('for'))
+          el.setAttribute('for', el.getAttribute('for').replace(/pick-(\d+)-/g, `pick-${idx}-`));
+      });
+    });
+    if (totalInput) totalInput.value = String(rows().length);
+    updateRowHints();
+  }
+
+  function cloneLastRow(silent) {
+    const r = rows(); if (!r.length) return;
+    const last = r[r.length - 1];
+    const clone = last.cloneNode(true);
+    clone.querySelectorAll('input,select,textarea').forEach(el => {
+      if (el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    });
+    clone.removeAttribute('data-notfound');
+    last.parentNode.insertBefore(clone, last.nextSibling);
+    renumberForms();
+    if (!silent) saveDraft();
+  }
+  if (addBtn) addBtn.addEventListener('click', () => cloneLastRow(false));
+
+  // удаление
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove]'); if (!btn) return;
+    const row = btn.closest('[data-form-row]'); if (!row) return;
+
+    const idField  = row.querySelector('input[name$="-id"]');
+    const delField = row.querySelector('input[name$="-DELETE"]');
+    const hasExistingId = idField && idField.value;
+
+    if (hasExistingId && delField) { delField.checked = true; row.style.display = 'none'; }
+    else { row.remove(); renumberForms(); }
+
+    renderPreview();
+    // если стало пусто — чистим storage, иначе сохраняем обновлённый черновик
+    if (rowsAreAllEmpty()) clearDraft(); else saveDraft();
+  });
+
+  // ---------- async lookups + автосейв ----------
+  document.addEventListener('input', async (e) => {
+    const el = e.target;
+    if (!el.closest('#pickForm')) return;
+
+    updateRowHints();
+    saveDraft();
+
+    if (!el.name || !el.name.endsWith('-barcode')) { renderPreview(); return; }
+
+    const row = el.closest('[data-form-row]');
+    if (row) row.removeAttribute('data-notfound');
+
+    const bc = el.value.trim();
+    if (bc.length < 6) { renderPreview(); updateRowHints(); return; }
+
+    try {
+      const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
+      if (!resp.ok) { row?.setAttribute('data-notfound', '1'); updateRowHints(); saveDraft(); return; }
+      const data = await resp.json();
+      if (!data.ok) { row?.setAttribute('data-notfound', '1'); updateRowHints(); saveDraft(); return; }
+
+      if (!row) return;
+      const set = (sel, v) => { const el = row.querySelector(sel); if (el) el.value = v || ''; };
+      set('[name$="-name"]', data.name);
+      set('[name$="-location"]', data.location);
+      set('[name$="-unit"]', data.unit);
+      const qtyEl = row.querySelector('[name$="-qty"]'); if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+
+      row.removeAttribute('data-notfound');
+    } catch (_) {
+      row?.setAttribute('data-notfound', '1');
+    }
+
+    renderPreview(); updateRowHints(); saveDraft();
+  });
+
+  // ---------- preview ----------
+  function renderPreview() {
+    const list = rows().map(r => {
+      const n = r.querySelector('[name$="-name"]')?.value?.trim();
+      const q = r.querySelector('[name$="-qty"]')?.value?.trim();
+      const u = r.querySelector('[name$="-unit"]')?.value?.trim();
+      const p = r.querySelector('[name$="-price"]')?.value?.trim();
+      if (!n && !q && !p) return null;
+      return { n, q, u, p };
+    }).filter(Boolean);
+
+    preview.innerHTML = '';
+    if (!list.length) {
+      preview.innerHTML = '<li class="text-gray-400">Пока пусто</li>';
+      return;
+    }
+    list.forEach(it => {
+      const li = document.createElement('li');
+      li.textContent = `${it.n || '—'} — ${it.q || 0} ${it.u || ''}${it.p ? ` · ${it.p}` : ''}`;
+      preview.appendChild(li);
+    });
+  }
+
+  // ---------- hints ----------
+  function updateRowHints() {
+    rows().forEach(row => {
+      const hint = row.querySelector('.loc-hint');
+      const loc  = row.querySelector('[name$="-location"]');
+      const bc   = row.querySelector('[name$="-barcode"]');
+      if (!loc || !bc) return;
+
+      const show = !!bc.value.trim() && (!loc.value.trim() || row.hasAttribute('data-notfound'));
+      if (hint) hint.classList.toggle('hidden', !show);
+      loc.classList.toggle('field-error', show);
+    });
+  }
+
+  // ---------- ajax save ----------
+  async function saveFormAjax() {
+    if (!form) return;
+    saveBtn.disabled = true;
+    const fd = new FormData(form);
+    try {
+      const resp = await fetch(form.action, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd });
+      if (!resp.ok) throw new Error('Server error');
+      clearDraft();     // сервер принял — черновик больше не нужен
+      closeModal();
+      location.reload(); // чтобы превью и статусы обновились
+    } catch (err) {
+      alert('Не удалось сохранить. Проверьте соединение или поля формы.');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+  if (saveBtn) saveBtn.addEventListener('click', saveFormAjax);
+
+  // ---------- init ----------
+  if (totalInput) totalInput.value = String(rows().length);
+  renderPreview(); updateRowHints();
+})();
+</script>

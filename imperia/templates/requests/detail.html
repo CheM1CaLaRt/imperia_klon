@@ -223,9 +223,9 @@
                 <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
               {% else %}
                 <button type="button" class="btn"
-                        onclick="document.getElementById('pick-section')?.scrollIntoView({behavior:'smooth'})">
-                  В сборку (склад)
-                </button>
+        onclick="document.getElementById('openPickModal')?.click()">
+  Перейти к сборке (склад)
+</button>
               {% endif %}
             {% elif obj.status == "rejected" %}
               <button class="btn" name="to" value="quote">КП</button>
@@ -266,9 +266,9 @@
                   <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
                 {% else %}
                   <button type="button" class="btn"
-                          onclick="document.getElementById('pick-section')?.scrollIntoView({behavior:'smooth'})">
-                    В сборку (склад)
-                  </button>
+        onclick="document.getElementById('openPickModal')?.click()">
+  Перейти к сборке (склад)
+</button>
                 {% endif %}
               {% else %}
                 <button class="btn" name="to" value="to_pick">В сборку (склад)</button>

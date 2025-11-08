@@ -64,13 +64,12 @@ def request_pick_section(request, pk: int):
 def pick_submit(request, pk: int):
     """
     Принимает форму сборки.
-    commit=save -> сохранить черновик без смены статуса
-    commit=send -> сохранить и (если нужно) перевести в TO_PICK
+    commit=save -> сохранить (в т.ч. можно очистить лист сборки)
+    commit=send -> сохранить и перевести в TO_PICK (только если есть позиции)
     """
     req = get_object_or_404(Request, pk=pk)
     commit = (request.POST.get("commit") or "save").lower()
 
-    # Собираем валидные строки из формсета
     items = []
 
     if PickItemFormSet is not None:
@@ -92,7 +91,6 @@ def pick_submit(request, pk: int):
                     "price":    cd.get("price") or 0,
                 })
     else:
-        # fallback без формсета
         try:
             total = int(request.POST.get("pick-TOTAL_FORMS", 0))
         except ValueError:
@@ -114,17 +112,27 @@ def pick_submit(request, pk: int):
                     "barcode": bc, "name": nm, "location": loc, "unit": unit, "qty": qty, "price": pr
                 })
 
+    # ---- если позиций нет ----
     if not items:
-        messages.error(request, "Добавьте хотя бы одну позицию для сборки.")
+        if commit == "send":
+            messages.error(request, "Нельзя отправить на склад пустой лист сборки.")
+            return redirect("core:request_detail", pk=pk)
+
+        # commit=save: трактуем как очистку листа сборки
+        deleted = PickItem.objects.filter(request=req).delete()[0]
+        RequestHistory.objects.create(
+            request=req, author=request.user,
+            from_status=req.status, to_status=req.status,
+            note=f"Очищен лист сборки (удалено позиций: {deleted}).",
+        )
+        messages.success(request, "Лист сборки очищен.")
         return redirect("core:request_detail", pk=pk)
 
-    # --- Сохраняем строки в БД (простая стратегия: заменить всё целиком) ---
+    # ---- сохраняем новые позиции (перезапись) ----
     PickItem.objects.filter(request=req).delete()
-    PickItem.objects.bulk_create([
-        PickItem(request=req, **it) for it in items
-    ])
+    PickItem.objects.bulk_create([PickItem(request=req, **it) for it in items])
 
-    # --- Поведение по commit ---
+    # ---- поведение по commit ----
     if commit == "send":
         if req.status not in (RequestStatus.APPROVED, RequestStatus.TO_PICK):
             messages.error(request, "Заявка должна быть в статусе «Согласована».")
@@ -155,3 +163,4 @@ def pick_submit(request, pk: int):
         messages.success(request, "Черновик листа сборки сохранён.")
 
     return redirect("core:request_detail", pk=pk)
+

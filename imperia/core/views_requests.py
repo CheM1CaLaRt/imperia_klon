@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 import re
 from mimetypes import guess_type
 
+
 from django.contrib import messages
 from django.db.models import Q, ForeignKey, OneToOneField, ManyToManyField
 from django.http import HttpResponseBadRequest, FileResponse, Http404
@@ -27,6 +28,8 @@ from .models_requests import (
     RequestHistory,
     RequestQuote,
 )
+from django.db.models import Prefetch
+from .models_pick import PickItem
 
 # ✅ безопасный импорт формсета сборки (операторская секция)
 try:
@@ -156,17 +159,21 @@ def request_create(request):
 # ---------- Детали заявки ----------
 @require_groups("manager", "operator", "warehouse", "director")
 def request_detail(request, pk: int):
-    # подтянем все нужные связи + pick_items для одной выборки
+    # Заявка + связанные данные, pick_items сразу в нужном порядке
     obj = get_object_or_404(
-        Request.objects.select_related(
-            "initiator", "assignee", "counterparty"
-        ).prefetch_related("items", "history", "comments", "pick_items"),
+        Request.objects
+        .select_related("initiator", "assignee", "counterparty")
+        .prefetch_related(
+            "items", "history", "comments",
+            Prefetch("pick_items", queryset=PickItem.objects.order_by("id")),
+        ),
         pk=pk,
     )
 
+    # Форма добавления позиции
     item_form = RequestItemForm()
 
-    # inline-редактирование
+    # Inline-редактирование позиции
     edit_item = None
     edit_form = None
     edit_id = request.GET.get("edit")
@@ -177,9 +184,10 @@ def request_detail(request, pk: int):
         except (ValueError, RequestItem.DoesNotExist):
             pass
 
+    # Форма КП
     quote_form = RequestQuoteForm()
 
-    # --- сборка: форма для оператора/директора при статусе approved ---
+    # --- СЕКЦИЯ СБОРКИ (оператор/директор, только в статусе approved) ---
     try:
         from .forms_pick import PickItemFormSet
     except Exception:
@@ -189,9 +197,9 @@ def request_detail(request, pk: int):
     can_pick = _in_groups(request.user, ["operator", "director"])
     show_pick_section = bool(PickItemFormSet and can_pick and is_approved)
 
-    # Подставляем сохранённые строки в формсет (если показываем секцию)
     pick_formset = None
     if show_pick_section:
+        # Подставляем сохранённые строки в формсет
         initial = [
             {
                 "barcode": it.barcode,
@@ -201,18 +209,18 @@ def request_detail(request, pk: int):
                 "qty": it.qty,
                 "price": it.price,
             }
-            for it in obj.pick_items.all().order_by("id")
-        ]
-        pick_formset = PickItemFormSet(prefix="pick", initial=initial or [{}])
+            for it in obj.pick_items.all()
+        ] or [{}]
+        pick_formset = PickItemFormSet(prefix="pick", initial=initial)
 
-    # --- список «к сборке» для склада/просмотра ---
-    # вместо PickList берём напрямую сохранённые PickItem
+    # Список строк сборки для превью/склада
     pick_items = list(
-        obj.pick_items.order_by("id").values("barcode", "name", "location", "unit", "qty", "price")
+        obj.pick_items.values("barcode", "name", "location", "unit", "qty", "price")
     )
 
-    # шаблон раньше ожидал latest_pick — оставим None для совместимости
-    latest_pick = None
+    # ВАЖНО: latest_pick теперь truthy, если строки сборки есть
+    # (можно оставить объект первой строки — шаблону важна «истина»)
+    latest_pick = obj.pick_items.first()
 
     return render(
         request,
@@ -224,10 +232,12 @@ def request_detail(request, pk: int):
             "edit_form": edit_form,
             "quote_form": quote_form,
             "statuses": RequestStatus,
+
             "show_pick_section": show_pick_section,
             "pick_formset": pick_formset,
-            "latest_pick": latest_pick,   # совместимость со старым шаблоном
-            "pick_items": pick_items,     # теперь всегда из obj.pick_items
+
+            "pick_items": pick_items,
+            "latest_pick": latest_pick,  # <-- теперь условие {% if latest_pick %} сработает
         },
     )
 
