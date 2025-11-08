@@ -224,7 +224,7 @@
               {% else %}
                 <button type="button" class="btn"
         onclick="document.getElementById('openPickModal')?.click()">
-  Перейти к сборке (склад)
+  Перейти к сборке на склад
 </button>
               {% endif %}
             {% elif obj.status == "rejected" %}
@@ -267,11 +267,9 @@
                 {% else %}
                   <button type="button" class="btn"
         onclick="document.getElementById('openPickModal')?.click()">
-  Перейти к сборке (склад)
+  Перейти к сборке на склад
 </button>
                 {% endif %}
-              {% else %}
-                <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
               {% endif %}
 
               <button class="btn" name="to" value="in_progress">В работу</button>
