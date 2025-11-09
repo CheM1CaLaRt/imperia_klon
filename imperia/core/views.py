@@ -497,11 +497,13 @@ def put_away_view(request, pk: int):
     warehouse = get_object_or_404(Warehouse, pk=pk)
 
     if request.method == "POST":
-        bin_code   = (request.POST.get("bin_code") or "").strip()
+        # <<< ВАЖНО: поддерживаем оба имени поля из формы >>>
+        bin_code   = (request.POST.get("bin") or request.POST.get("bin_code") or "").strip()
         barcode    = (request.POST.get("barcode") or "").strip()
         qty_str    = (request.POST.get("qty") or "").strip()
-        create_bin = request.POST.get("create_bin", "") == "on"
+        create_bin = (request.POST.get("create_bin") == "on")
 
+        # qty
         try:
             qty = Decimal(qty_str.replace(",", "."))
         except Exception:
@@ -511,12 +513,14 @@ def put_away_view(request, pk: int):
             messages.error(request, "Количество должно быть > 0.")
             return redirect("put_away", pk=warehouse.pk)
 
+        # товар
         try:
             product = Product.objects.select_for_update().get(barcode=barcode)
         except Product.DoesNotExist:
             messages.error(request, f"Товар со штрихкодом {barcode} не найден.")
             return redirect("put_away", pk=warehouse.pk)
 
+        # ячейка (может быть пустой)
         bin_obj = None
         if bin_code:
             bin_obj = (StorageBin.objects.select_for_update()
@@ -529,11 +533,15 @@ def put_away_view(request, pk: int):
                 else:
                     messages.error(request, f"Ячейка {bin_code} не найдена.")
                     return redirect("put_away", pk=warehouse.pk)
+            elif hasattr(bin_obj, "is_active") and not bin_obj.is_active:
+                # авто-активация при первом использовании
+                bin_obj.is_active = True
+                bin_obj.save(update_fields=["is_active"])
 
+        # накапливаем остаток (объединяем дубли)
         qs = (Inventory.objects.select_for_update()
               .filter(warehouse=warehouse, product=product, bin=bin_obj)
               .order_by("pk"))
-
         inv = qs.first()
         if inv:
             total_existing = qs.aggregate(s=Sum("quantity"))["s"] or Decimal("0")
@@ -541,15 +549,15 @@ def put_away_view(request, pk: int):
             inv.quantity = total_existing + qty
             inv.save(update_fields=["quantity", "updated_at"])
         else:
-            inv = Inventory.objects.create(
+            Inventory.objects.create(
                 warehouse=warehouse, product=product, bin=bin_obj, quantity=qty
             )
 
+        # движение
         const = movement_const(StockMovement)
-        field_names = {f.name for f in StockMovement._meta.get_fields() if hasattr(f, "attname")}
-        mtype_field = "movement_type" if "movement_type" in field_names else ("type" if "type" in field_names else None)
-        actor_field = "actor" if "actor" in field_names else ("performed_by" if "performed_by" in field_names else None)
-
+        mtype_field = "movement_type" if hasattr(StockMovement, "movement_type") else (
+            "type" if hasattr(StockMovement, "type") else None
+        )
         kwargs = dict(
             warehouse=warehouse,
             bin_from=None,
@@ -559,13 +567,18 @@ def put_away_view(request, pk: int):
         )
         if mtype_field:
             kwargs[mtype_field] = const["IN"]
-        if actor_field:
-            kwargs[actor_field] = request.user
-
+        if hasattr(StockMovement, "actor"):
+            kwargs["actor"] = request.user
+        elif hasattr(StockMovement, "performed_by"):
+            kwargs["performed_by"] = request.user
         StockMovement.objects.create(**kwargs)
 
         messages.success(request, "Товар размещён.")
-        return redirect("warehouse_detail", pk=warehouse.pk)
+        # вернёмся на склад и сразу покажем нужную ячейку
+        url = reverse("warehouse_detail", args=[warehouse.pk])
+        if bin_code:
+            url += f"?bin={bin_code}"
+        return redirect(url)
 
     return render(request, "core/put_away.html", {"warehouse": warehouse})
 
