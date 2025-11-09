@@ -400,23 +400,51 @@ def warehouse_list(request):
 @login_required
 @group_required("warehouse", "director")
 def warehouse_detail(request, pk: int):
-    """
-    Современная версия карточки склада:
-      - фильтр по ячейке (повторный клик снимает фильтр),
-      - поиск по штрихкоду/названию,
-      - стабильная сортировка всех колонок.
-    Параметры: ?bin=CODE&q=...&o=bin|-bin|barcode|-barcode|product|-product|qty|-qty|updated|-updated
-    """
     warehouse = get_object_or_404(Warehouse, pk=pk)
 
     active_bin = (request.GET.get("bin") or "").strip()
     q = (request.GET.get("q") or "").strip()
     order = (request.GET.get("o") or "").strip()
 
-    bins = StorageBin.objects.filter(warehouse=warehouse, is_active=True).order_by("code")
+    # единый DecimalField для агрегатов по количеству
+    qty_field = DecimalField(max_digits=18, decimal_places=3)
 
+    # --- ЯЧЕЙКИ: показываем ВСЕ (активные и неактивные) + статистика ---
+    bins = (
+        StorageBin.objects
+        .filter(warehouse=warehouse)  # ← без is_active=True
+        .annotate(
+            qty_sum=Coalesce(
+                Sum(
+                    "inventory__quantity",
+                    filter=Q(inventory__quantity__gt=0),
+                    output_field=qty_field,
+                ),
+                Value(0, output_field=qty_field),
+            ),
+            product_count=Coalesce(
+                Count(
+                    "inventory__product",
+                    filter=Q(inventory__quantity__gt=0),
+                    distinct=True,
+                ),
+                Value(0, output_field=IntegerField()),
+            ),
+            items_count=Coalesce(
+                Count(
+                    "inventory__id",
+                    filter=Q(inventory__quantity__gt=0),
+                ),
+                Value(0, output_field=IntegerField()),
+            ),
+        )
+        .order_by("code")
+    )
+
+    # --- ОСТАТКИ ---
     inv = (
-        Inventory.objects.select_related("bin", "product")
+        Inventory.objects
+        .select_related("bin", "product")
         .filter(warehouse=warehouse, quantity__gt=0)
     )
 
@@ -431,16 +459,21 @@ def warehouse_detail(request, pk: int):
 
     inv = _qs_with_order(inv, order)
 
-    # метрики для шапки
+    # --- Метрики шапки (считаем все ячейки, как теперь и показываем) ---
     metrics = {
         "bins_count": StorageBin.objects.filter(warehouse=warehouse).count(),
-        "positions": (Inventory.objects
-                      .filter(warehouse=warehouse, quantity__gt=0)
-                      .values("product").distinct().count()),
-        "updated": (Inventory.objects
-                    .filter(warehouse=warehouse)
-                    .order_by("-updated_at")
-                    .values_list("updated_at", flat=True).first()),
+        "positions": (
+            Inventory.objects
+            .filter(warehouse=warehouse, quantity__gt=0)
+            .values("product").distinct().count()
+        ),
+        "updated": (
+            Inventory.objects
+            .filter(warehouse=warehouse)
+            .order_by("-updated_at")
+            .values_list("updated_at", flat=True)
+            .first()
+        ),
     }
 
     ctx = {
@@ -453,6 +486,8 @@ def warehouse_detail(request, pk: int):
         **metrics,
     }
     return render(request, "core/warehouse_detail.html", ctx)
+
+
 
 
 @login_required

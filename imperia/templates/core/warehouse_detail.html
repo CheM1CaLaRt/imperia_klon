@@ -62,11 +62,10 @@
 
 {# ---------- Ячейки ---------- #}
 
-
 <h2 class="text-xl font-semibold mb-2">Ячейки</h2>
-    {% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
-      <a class="btn" href="{% url 'bin_create' warehouse.pk %}">+ Ячейка</a>
-    {% endif %}
+{% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
+  <a class="btn" href="{% url 'bin_create' warehouse.pk %}">+ Ячейка</a>
+{% endif %}
 
 {% if request.GET.bin %}
   <div class="mb-3 text-sm">
@@ -84,9 +83,11 @@
 <div class="flex flex-wrap gap-2 mb-6">
   {% for b in bins %}
     <div
-      class="inline-flex items-center gap-2 rounded-2xl border bg-white px-3 py-2
-             {% if request.GET.bin and request.GET.bin == b.code %} bg-blue-50 ring-1 ring-blue-200 {% else %} hover:bg-gray-50 {% endif %}">
-
+      class="inline-flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 transition
+             {% if not b.is_active %} opacity-70 border-dashed {% endif %}
+             {% if request.GET.bin and request.GET.bin == b.code %} bg-blue-50 ring-1 ring-blue-200 {% else %} hover:bg-gray-50 {% endif %}"
+      {% if not b.is_active %} title="Ячейка неактивна" {% endif %}
+    >
       {# левая кликабельная часть — фильтр по ячейке #}
       <a
         href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}bin={{ b.code }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}"
@@ -94,9 +95,24 @@
         title="Показать только ячейку {{ b.code }}"
       >
         <div class="leading-tight">
-          <div class="font-mono font-medium truncate max-w-[160px]">{{ b.code }}</div>
+          <div class="font-mono font-medium truncate max-w-[180px]">
+            {{ b.code }}
+            {% if not b.is_active %}
+              <span class="ml-1 align-middle text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">
+                неактивна
+              </span>
+            {% endif %}
+          </div>
           {% if b.description %}
-            <div class="text-[11px] text-gray-500 truncate max-w-[160px]">{{ b.description }}</div>
+            <div class="text-[11px] text-gray-500 truncate max-w-[180px]">{{ b.description }}</div>
+          {% endif %}
+          {# мини-статистика, если есть данные #}
+          {% if b.product_count or b.qty_sum %}
+            <div class="mt-0.5 text-[11px] text-gray-500">
+              {% if b.product_count %}Позиции: {{ b.product_count }}{% endif %}
+              {% if b.product_count and b.qty_sum %} • {% endif %}
+              {% if b.qty_sum %}Кол-во: {{ b.qty_sum|floatformat:0 }}{% endif %}
+            </div>
           {% endif %}
         </div>
       </a>
@@ -113,7 +129,7 @@
             onclick="event.stopPropagation();"
           >Изм.</a>
 
-          {# УДАЛЕНИЕ: все данные на форме, обработчик — общий (см. <script> ниже) #}
+          {# УДАЛЕНИЕ: блокируется скриптом, если есть товар #}
           <form method="post"
                 action="{% url 'bin_delete' warehouse.pk b.pk %}"
                 class="bin-delete-form"
@@ -131,6 +147,7 @@
     <p>Нет ячеек</p>
   {% endfor %}
 </div>
+
 
 {# ---- Модалка "удаление недоступно" ---- #}
 <dialog id="bin-block-modal" class="rounded-2xl p-0 w-[min(520px,92vw)] shadow-2xl backdrop:bg-black/30">
