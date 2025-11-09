@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.views.decorators.http import require_GET, require_POST
-
+from django.shortcuts import render, get_object_or_404
 from .permissions import require_groups
 from .models import Product, Inventory
 from .models_requests import Request, RequestStatus, RequestHistory
-from .models_pick import PickItem  # <-- НОВОЕ
+import json
+from django.views.decorators.http import require_POST
+from django.db import transaction
+from .models_pick import PickItem, PickResult, PickResultItem
+
 
 # --- формы (формсет сборки) ---
 try:
@@ -163,4 +167,52 @@ def pick_submit(request, pk: int):
         messages.success(request, "Черновик листа сборки сохранён.")
 
     return redirect("core:request_detail", pk=pk)
+
+@require_POST
+@require_groups("warehouse", "director")
+def pick_confirm(request, pk: int):
+    """Сохраняем прогресс скан-сборки (черновик)."""
+    req = get_object_or_404(Request, pk=pk)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"ok": False, "error": "bad_json"}, status=400)
+
+    lines = payload.get("lines") or []
+    if not isinstance(lines, list):
+        return JsonResponse({"ok": False, "error": "bad_payload"}, status=400)
+
+    # мапа по штрихкоду
+    want = { (l.get("barcode") or "").strip(): l for l in lines if l.get("barcode") }
+
+    items = list(PickItem.objects.filter(request=req, barcode__in=want.keys()))
+    for it in items:
+        l = want.get(it.barcode) or {}
+        it.picked_qty = max(0, int(l.get("picked_qty") or 0))
+        it.missing    = bool(l.get("missing"))
+        it.note       = (l.get("note") or "")[:255]
+
+    if items:
+        PickItem.objects.bulk_update(items, ["picked_qty", "missing", "note", "updated_at"])
+
+    RequestHistory.objects.create(
+        request=req, author=request.user,
+        from_status=req.status, to_status=req.status,
+        note=f"Сохранён черновик скан-сборки: {len(items)} строк."
+    )
+
+    return JsonResponse({"ok": True})
+
+@require_GET
+@require_groups("operator", "director", "warehouse")
+def pick_print(request, pk: int):
+    req = get_object_or_404(Request, pk=pk)
+    items = (PickItem.objects
+             .filter(request=req)
+             .order_by("name", "barcode"))
+    return render(request, "core/pick_print.html", {
+        "obj": req,
+        "items": items,
+    })
 

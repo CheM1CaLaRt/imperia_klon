@@ -70,4 +70,11 @@ urlpatterns = [
     path("requests/<int:pk>/pick/", vp.request_pick_section, name="request_pick_section"),
     path("requests/<int:pk>/pick/submit/", vp.pick_submit, name="pick_submit"),
     path("api/stock/lookup/", vp.stock_lookup_by_barcode, name="stock_lookup_by_barcode"),
+
+    path(
+        "requests/<int:pk>/pick/confirm/",
+        vp.pick_confirm,
+        name="pick_confirm",  # <— БЕЗ двоеточия в имени!
+    ),
+    path("requests/<int:pk>/pick/print/",   vp.pick_print,   name="pick_print"),
 ]

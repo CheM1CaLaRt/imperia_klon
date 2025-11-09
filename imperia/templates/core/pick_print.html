@@ -1,0 +1,62 @@
+{# templates/core/pick_print.html #}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Лист сборки №{{ obj.id }}</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font:14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;color:#000}
+    .wrap{max-width:980px;margin:0 auto;padding:20px}
+    h1{font-size:18px;margin:0 0 8px}
+    .muted{color:#333}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:6px 8px;border:1px solid #000}
+    th{text-align:left;font-weight:600}
+    .right{text-align:right}
+    .footer{margin-top:16px;display:flex;gap:16px}
+    @media print{.noprint{display:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="noprint" style="margin-bottom:12px">
+      <button onclick="window.print()">Печать</button>
+    </div>
+
+    <h1>Лист сборки №{{ obj.id }}</h1>
+    <div class="muted">Заявка: {{ obj.title }} • Создан: {{ obj.created_at|date:"d.m.Y H:i" }}</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ШК</th>
+          <th>Название</th>
+          <th>Ячейка</th>
+          <th>Ед.</th>
+          <th class="right">Кол-во</th>
+          <th>Отметка склада</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for it in items %}
+        <tr>
+          <td>{{ it.barcode }}</td>
+          <td>{{ it.name }}</td>
+          <td>{{ it.location|default:"—" }}</td>
+          <td>{{ it.unit }}</td>
+          <td class="right">{{ it.qty }}</td>
+          <td style="width:180px"></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <div>Кладовщик: ____________________</div>
+      <div>Дата/время: ____________________</div>
+    </div>
+  </div>
+  <script>window.addEventListener('load',()=>{ if(!window.opener) setTimeout(()=>window.print(),100); });</script>
+</body>
+</html>

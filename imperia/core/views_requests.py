@@ -2,8 +2,7 @@
 from decimal import Decimal, InvalidOperation
 import re
 from mimetypes import guess_type
-
-
+from django.urls import reverse
 from django.contrib import messages
 from django.db.models import Q, ForeignKey, OneToOneField, ManyToManyField
 from django.http import HttpResponseBadRequest, FileResponse, Http404
@@ -213,14 +212,20 @@ def request_detail(request, pk: int):
         ] or [{}]
         pick_formset = PickItemFormSet(prefix="pick", initial=initial)
 
-    # Список строк сборки для превью/склада
+    # Список строк сборки для превью/склада.
+    # ДОБАВЛЕНО: picked_qty, missing, note — чтобы модалка подставляла сохранённые значения.
     pick_items = list(
-        obj.pick_items.values("barcode", "name", "location", "unit", "qty", "price")
+        obj.pick_items.values(
+            "barcode", "name", "location", "unit", "qty", "price",
+            "picked_qty", "missing", "note"
+        )
     )
 
-    # ВАЖНО: latest_pick теперь truthy, если строки сборки есть
-    # (можно оставить объект первой строки — шаблону важна «истина»)
+    # Истина, если строки сборки есть (шаблону важен сам факт)
     latest_pick = obj.pick_items.first()
+
+    # URL приёма сохранения скан-сборки (без двоеточий в имени)
+    pick_confirm_url = reverse("core:pick_confirm", args=[obj.pk])
 
     return render(
         request,
@@ -237,7 +242,8 @@ def request_detail(request, pk: int):
             "pick_formset": pick_formset,
 
             "pick_items": pick_items,
-            "latest_pick": latest_pick,  # <-- теперь условие {% if latest_pick %} сработает
+            "latest_pick": latest_pick,
+            "pick_confirm_url": pick_confirm_url,
         },
     )
 

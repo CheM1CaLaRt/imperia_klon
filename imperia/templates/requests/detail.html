@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load access %}
+{% load static access %}
 {% block title %}Заявка #{{ obj.number }}{% endblock %}
 
 {% block content %}
@@ -150,7 +151,10 @@
       {% if latest_pick and pick_items %}
         <div class="mt-6 border border-gray-200 rounded-xl">
           <div class="px-4 py-3 border-b bg-white flex items-center justify-between">
-            <div class="font-semibold">К сборке (лист №{{ latest_pick.id }})</div>
+            <div class="font-semibold">К сборке (лист №{{ latest_pick.id }})
+<!--            {# detail.html — в блоке "К сборке (лист №...)" справа добавим #}-->
+            <a href="{% url 'core:pick_print' obj.pk %}" class="btn btn-ghost" target="_blank">Печать</a>
+            </div>
             <div class="text-sm text-gray-500">Создал: {{ latest_pick.created_by }} · {{ latest_pick.created_at|date:"d.m.Y H:i" }}</div>
           </div>
           <div class="p-4 overflow-x-auto">
@@ -179,6 +183,270 @@
           </div>
         </div>
       {% endif %}
+
+
+<!-- Скан-сборка для склада (только сохранение черновика) -->
+{% if request.user|in_groups:"warehouse" and obj.status == "in_progress" %}
+  <div class="mt-3">
+    <button type="button" class="btn" id="openScanModal">Скан-сборка</button>
+  </div>
+
+  <div id="scanModal" class="fixed inset-0 hidden items-start justify-center z-50" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-black/40" data-close></div>
+
+    <div class="relative mt-10 w-[min(1400px,98vw)] max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl border">
+      <!-- Заголовок -->
+      <div class="flex items-center justify-between px-6 py-4 border-b">
+        <div class="text-xl font-semibold">Скан-сборка (лист №{{ latest_pick.id }})</div>
+        <button type="button" class="text-2xl text-gray-500" data-close title="Закрыть">×</button>
+      </div>
+
+      <!-- Панель -->
+      <div class="px-6 pt-4 pb-3 border-b bg-white">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-3">
+          <div class="xl:col-span-2">
+            <label for="scanInput" class="text-sm text-gray-600 block">Штрихкод</label>
+            <input id="scanInput" class="input w-full text-lg" placeholder="Наведи сканер и считай ШК (Enter)">
+            <div class="text-xs text-gray-500 mt-1">
+              Enter — применить, F2 — сменить режим, +/− — «Собрано», Space — «Нет».
+              При закрытии с изменениями предложим <b>сохранить</b>.
+            </div>
+          </div>
+          <div>
+            <label for="scanMode" class="text-sm text-gray-600 block">Действие</label>
+            <select id="scanMode" class="input w-full">
+              <option value="add">Принимаем (увеличить «Собрано»)</option>
+              <option value="miss">Нет на складе (пометить «Нет»)</option>
+            </select>
+            <div class="text-xs text-gray-500 mt-1">F2 — переключить режим</div>
+          </div>
+        </div>
+
+        <!-- Счётчики -->
+        <div class="mt-3 flex flex-wrap gap-3 text-sm">
+          <div class="px-2 py-1 border rounded">План: <span id="ctPlan" class="font-semibold">0</span></div>
+          <div class="px-2 py-1 border rounded">Собрано: <span id="ctPicked" class="font-semibold">0</span></div>
+          <div class="px-2 py-1 border rounded">«Нет»: <span id="ctMissing" class="font-semibold">0</span></div>
+          <div class="px-2 py-1 border rounded">Осталось: <span id="ctLeft" class="font-semibold">0</span></div>
+        </div>
+      </div>
+
+      <!-- Таблица -->
+      <div class="overflow-auto" style="max-height: calc(90vh - 260px);">
+        <table class="w-full text-sm" id="scanTable">
+          <thead class="text-gray-600 border-b sticky top-0 bg-white z-10">
+            <tr>
+              <th class="py-2 px-4 text-left">ШК</th>
+              <th class="py-2 px-4 text-left">Название</th>
+              <th class="py-2 px-4 text-left">Ячейка</th>
+              <th class="py-2 px-4 text-left">План</th>
+              <th class="py-2 px-4 text-left">Собрано</th>
+              <th class="py-2 px-4 text-left">Нет</th>
+              <th class="py-2 px-4 text-left">Прим.</th>
+              <th class="py-2 px-4 text-left">Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in pick_items %}
+            <tr data-bc="{{ it.barcode }}" class="state-none">
+              <td class="py-2 px-4 font-mono">{{ it.barcode }}</td>
+              <td class="py-2 px-4">{{ it.name }}</td>
+              <td class="py-2 px-4">{{ it.location|default:"—" }}</td>
+              <td class="py-2 px-4" data-plan>{{ it.qty }}</td>
+              <td class="py-2 px-4">
+                <div class="flex items-center gap-2">
+                  <button type="button" class="btn btn-ghost h-8 w-8" data-dec>-</button>
+                  <input class="input h-8 w-20 text-right" type="number" min="0"
+                         value="{{ it.picked_qty|default:0 }}" data-picked>
+                  <button type="button" class="btn btn-ghost h-8 w-8" data-inc>+</button>
+                </div>
+              </td>
+              <td class="py-2 px-4">
+                <input type="checkbox" data-miss {% if it.missing %}checked{% endif %}>
+              </td>
+              <td class="py-2 px-4">
+                <input type="text" class="input h-8 w-44" placeholder="Комментарий"
+                       data-note value="{{ it.note|default_if_none:'' }}">
+              </td>
+              <td class="py-2 px-4 whitespace-nowrap" data-status>—</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Подвал -->
+      <div class="px-6 py-3 border-t bg-white">
+        <div class="text-xs text-gray-500 mb-3 flex flex-wrap gap-4">
+          <span><span class="inline-block w-3 h-3 align-middle rounded bg-gray-200"></span> — не начато</span>
+          <span><span class="inline-block w-3 h-3 align-middle rounded bg-yellow-200"></span> — частично</span>
+          <span><span class="inline-block w-3 h-3 align-middle rounded bg-green-200"></span> — готово</span>
+          <span><span class="inline-block w-3 h-3 align-middle rounded bg-red-200"></span> — нет на складе</span>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" class="btn" id="saveDraft">Сохранить</button>
+          <button type="button" class="btn btn-ghost" data-close>Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    tr.state-none    { background: #f5f5f5; }
+    tr.state-partial { background: #fef3c7; }
+    tr.state-ok      { background: #dcfce7; }
+    tr.state-miss    { background: #fee2e2; }
+  </style>
+
+  <script>
+  (function(){
+    const modal  = document.getElementById('scanModal');
+    const open   = document.getElementById('openScanModal');
+    const input  = document.getElementById('scanInput');
+    const mode   = document.getElementById('scanMode');
+    const tbody  = document.getElementById('scanTable').querySelector('tbody');
+    const btnSave   = document.getElementById('saveDraft');
+
+    const ctPlan    = document.getElementById('ctPlan');
+    const ctPicked  = document.getElementById('ctPicked');
+    const ctMissing = document.getElementById('ctMissing');
+    const ctLeft    = document.getElementById('ctLeft');
+
+    let dirty = false;
+    const markDirty = () => { dirty = true; };
+
+    const focusInput = () => setTimeout(()=>input && input.focus(), 20);
+
+    function updateRowState(tr){
+      const plan   = parseInt(tr.querySelector('[data-plan]').textContent.trim()||'0',10);
+      const picked = parseInt(tr.querySelector('[data-picked]').value||'0',10);
+      const miss   = tr.querySelector('[data-miss]').checked;
+      const st     = tr.querySelector('[data-status]');
+      tr.classList.remove('state-none','state-partial','state-ok','state-miss');
+
+      if(miss){ tr.classList.add('state-miss'); st.textContent = 'Нет на складе'; return; }
+      if(picked === 0){ tr.classList.add('state-none'); st.textContent = 'Не начато'; }
+      else if(picked < plan){ tr.classList.add('state-partial'); st.textContent = `Частично (${picked}/${plan})`; }
+      else{ tr.classList.add('state-ok'); st.textContent = `Готово (${picked}/${plan})`; }
+    }
+
+    function recalc(){
+      const rows    = [...tbody.querySelectorAll('tr[data-bc]')];
+      const plan    = rows.reduce((s,tr)=> s + (+tr.querySelector('[data-plan]').textContent || 0), 0);
+      const picked  = rows.reduce((s,tr)=> s + (+tr.querySelector('[data-picked]').value || 0), 0);
+      const missing = rows.reduce((s,tr)=> s + (tr.querySelector('[data-miss]').checked ? 1 : 0), 0);
+      if(ctPlan)   ctPlan.textContent   = plan;
+      if(ctPicked) ctPicked.textContent = picked;
+      if(ctMissing)ctMissing.textContent= missing;
+      if(ctLeft)   ctLeft.textContent   = Math.max(0, plan - picked);
+    }
+
+    function initStates(){
+      [...tbody.querySelectorAll('tr[data-bc]')].forEach(updateRowState);
+      recalc();
+    }
+
+    const openM  = () => { modal.classList.remove('hidden'); modal.classList.add('flex'); focusInput(); initStates(); dirty=false; };
+    const closeM = () => { modal.classList.add('hidden');  modal.classList.remove('flex'); };
+
+    open.addEventListener('click', openM);
+    modal.addEventListener('click', e=>{
+      if(e.target.closest('[data-close]')){
+        if(dirty){
+          if(confirm('Есть несохранённые изменения. Сохранить?')){ save('save', true); return; }
+        }
+        closeM();
+      }
+    });
+
+    document.addEventListener('keydown', e=>{
+      if(modal.classList.contains('hidden')) return;
+      if(e.key==='Escape'){ if(dirty && confirm('Сохранить изменения?')) save('save', true); else closeM(); }
+      if(e.key==='F2'){ e.preventDefault(); mode.value = (mode.value==='add' ? 'miss' : 'add'); }
+    });
+
+    // обработка сканера
+    input.addEventListener('keydown', e=>{
+      if(e.key !== 'Enter') return;
+      const bc = input.value.trim(); input.value = '';
+      if(!bc) return;
+
+      const tr = tbody.querySelector(`tr[data-bc="${CSS.escape(bc)}"]`);
+      if(!tr){ alert('ШК не в листе — добавьте в заявку'); return; }
+
+      const picked = tr.querySelector('[data-picked]');
+      const miss   = tr.querySelector('[data-miss]');
+
+      if(mode.value==='miss'){ miss.checked = true; }
+      else { picked.value = Math.max(0, parseInt(picked.value||'0',10)+1); }
+
+      updateRowState(tr); recalc(); tr.scrollIntoView({block:'nearest'});
+      markDirty();
+    });
+
+    // +/- и ручные изменения
+    tbody.addEventListener('click', e=>{
+      const tr = e.target.closest('tr[data-bc]'); if(!tr) return;
+      if(e.target.matches('[data-inc]')){
+        const inp = tr.querySelector('[data-picked]'); inp.value = (+inp.value || 0) + 1;
+        updateRowState(tr); recalc(); markDirty();
+      }
+      if(e.target.matches('[data-dec]')){
+        const inp = tr.querySelector('[data-picked]'); inp.value = Math.max(0, (+inp.value || 0) - 1);
+        updateRowState(tr); recalc(); markDirty();
+      }
+    });
+    tbody.addEventListener('input', e=>{
+      if(e.target.matches('[data-picked], [data-miss], [data-note]')){
+        const tr = e.target.closest('tr[data-bc]'); updateRowState(tr); recalc(); markDirty();
+      }
+    });
+    tbody.addEventListener('keydown', e=>{
+      const tr = e.target.closest('tr[data-bc]'); if(!tr) return;
+      if(e.key==='+' || e.key==='='){ e.preventDefault(); tr.querySelector('[data-inc]').click(); }
+      if(e.key==='-'){ e.preventDefault(); tr.querySelector('[data-dec]').click(); }
+      if(e.key===' '){ e.preventDefault(); const m = tr.querySelector('[data-miss]'); m.checked = !m.checked; updateRowState(tr); recalc(); markDirty(); }
+    });
+
+    function collectLines(){
+      return [...tbody.querySelectorAll('tr[data-bc]')].map(tr=>({
+        barcode: tr.dataset.bc,
+        picked_qty: parseInt(tr.querySelector('[data-picked]').value||'0',10),
+        missing: tr.querySelector('[data-miss]').checked,
+        note: tr.querySelector('[data-note]')?.value || '',
+        planned_qty: parseInt(tr.querySelector('[data-plan]').textContent.trim()||'0',10),
+      }));
+    }
+
+    async function save(commit='save', reloadAfter=true){
+      const lines = collectLines();
+      const resp = await fetch("{{ pick_confirm_url }}", {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'X-Requested-With':'XMLHttpRequest',
+          'X-CSRFToken':'{{ csrf_token }}'
+        },
+        body: JSON.stringify({ commit, lines })
+      });
+      if(!resp.ok){
+        const t = await resp.text().catch(()=> '');
+        alert('Не удалось сохранить. ' + t);
+        return false;
+      }
+      dirty = false;
+      if(reloadAfter){ closeM(); location.reload(); }
+      return true;
+    }
+
+    btnSave.addEventListener('click', ()=> save('save', true));   // только черновик
+  })();
+  </script>
+{% endif %}
+
+
+
+
 
       <!-- История -->
       <section class="rq-card">
