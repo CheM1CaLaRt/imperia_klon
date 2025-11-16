@@ -1,34 +1,275 @@
+{% load static %}
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Вход</title>
+  <title>Вход в систему — Imperia WMS</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+
   <style>
-    body{font-family:system-ui,Arial,sans-serif;display:grid;place-items:center;height:100dvh;margin:0;background:#f6f7fb}
-    .card{background:#fff;padding:24px 28px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08);min-width:320px}
-    .title{font-size:20px;margin:0 0 12px}
-    .field{margin:10px 0}
-    label{display:block;font-size:12px;color:#555;margin-bottom:4px}
-    input{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px}
-    button{width:100%;padding:10px;border:0;border-radius:10px;background:#1e66f5;color:#fff;font-weight:600;margin-top:12px;cursor:pointer}
-    .error{color:#c00;font-size:12px;margin-top:8px}
+    :root {
+      --bg-gradient: radial-gradient(circle at 0 0, #4f46e5 0, #1e293b 35%, #020617 80%);
+      --card-bg: rgba(15, 23, 42, 0.86);
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.1);
+      --border-subtle: rgba(148, 163, 184, 0.3);
+      --error: #f97373;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #e5e7eb;
+      background: var(--bg-gradient);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 1100px;
+      margin: 24px;
+      border-radius: 24px;
+      overflow: hidden;
+      background: radial-gradient(circle at 0 0, rgba(148,163,184,.18), transparent 55%),
+                  linear-gradient(145deg, rgba(15,23,42,.95), rgba(15,23,42,.85));
+      display: grid;
+      grid-template-columns: 3fr 2.2fr;
+      box-shadow: 0 40px 80px rgba(15,23,42,.75), 0 0 0 1px rgba(148,163,184,.25);
+    }
+
+    /* Левая часть */
+    .intro {
+      padding: 32px 36px;
+      border-right: 1px solid rgba(148,163,184,.25);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo-wrap {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: #0ea5e9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      box-shadow: 0 12px 32px rgba(14,165,233,.55);
+    }
+
+    .brand-logo-wrap img {
+      max-width: 42px;
+    }
+
+    .brand-text-main {
+      font-size: 20px;
+      font-weight: 700;
+      color: #e5f0ff;
+    }
+
+    .brand-text-sub {
+      font-size: 11px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+
+    /* Текст */
+    .intro-title {
+      font-size: 32px;
+      font-weight: 650;
+      margin-top: 40px;
+      line-height: 1.25;
+    }
+
+    .intro-title span {
+      background: linear-gradient(120deg, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    .intro-text {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #cbd5f5;
+      max-width: 420px;
+      margin-top: 18px;
+    }
+
+    .intro-footer {
+      margin-top: 40px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      font-size: 12px;
+      color: #7f8ea3;
+    }
+
+    /* Правая панель */
+    .login-pane {
+      padding: 40px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--card-bg);
+      padding: 24px 24px 28px;
+      border-radius: 20px;
+      box-shadow: 0 20px 45px rgba(15,23,42,.9), 0 0 0 1px rgba(148,163,184,.35);
+      backdrop-filter: blur(18px);
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .card-subtitle {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 18px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      background: rgba(15,23,42,1);
+      border: 1px solid rgba(148,163,184,.35);
+      border-radius: 12px;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56,189,248,.7);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 14px;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 8px;
+      background: linear-gradient(135deg, #38bdf8, #4f46e5);
+      color: #fff;
+      letter-spacing: .05em;
+      transition: .15s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }
+
+    .error {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(255,83,83,.12);
+      border: 1px solid rgba(255,83,83,.35);
+      color: var(--error);
+      font-size: 13px;
+    }
+
+    @media(max-width:880px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .intro {
+        display: none;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <form class="card" method="post">
-    {% csrf_token %}
-    <h1 class="title">Вход в систему</h1>
-    <div class="field">
-      <label>Логин</label>
-      <input name="username" required>
-    </div>
-    <div class="field">
-      <label>Пароль</label>
-      <input type="password" name="password" required>
-    </div>
-    <button type="submit">Войти</button>
-    {% if error %}<div class="error">{{ error }}</div>{% endif %}
-  </form>
+  <div class="shell">
+
+    <!-- ЛЕВАЯ ЧАСТЬ -->
+    <section class="intro">
+      <header class="brand">
+        <div class="brand-logo-wrap">
+          <img src="{% static 'img/log.png' %}" alt="Логотип">
+        </div>
+        <div>
+          <div class="brand-text-main">Imperia WMS</div>
+          <div class="brand-text-sub">Корпоративная складская система</div>
+        </div>
+      </header>
+
+      <div>
+        <h1 class="intro-title">
+          Управляйте складом<br>
+          как <span>единым организмом</span>.
+        </h1>
+
+        <p class="intro-text">
+          Система Imperia WMS объединяет кладовщиков, менеджеров и руководство.
+          Сборка, заявки, контроль остатков и документы — всё в одном окне.
+        </p>
+      </div>
+
+      <footer class="intro-footer">
+        © {% now "Y" %} ООО «Империя». Все права защищены.
+      </footer>
+    </section>
+
+    <!-- ПРАВАЯ ЧАСТЬ — ФОРМА -->
+    <section class="login-pane">
+      <form class="card" method="post">
+        {% csrf_token %}
+
+        <div class="card-title">Вход в систему</div>
+        <div class="card-subtitle">Используйте корпоративный логин и пароль</div>
+
+        <div class="field">
+          <label>Логин</label>
+          <input name="username" required placeholder="user.name">
+        </div>
+
+        <div class="field">
+          <label>Пароль</label>
+          <input type="password" name="password" required placeholder="••••••••">
+        </div>
+
+        <button type="submit">Войти</button>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+      </form>
+    </section>
+
+  </div>
 </body>
 </html>
