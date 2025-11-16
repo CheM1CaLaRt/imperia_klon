@@ -3,17 +3,17 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Вход в систему — Imperia WMS</title>
+  <title>Вход в систему — Imperia</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
 
   <style>
     :root {
       /* ТЁМНАЯ ТЕМА ПО УМОЛЧАНИЮ */
-      --bg-gradient: radial-gradient(circle at 0 0, #4f46e5 0, #1e293b 35%, #020617 80%);
-      --shell-bg: rgba(15, 23, 42, 0.75);
+      --bg-gradient: radial-gradient(circle at 0 0, #4f46e5 0, #020617 40%, #020617 80%);
+      --shell-bg: rgba(15, 23, 42, 0.78);
       --shell-border: rgba(148, 163, 184, 0.35);
-      --card-bg: rgba(15, 23, 42, 0.86);
-      --card-border: rgba(148, 163, 184, 0.45);
+      --card-bg: rgba(15, 23, 42, 0.9);
+      --card-border: rgba(148, 163, 184, 0.5);
       --text-main: #e5e7eb;
       --text-muted: #9ca3af;
       --text-soft: #cbd5f5;
@@ -29,17 +29,17 @@
     @media (prefers-color-scheme: light) {
       :root {
         --bg-gradient: radial-gradient(circle at 0 0, #e0f2fe 0, #eef2ff 35%, #e5e7eb 80%);
-        --shell-bg: rgba(255, 255, 255, 0.72);
+        --shell-bg: rgba(255, 255, 255, 0.75);
         --shell-border: rgba(148, 163, 184, 0.35);
-        --card-bg: rgba(255, 255, 255, 0.88);
-        --card-border: rgba(148, 163, 184, 0.5);
+        --card-bg: rgba(255, 255, 255, 0.9);
+        --card-border: rgba(148, 163, 184, 0.55);
         --text-main: #020617;
         --text-muted: #6b7280;
         --text-soft: #4b5563;
         --accent: #2563eb;
         --accent-soft: rgba(37, 99, 235, 0.12);
         --danger: #dc2626;
-        --input-bg: rgba(248, 250, 252, 0.9);
+        --input-bg: rgba(248, 250, 252, 0.96);
         --input-border: rgba(148, 163, 184, 0.6);
         --shadow-strong: 0 32px 70px rgba(15, 23, 42, 0.25);
         --shadow-card: 0 18px 40px rgba(15, 23, 42, 0.18);
@@ -73,7 +73,7 @@
       }
       50% {
         transform: scale(1.06);
-        box-shadow: 0 0 0 14px rgba(56, 189, 248, 0.0);
+        box-shadow: 0 0 0 16px rgba(56, 189, 248, 0.0);
       }
       100% {
         transform: scale(1);
@@ -83,7 +83,7 @@
 
     @keyframes button-glow {
       0% { box-shadow: 0 16px 30px rgba(56, 189, 248, 0.35); }
-      50% { box-shadow: 0 20px 40px rgba(99, 102, 241, 0.55); }
+      50% { box-shadow: 0 22px 42px rgba(99, 102, 241, 0.55); }
       100% { box-shadow: 0 16px 30px rgba(56, 189, 248, 0.35); }
     }
 
@@ -93,8 +93,8 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: var(--text-main);
       background: var(--bg-gradient);
-      background-size: 200% 200%;
-      animation: bg-shift 16s ease-in-out infinite alternate;
+      background-size: 220% 220%;
+      animation: bg-shift 18s ease-in-out infinite alternate;
       display: flex;
       align-items: stretch;
       justify-content: center;
@@ -173,7 +173,7 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      animation: pulse-logo 2.3s ease-out infinite;
+      animation: pulse-logo 2.4s ease-out infinite;
     }
 
     .brand-logo-wrap img {
@@ -207,14 +207,14 @@
       letter-spacing: 0.22em;
       padding: 4px 10px;
       border-radius: 999px;
-      background: rgba(15, 23, 42, 0.75);
+      background: rgba(15, 23, 42, 0.78);
       border: 1px solid rgba(148, 163, 184, 0.4);
       color: var(--accent);
     }
 
     @media (prefers-color-scheme: light) {
       .intro-kicker {
-        background: rgba(255, 255, 255, 0.85);
+        background: rgba(255, 255, 255, 0.9);
       }
     }
 
@@ -245,8 +245,30 @@
       font-size: 14px;
       line-height: 1.6;
       color: var(--text-soft);
-      max-width: 420px;
+      max-width: 440px;
       margin-top: 16px;
+    }
+
+    .intro-tags {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .intro-tag {
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    @media (prefers-color-scheme: light) {
+      .intro-tag {
+        background: rgba(255, 255, 255, 0.9);
+      }
     }
 
     .intro-footer {
@@ -526,26 +548,33 @@
           <img src="{% static 'img/log.png' %}" alt="Логотип">
         </div>
         <div>
-          <div class="brand-text-main">Imperia WMS</div>
-          <div class="brand-text-sub">Корпоративная складская система</div>
+          <div class="brand-text-main">Imperia</div>
+          <div class="brand-text-sub">Платформа управления бизнесом</div>
         </div>
       </header>
 
       <main class="intro-main">
         <div class="intro-kicker">
           <span class="dot"></span>
-          <span>Внутренняя платформа</span>
+          <span>Единое цифровое окно</span>
         </div>
 
         <h1 class="intro-title">
-          Управляйте складом<br>
-          как <span>единым организмом</span>.
+          Контроль бизнеса<br>
+          от <span>заявки</span> до <span>отчёта</span>.
         </h1>
 
         <p class="intro-text">
-          Imperia WMS объединяет кладовщиков, менеджеров и руководителей:
-          заявки, сборка, контроль остатков и документооборот&nbsp;— всё в одном рабочем месте.
+          IndigoFlow — система управления бизнесом, объединяет оператора, менеджера и директора в одной системе: заявки клиентов,
+          складские операции, отгрузки и аналитика в реальном времени.
+          Прозрачные процессы, меньше ручной работы и понятная картина всего бизнеса.
         </p>
+
+        <div class="intro-tags">
+          <span class="intro-tag">Склад · Продажи · Финансы</span>
+          <span class="intro-tag">Операторы и менеджеры в одном контуре</span>
+          <span class="intro-tag">Онлайн-аналитика и контроль SLA</span>
+        </div>
       </main>
 
       <footer class="intro-footer">
@@ -564,14 +593,15 @@
 
         <div class="card-header">
           <div class="card-title-row">
-            <div class="card-title">Вход в систему</div>
+            <div class="card-title">Вход в IndigoFlow</div>
             <div class="status-pill">
               <span class="status-dot"></span>
               online
             </div>
           </div>
           <div class="card-subtitle">
-            Используйте корпоративный логин и пароль для входа в Imperia WMS.
+            Авторизуйтесь под своей корпоративной учетной записью, чтобы продолжить работу
+            с заявками, складом и отчётами.
           </div>
         </div>
 
@@ -596,8 +626,8 @@
         {% endif %}
 
         <div class="card-footer">
-          <span class="badge-role">менеджер · склад · директор</span>
-          <span>По вопросам доступа — IT-отдел.</span>
+          <span class="badge-role">оператор · менеджер · кладовщик · директор</span>
+          <span>Нет доступа? Обратитесь в IT-отдел.</span>
         </div>
       </form>
     </section>
