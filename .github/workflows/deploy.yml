@@ -1,0 +1,28 @@
+name: Deploy Imperia to Server
+
+on:
+  push:
+    branches:
+      - main   # если у тебя master – замени на master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "Host *" > ~/.ssh/config
+          echo "    StrictHostKeyChecking no" >> ~/.ssh/config
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+
+      - name: Run deploy script on server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "bash ~/deploy_imperia.sh"
