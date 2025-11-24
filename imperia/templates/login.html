@@ -24,33 +24,32 @@
       --input-border: rgba(148, 163, 184, 0.35);
       --shadow-strong: 0 40px 80px rgba(15, 23, 42, 0.85);
       --shadow-card: 0 20px 45px rgba(15, 23, 42, 0.9);
+      --theme-transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg-gradient: radial-gradient(circle at 0 0, #e0f2fe 0, #eef2ff 35%, #e5e7eb 80%);
-        --shell-bg: rgba(255, 255, 255, 0.75);
-        --shell-border: rgba(148, 163, 184, 0.35);
-        --card-bg: rgba(255, 255, 255, 0.9);
-        --card-border: rgba(148, 163, 184, 0.55);
-        --text-main: #020617;
-        --text-muted: #6b7280;
-        --text-soft: #4b5563;
-        --accent: #2563eb;
-        --accent-soft: rgba(37, 99, 235, 0.12);
-        --danger: #dc2626;
-        --input-bg: rgba(248, 250, 252, 0.96);
-        --input-border: rgba(148, 163, 184, 0.6);
-        --shadow-strong: 0 32px 70px rgba(15, 23, 42, 0.25);
-        --shadow-card: 0 18px 40px rgba(15, 23, 42, 0.18);
-      }
+    [data-theme="light"] {
+      --bg-gradient: radial-gradient(circle at 0 0, #e0f2fe 0, #eef2ff 35%, #e5e7eb 80%);
+      --shell-bg: rgba(255, 255, 255, 0.75);
+      --shell-border: rgba(148, 163, 184, 0.35);
+      --card-bg: rgba(255, 255, 255, 0.9);
+      --card-border: rgba(148, 163, 184, 0.55);
+      --text-main: #020617;
+      --text-muted: #6b7280;
+      --text-soft: #4b5563;
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.12);
+      --danger: #dc2626;
+      --input-bg: rgba(248, 250, 252, 0.96);
+      --input-border: rgba(148, 163, 184, 0.6);
+      --shadow-strong: 0 32px 70px rgba(15, 23, 42, 0.25);
+      --shadow-card: 0 18px 40px rgba(15, 23, 42, 0.18);
     }
 
     * {
       box-sizing: border-box;
     }
 
-    /* Анимации */
+    /* Анимации 2025 */
     @keyframes fade-up {
       0% { opacity: 0; transform: translateY(18px); }
       100% { opacity: 1; transform: translateY(0); }
@@ -87,6 +86,33 @@
       100% { box-shadow: 0 16px 30px rgba(56, 189, 248, 0.35); }
     }
 
+    @keyframes theme-switch {
+      0% { transform: scale(0.8) rotate(-10deg); opacity: 0.5; }
+      50% { transform: scale(1.1) rotate(5deg); }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -1000px 0; }
+      100% { background-position: 1000px 0; }
+    }
+
+    @keyframes gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes ripple {
+      0% { transform: scale(0); opacity: 1; }
+      100% { transform: scale(4); opacity: 0; }
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
@@ -99,6 +125,95 @@
       align-items: stretch;
       justify-content: center;
       padding: 16px;
+      transition: var(--theme-transition);
+    }
+
+    /* Переключатель темы */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      opacity: 0;
+      animation: fade-up 0.8s ease forwards;
+      animation-delay: 0.5s;
+    }
+
+    .theme-toggle-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      border: 1px solid var(--shell-border);
+      background: var(--shell-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--theme-transition);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .theme-toggle-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(168, 85, 247, 0.1));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+      border-color: var(--accent);
+    }
+
+    .theme-toggle-btn:hover::before {
+      opacity: 1;
+    }
+
+    .theme-toggle-btn:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    .theme-icon {
+      width: 24px;
+      height: 24px;
+      transition: var(--theme-transition);
+      position: relative;
+      z-index: 1;
+    }
+
+    .theme-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: var(--accent);
+      transition: var(--theme-transition);
+    }
+
+    .theme-toggle-btn:hover .theme-icon svg {
+      stroke: var(--accent);
+      filter: drop-shadow(0 0 8px var(--accent));
+    }
+
+    [data-theme="light"] .theme-icon-sun {
+      display: none;
+    }
+
+    [data-theme="light"] .theme-icon-moon {
+      display: block;
+    }
+
+    .theme-icon-sun {
+      display: block;
+    }
+
+    .theme-icon-moon {
+      display: none;
     }
 
     .shell {
@@ -117,6 +232,7 @@
       isolation: isolate;
       opacity: 0;
       animation: fade-up .7s ease forwards;
+      transition: var(--theme-transition);
     }
 
     .shell::before,
@@ -210,12 +326,12 @@
       background: rgba(15, 23, 42, 0.78);
       border: 1px solid rgba(148, 163, 184, 0.4);
       color: var(--accent);
+      transition: var(--theme-transition);
+      animation: float 3s ease-in-out infinite;
     }
 
-    @media (prefers-color-scheme: light) {
-      .intro-kicker {
-        background: rgba(255, 255, 255, 0.9);
-      }
+    [data-theme="light"] .intro-kicker {
+      background: rgba(255, 255, 255, 0.9);
     }
 
     .dot {
@@ -263,12 +379,11 @@
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.45);
       background: rgba(15, 23, 42, 0.8);
+      transition: var(--theme-transition);
     }
 
-    @media (prefers-color-scheme: light) {
-      .intro-tag {
-        background: rgba(255, 255, 255, 0.9);
-      }
+    [data-theme="light"] .intro-tag {
+      background: rgba(255, 255, 255, 0.9);
     }
 
     .intro-footer {
@@ -334,7 +449,7 @@
       opacity: 0;
       animation: fade-up 1s ease forwards;
       animation-delay: .35s;
-      transition: transform .3s ease, box-shadow .3s ease;
+      transition: var(--theme-transition), transform .3s ease, box-shadow .3s ease;
     }
 
     .card::before {
@@ -381,12 +496,13 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      transition: var(--theme-transition);
+      animation: pulse-logo 2s ease-in-out infinite;
     }
 
-    @media (prefers-color-scheme: light) {
-      .status-pill {
-        color: #0f172a;
-      }
+    [data-theme="light"] .status-pill {
+      color: #0f172a;
+      border-color: rgba(37, 99, 235, 0.8);
     }
 
     .status-dot {
@@ -425,7 +541,19 @@
       color: var(--text-main);
       font-size: 14px;
       outline: none;
-      transition: border 0.16s ease, box-shadow 0.16s ease, transform 0.06s ease, background 0.16s ease;
+      transition: var(--theme-transition), border 0.16s ease, box-shadow 0.16s ease, transform 0.06s ease;
+      position: relative;
+    }
+
+    input::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
     }
 
     input::placeholder {
@@ -449,18 +577,34 @@
       font-weight: 600;
       cursor: pointer;
       background: linear-gradient(135deg, #38bdf8, #4f46e5);
+      background-size: 200% 200%;
       color: #f9fafb;
       letter-spacing: 0.06em;
       text-transform: uppercase;
       margin-top: 16px;
       box-shadow: 0 16px 30px rgba(56, 189, 248, 0.35);
       transition: transform 0.12s ease, filter 0.16s ease, box-shadow 0.16s ease;
-      animation: button-glow 5s ease-in-out infinite;
+      animation: button-glow 5s ease-in-out infinite, gradient-shift 3s ease infinite;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button[type="submit"]::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease;
     }
 
     button[type="submit"]:hover {
-      transform: translateY(-1px) scale(1.01);
-      filter: brightness(1.06);
+      transform: translateY(-2px) scale(1.02);
+      filter: brightness(1.08);
       box-shadow: 0 22px 42px rgba(56, 189, 248, 0.55);
     }
 
@@ -468,6 +612,11 @@
       transform: translateY(0) scale(0.995);
       box-shadow: 0 14px 26px rgba(15, 23, 42, 0.9);
       filter: brightness(0.98);
+    }
+
+    button[type="submit"]:active::before {
+      width: 300px;
+      height: 300px;
     }
 
     .error {
@@ -501,12 +650,11 @@
       text-transform: uppercase;
       letter-spacing: 0.16em;
       color: var(--text-muted);
+      transition: var(--theme-transition);
     }
 
-    @media (prefers-color-scheme: light) {
-      .badge-role {
-        background: rgba(255, 255, 255, 0.95);
-      }
+    [data-theme="light"] .badge-role {
+      background: rgba(255, 255, 255, 0.95);
     }
 
     @media (max-width: 880px) {
@@ -535,11 +683,95 @@
         max-width: 420px;
         margin: 0 auto;
       }
+
+      .theme-toggle {
+        top: 12px;
+        right: 12px;
+      }
+
+      .theme-toggle-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+      }
+
+      .theme-icon {
+        width: 20px;
+        height: 20px;
+      }
+    }
+
+    /* Дополнительные эффекты 2025 */
+    .card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.1) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+
+    .card:hover::after {
+      opacity: 1;
+    }
+
+    /* Улучшенные переходы для всех элементов */
+    .brand-text-main,
+    .brand-text-sub,
+    .intro-title,
+    .intro-text,
+    .card-title,
+    .card-subtitle,
+    .field label {
+      transition: var(--theme-transition);
+    }
+
+    /* Эффект свечения для акцентов */
+    .intro-title span {
+      background: linear-gradient(120deg, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: gradient-shift 3s ease infinite;
+      background-size: 200% 200%;
+    }
+
+    /* Плавное появление элементов */
+    .intro-main,
+    .card-header,
+    .field {
+      transition: var(--theme-transition);
     }
   </style>
 </head>
 
 <body>
+  <!-- Переключатель темы -->
+  <div class="theme-toggle">
+    <button class="theme-toggle-btn" id="themeToggle" aria-label="Переключить тему">
+      <div class="theme-icon">
+        <svg class="theme-icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="theme-icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </div>
+    </button>
+  </div>
+
   <div class="shell">
     <!-- ЛЕВАЯ ЧАСТЬ -->
     <section class="intro">
@@ -632,5 +864,55 @@
       </form>
     </section>
   </div>
+
+  <script>
+    (function() {
+      // Получаем сохраненную тему или определяем по системным настройкам
+      const getStoredTheme = () => {
+        const stored = localStorage.getItem('theme');
+        if (stored) return stored;
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      };
+
+      // Устанавливаем тему
+      const setTheme = (theme) => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+      };
+
+      // Инициализация темы
+      const initTheme = () => {
+        const theme = getStoredTheme();
+        setTheme(theme);
+      };
+
+      // Переключение темы
+      const toggleTheme = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
+        
+        // Анимация переключения
+        const btn = document.getElementById('themeToggle');
+        btn.style.animation = 'theme-switch 0.4s ease';
+        setTimeout(() => {
+          btn.style.animation = '';
+        }, 400);
+      };
+
+      // Инициализация при загрузке
+      initTheme();
+
+      // Обработчик клика на переключатель
+      document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+      // Слушаем изменения системной темы (опционально)
+      window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+          setTheme(e.matches ? 'light' : 'dark');
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
