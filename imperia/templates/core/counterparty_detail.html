@@ -241,132 +241,160 @@
 
 {# Подключение и инициализация Яндекс карт #}
 {% if obj.address or obj.actual_address %}
-<script src="https://api-maps.yandex.ru/2.1/?apikey=61d952c3-f131-4b50-89c4-7035053deeaf&lang=ru_RU" type="text/javascript"></script>
 <script>
 (function() {
-  'use strict';
-  
-  // Данные для инициализации карт
-  var mapsToInit = [];
+  // Сохраняем данные для карт
+  window.yandexMapsData = window.yandexMapsData || [];
   {% if obj.address %}
-  mapsToInit.push({
+  window.yandexMapsData.push({
     address: '{{ obj.address|escapejs }}',
     containerId: 'map-legal',
     title: 'Юридический адрес'
   });
   {% endif %}
   {% if obj.actual_address %}
-  mapsToInit.push({
+  window.yandexMapsData.push({
     address: '{{ obj.actual_address|escapejs }}',
     containerId: 'map-actual',
     title: 'Фактический адрес'
   });
   {% endif %}
+})();
+</script>
+<script src="https://api-maps.yandex.ru/2.1/?apikey=61d952c3-f131-4b50-89c4-7035053deeaf&lang=ru_RU" type="text/javascript" onerror="console.error('Ошибка загрузки Яндекс карт');"></script>
+<script>
+(function() {
+  'use strict';
+  
+  function showError(containerId, address, errorText) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var shortAddr = address.length > 60 ? address.substring(0, 60) + '...' : address;
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;text-align:center;padding:32px;background:#f6f7f8"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px;margin-bottom:4px;color:#ef4444">' + errorText + '</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + shortAddr + '</div></div></div>';
+  }
 
-  // Функция для создания карты
+  function showLoading(containerId) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;background:#f6f7f8"><div style="text-align:center"><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px">Загрузка карты...</div></div></div>';
+  }
+
   function initMap(mapData) {
+    var address = mapData.address;
+    var containerId = mapData.containerId;
+    var title = mapData.title;
+    
+    if (!address || !containerId) {
+      console.warn('Недостаточно данных для инициализации карты');
+      return;
+    }
+    
+    var container = document.getElementById(containerId);
+    if (!container) {
+      console.warn('Контейнер не найден:', containerId);
+      return;
+    }
+
+    showLoading(containerId);
+
     try {
-      var address = mapData.address;
-      var mapContainerId = mapData.containerId;
-      var title = mapData.title;
-      
-      if (!address || !mapContainerId) return;
-      
-      var mapContainer = document.getElementById(mapContainerId);
-      if (!mapContainer) {
-        console.warn('Контейнер карты не найден:', mapContainerId);
+      var searchAddr = address.trim();
+      var addrLower = searchAddr.toLowerCase();
+      if (addrLower.indexOf('россия') === -1 && addrLower.indexOf('russia') === -1) {
+        searchAddr = searchAddr + ', Россия';
+      }
+
+      if (typeof ymaps === 'undefined') {
+        showError(containerId, address, 'Библиотека карт не загружена');
         return;
       }
 
-      // Показываем индикатор загрузки
-      mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);background:var(--bg)"><div style="text-align:center"><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px">Загрузка карты...</div></div></div>';
-
-      // Подготавливаем адрес для поиска
-      var addrLower = address.toLowerCase().trim();
-      var searchAddress = (addrLower.indexOf('россия') !== -1 || addrLower.indexOf('russia') !== -1) 
-        ? address.trim() 
-        : address.trim() + ', Россия';
-      
-      // Геокодинг адреса
-      ymaps.geocode(searchAddress, {
-        results: 1
-      }).then(function(res) {
+      ymaps.geocode(searchAddr).then(function(res) {
         try {
           if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
-            throw new Error('Адрес не найден');
+            showError(containerId, address, 'Адрес не найден на карте');
+            return;
           }
 
-          var firstGeoObject = res.geoObjects.get(0);
-          if (!firstGeoObject) {
-            throw new Error('Геообъект не найден');
+          var geoObj = res.geoObjects.get(0);
+          if (!geoObj) {
+            showError(containerId, address, 'Адрес не найден на карте');
+            return;
           }
 
-          var coords = firstGeoObject.geometry.getCoordinates();
-          
-          // Создаём карту
-          var map = new ymaps.Map(mapContainerId, {
+          var coords = geoObj.geometry.getCoordinates();
+          var map = new ymaps.Map(containerId, {
             center: coords,
             zoom: 15,
             controls: ['zoomControl', 'fullscreenControl']
           });
 
-          var shortAddress = address.split(',').slice(0, 2).join(',');
           var isLegal = title.indexOf('Юридический') !== -1;
-          
-          // Создаём метку
           var placemark = new ymaps.Placemark(coords, {
-            balloonContentHeader: '<strong style="font-size:16px;display:block;margin-bottom:8px">' + title + '</strong>',
-            balloonContentBody: '<div style="color:#666;line-height:1.6;margin-bottom:8px">' + address + '</div>',
-            hintContent: shortAddress
+            balloonContentHeader: '<strong>' + title + '</strong>',
+            balloonContentBody: address,
+            hintContent: address.split(',').slice(0, 2).join(',')
           }, {
             preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-            iconColor: isLegal ? '#3b82f6' : '#10b981',
-            draggable: false
+            iconColor: isLegal ? '#3b82f6' : '#10b981'
           });
 
           map.geoObjects.add(placemark);
           map.behaviors.disable('scrollZoom');
-          
-        } catch(innerErr) {
-          console.error('Ошибка при создании карты для ' + mapContainerId + ':', innerErr);
-          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
+        } catch(e) {
+          console.error('Ошибка создания карты:', e);
+          showError(containerId, address, 'Ошибка создания карты: ' + (e.message || 'Неизвестная ошибка'));
         }
       }, function(err) {
-        console.error('Ошибка геокодинга для ' + mapContainerId + ':', err);
-        var errorMsg = 'Не удалось загрузить карту';
-        if (err && err.message) {
-          errorMsg += ': ' + err.message;
-        }
-        mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px;margin-bottom:4px">' + errorMsg + '</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
+        console.error('Ошибка геокодинга:', err);
+        showError(containerId, address, 'Не удалось найти адрес на карте');
       });
-    } catch(err) {
-      console.error('Критическая ошибка при инициализации карты:', err);
+    } catch(e) {
+      console.error('Критическая ошибка:', e);
+      showError(containerId, address, 'Ошибка инициализации: ' + (e.message || 'Неизвестная ошибка'));
     }
   }
 
-  // Ждём загрузки библиотеки
-  function waitForYmaps() {
-    if (typeof ymaps === 'undefined') {
-      setTimeout(waitForYmaps, 100);
+  function startInit() {
+    if (!window.yandexMapsData || !Array.isArray(window.yandexMapsData)) {
+      console.warn('Данные для карт не найдены');
       return;
     }
-    
-    ymaps.ready(function() {
-      try {
-        for (var i = 0; i < mapsToInit.length; i++) {
-          initMap(mapsToInit[i]);
+
+    var maxAttempts = 50;
+    var attempt = 0;
+
+    function checkAndInit() {
+      attempt++;
+      if (typeof ymaps !== 'undefined' && typeof ymaps.ready === 'function') {
+        ymaps.ready(function() {
+          try {
+            for (var i = 0; i < window.yandexMapsData.length; i++) {
+              initMap(window.yandexMapsData[i]);
+            }
+          } catch(e) {
+            console.error('Ошибка при инициализации карт:', e);
+          }
+        });
+      } else if (attempt < maxAttempts) {
+        setTimeout(checkAndInit, 200);
+      } else {
+        console.error('Не удалось загрузить библиотеку Яндекс карт');
+        if (window.yandexMapsData) {
+          for (var j = 0; j < window.yandexMapsData.length; j++) {
+            showError(window.yandexMapsData[j].containerId, window.yandexMapsData[j].address, 'Библиотека карт не загружена');
+          }
         }
-      } catch(err) {
-        console.error('Ошибка при инициализации карт:', err);
       }
-    });
+    }
+
+    checkAndInit();
   }
 
-  // Запускаем после загрузки страницы
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', waitForYmaps);
+    document.addEventListener('DOMContentLoaded', startInit);
   } else {
-    waitForYmaps();
+    startInit();
   }
 })();
 </script>
