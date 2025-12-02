@@ -244,119 +244,129 @@
 <script src="https://api-maps.yandex.ru/2.1/?apikey=61d952c3-f131-4b50-89c4-7035053deeaf&lang=ru_RU" type="text/javascript"></script>
 <script>
 (function() {
-  // Ждём загрузки библиотеки Яндекс карт
-  function initMaps() {
-    if (typeof ymaps === 'undefined') {
-      console.warn('Яндекс карты не загружены, повторная попытка...');
-      setTimeout(initMaps, 500);
-      return;
-    }
+  'use strict';
+  
+  // Данные для инициализации карт
+  var mapsToInit = [];
+  {% if obj.address %}
+  mapsToInit.push({
+    address: '{{ obj.address|escapejs }}',
+    containerId: 'map-legal',
+    title: 'Юридический адрес'
+  });
+  {% endif %}
+  {% if obj.actual_address %}
+  mapsToInit.push({
+    address: '{{ obj.actual_address|escapejs }}',
+    containerId: 'map-actual',
+    title: 'Фактический адрес'
+  });
+  {% endif %}
 
-    ymaps.ready(function() {
-    // Геокодинг адреса и создание карты
-    function initMap(address, mapContainerId, title) {
+  // Функция для создания карты
+  function initMap(mapData) {
+    try {
+      var address = mapData.address;
+      var mapContainerId = mapData.containerId;
+      var title = mapData.title;
+      
       if (!address || !mapContainerId) return;
       
-      const mapContainer = document.getElementById(mapContainerId);
-      if (!mapContainer) return;
+      var mapContainer = document.getElementById(mapContainerId);
+      if (!mapContainer) {
+        console.warn('Контейнер карты не найден:', mapContainerId);
+        return;
+      }
 
       // Показываем индикатор загрузки
-      mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted)"><div style="text-align:center"><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px">Загрузка карты...</div></div></div>';
+      mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);background:var(--bg)"><div style="text-align:center"><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px">Загрузка карты...</div></div></div>';
 
-      // Добавляем "Россия" к адресу для лучшего геокодинга, если его нет
-      const addrLower = address.toLowerCase().trim();
-      const searchAddress = addrLower.includes('россия') || addrLower.includes('russia') 
+      // Подготавливаем адрес для поиска
+      var addrLower = address.toLowerCase().trim();
+      var searchAddress = (addrLower.indexOf('россия') !== -1 || addrLower.indexOf('russia') !== -1) 
         ? address.trim() 
         : address.trim() + ', Россия';
       
+      // Геокодинг адреса
       ymaps.geocode(searchAddress, {
         results: 1
       }).then(function(res) {
-        if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
-          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден на карте</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
-          return;
-        }
-
-        const firstGeoObject = res.geoObjects.get(0);
-        if (!firstGeoObject) {
-          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден на карте</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
-          return;
-        }
-
-        const coords = firstGeoObject.geometry.getCoordinates();
-        let bounds = null;
-        
         try {
-          bounds = firstGeoObject.properties.get('boundedBy');
-        } catch(e) {
-          console.warn('Не удалось получить bounds для адреса:', e);
-        }
-
-        const map = new ymaps.Map(mapContainerId, {
-          center: coords,
-          zoom: 15,
-          controls: ['zoomControl', 'fullscreenControl']
-        });
-
-        const shortAddress = address.split(',').slice(0, 2).join(',');
-        const metaText = firstGeoObject.properties.get('metaDataProperty.GeocoderMetaData.text') || address;
-        
-        const placemark = new ymaps.Placemark(coords, {
-          balloonContentHeader: '<strong style="font-size:16px;display:block;margin-bottom:8px">' + title + '</strong>',
-          balloonContentBody: '<div style="color:#666;line-height:1.6;margin-bottom:8px">' + address + '</div>',
-          hintContent: shortAddress
-        }, {
-          preset: title.includes('Юридический') ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-          iconColor: title.includes('Юридический') ? '#3b82f6' : '#10b981',
-          draggable: false
-        });
-
-        map.geoObjects.add(placemark);
-
-        // Устанавливаем границы, если они есть
-        if (bounds && Array.isArray(bounds)) {
-          try {
-            map.setBounds(bounds, {
-              checkZoomRange: true,
-              duration: 300
-            });
-          } catch(e) {
-            console.warn('Не удалось установить границы карты:', e);
-            map.setZoom(15);
+          if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
+            throw new Error('Адрес не найден');
           }
-        } else {
-          map.setZoom(15);
-        }
 
-        // Отключаем скролл колесом мыши (чтобы не мешало прокрутке страницы)
-        map.behaviors.disable('scrollZoom');
-      }).catch(function(err) {
+          var firstGeoObject = res.geoObjects.get(0);
+          if (!firstGeoObject) {
+            throw new Error('Геообъект не найден');
+          }
+
+          var coords = firstGeoObject.geometry.getCoordinates();
+          
+          // Создаём карту
+          var map = new ymaps.Map(mapContainerId, {
+            center: coords,
+            zoom: 15,
+            controls: ['zoomControl', 'fullscreenControl']
+          });
+
+          var shortAddress = address.split(',').slice(0, 2).join(',');
+          var isLegal = title.indexOf('Юридический') !== -1;
+          
+          // Создаём метку
+          var placemark = new ymaps.Placemark(coords, {
+            balloonContentHeader: '<strong style="font-size:16px;display:block;margin-bottom:8px">' + title + '</strong>',
+            balloonContentBody: '<div style="color:#666;line-height:1.6;margin-bottom:8px">' + address + '</div>',
+            hintContent: shortAddress
+          }, {
+            preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
+            iconColor: isLegal ? '#3b82f6' : '#10b981',
+            draggable: false
+          });
+
+          map.geoObjects.add(placemark);
+          map.behaviors.disable('scrollZoom');
+          
+        } catch(innerErr) {
+          console.error('Ошибка при создании карты для ' + mapContainerId + ':', innerErr);
+          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
+        }
+      }, function(err) {
         console.error('Ошибка геокодинга для ' + mapContainerId + ':', err);
-        console.error('Адрес:', searchAddress);
-        let errorMsg = 'Не удалось загрузить карту';
+        var errorMsg = 'Не удалось загрузить карту';
         if (err && err.message) {
           errorMsg += ': ' + err.message;
         }
-        mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px;margin-bottom:4px">' + errorMsg + '</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div><div style="font-size:11px;opacity:0.6;margin-top:8px">Проверьте консоль браузера для деталей</div></div></div>';
+        mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px;margin-bottom:4px">' + errorMsg + '</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
       });
+    } catch(err) {
+      console.error('Критическая ошибка при инициализации карты:', err);
     }
+  }
 
-    // Инициализация карт
-    {% if obj.address %}
-      initMap('{{ obj.address|escapejs }}', 'map-legal', 'Юридический адрес');
-    {% endif %}
-
-    {% if obj.actual_address %}
-      initMap('{{ obj.actual_address|escapejs }}', 'map-actual', 'Фактический адрес');
-    {% endif %}
+  // Ждём загрузки библиотеки
+  function waitForYmaps() {
+    if (typeof ymaps === 'undefined') {
+      setTimeout(waitForYmaps, 100);
+      return;
+    }
+    
+    ymaps.ready(function() {
+      try {
+        for (var i = 0; i < mapsToInit.length; i++) {
+          initMap(mapsToInit[i]);
+        }
+      } catch(err) {
+        console.error('Ошибка при инициализации карт:', err);
+      }
     });
   }
 
-  // Запускаем инициализацию после загрузки страницы
+  // Запускаем после загрузки страницы
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMaps);
+    document.addEventListener('DOMContentLoaded', waitForYmaps);
   } else {
-    initMaps();
+    waitForYmaps();
   }
 })();
 </script>
