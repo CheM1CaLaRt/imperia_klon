@@ -318,7 +318,7 @@
   <form method="dialog" style="margin:0">
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
       <h2 style="font-size:18px;font-weight:700;margin:0">Товар</h2>
-      <button type="button" class="btn btn-secondary" style="font-size:13px;padding:6px 12px">Закрыть</button>
+      <button type="button" id="product-modal-close" class="btn btn-secondary" style="font-size:13px;padding:6px 12px">Закрыть</button>
     </div>
     <div id="product-modal-body" style="padding:20px">
       <div style="color:var(--muted)">Загрузка…</div>
@@ -342,15 +342,51 @@
 
   (function () {
     const dlg = document.getElementById('product-modal');
-    dlg?.addEventListener('click', function (e) {
-      const r = dlg.getBoundingClientRect();
-      const inside = r.top <= e.clientY && e.clientY <= r.bottom &&
-                     r.left <= e.clientX && e.clientX <= r.right;
-      if (!inside) dlg.close();
+    const closeBtn = document.getElementById('product-modal-close');
+    
+    if (!dlg) return;
+    
+    // Обработчик кнопки закрытия
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dlg.close();
+      });
+    }
+    
+    // Закрытие по клику вне диалога
+    dlg.addEventListener('click', function (e) {
+      // Проверяем, что клик был по backdrop (вне самого диалога)
+      const rect = dlg.getBoundingClientRect();
+      const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.bottom &&
+                          rect.left <= e.clientX && e.clientX <= rect.right);
+      if (!isInDialog) {
+        dlg.close();
+      }
     });
+    
+    // Закрытие по Escape
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && dlg?.open) dlg.close();
+      if (e.key === 'Escape' && dlg && dlg.open) {
+        dlg.close();
+      }
     });
+    
+    // Предотвращаем закрытие при клике внутри контента диалога
+    const modalBody = document.getElementById('product-modal-body');
+    if (modalBody) {
+      modalBody.addEventListener('click', function(e) {
+        e.stopPropagation();
+      });
+    }
+    
+    const modalHeader = dlg.querySelector('div[style*="border-bottom"]');
+    if (modalHeader) {
+      modalHeader.addEventListener('click', function(e) {
+        e.stopPropagation();
+      });
+    }
   })();
 </script>
 
