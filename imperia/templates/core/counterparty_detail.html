@@ -239,159 +239,78 @@
   {% endif %}
 </div>
 
-{# Подключение и инициализация Яндекс.Карт API 3.0 #}
+{# Подключение и инициализация Яндекс.Карт (бесплатно, без API ключа) #}
 {% if obj.address or obj.actual_address %}
-<script src="https://api-maps.yandex.ru/2.1/?apikey=692ebf62729afc22637e1678&lang=ru_RU" type="text/javascript"></script>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
 <script type="text/javascript">
-  // Данные для карт
-  var mapsData = [];
-  {% if obj.address %}
-  mapsData.push({
-    address: '{{ obj.address|escapejs }}',
-    containerId: 'map-legal',
-    title: 'Юридический адрес',
-    isLegal: true
-  });
-  {% endif %}
-  {% if obj.actual_address %}
-  mapsData.push({
-    address: '{{ obj.actual_address|escapejs }}',
-    containerId: 'map-actual',
-    title: 'Фактический адрес',
-    isLegal: false
-  });
-  {% endif %}
+  ymaps.ready(init);
 
-  // Инициализация карт после загрузки API 2.1
-  ymaps.ready(function() {
-    mapsData.forEach(function(mapData) {
-      initMap(mapData);
-    });
-  });
+  function init() {
+    {% if obj.address %}
+    initMap('map-legal', '{{ obj.address|escapejs }}', 'Юридический адрес', true);
+    {% endif %}
+    
+    {% if obj.actual_address %}
+    initMap('map-actual', '{{ obj.actual_address|escapejs }}', 'Фактический адрес', false);
+    {% endif %}
+  }
 
-  // Функция инициализации одной карты для API 2.1
-  function initMap(mapData) {
-    var address = mapData.address;
-    var containerId = mapData.containerId;
-    var title = mapData.title;
-    var isLegal = mapData.isLegal;
-    
-    // Создаём варианты адреса для поиска
-    function createSearchVariants(addr) {
-      var variants = [];
-      var cleanAddr = addr.trim();
-      var withoutIndex = cleanAddr.replace(/^\d{6},\s*/, '');
-      
-      var city = '';
-      var street = '';
-      var house = '';
-      var building = '';
-      var parts = withoutIndex.split(',').map(function(p) { return p.trim(); });
-      
-      for (var i = 0; i < parts.length; i++) {
-        var part = parts[i];
-        if (part.match(/^Г\.МОСКВА$/i) || part.match(/МОСКВА/i)) {
-          city = 'Москва';
-        } else if (part.match(/^Г\.САНКТ-ПЕТЕРБУРГ$/i) || part.match(/САНКТ-ПЕТЕРБУРГ/i) || part.match(/ПЕТЕРБУРГ/i)) {
-          city = 'Санкт-Петербург';
-        } else if (part.match(/^УЛ\./i)) {
-          street = part.replace(/^УЛ\.\s*/i, '').toLowerCase().replace(/\b\w/g, function(l) { return l.toUpperCase(); });
-        } else if (part.match(/^ПР-КТ/i)) {
-          var prospectName = part.replace(/^ПР-КТ\s*/i, '');
-          street = 'проспект ' + prospectName.toLowerCase().replace(/\b\w/g, function(l) { return l.toUpperCase(); });
-        } else if (part.match(/^Д\./i)) {
-          house = part.replace(/^Д\.\s*/i, '');
-        } else if (part.match(/^К\./i)) {
-          building = part.replace(/^К\.\s*/i, '');
-        }
-      }
-      
-      if (city && street && house) {
-        variants.push(city + ', ' + street + ', д. ' + house + (building ? ', корп. ' + building : ''));
-        variants.push(city + ', ' + street + ', ' + house);
-      }
-      
-      var simple = withoutIndex
-        .replace(/Г\.МОСКВА/gi, 'Москва')
-        .replace(/Г\.САНКТ-ПЕТЕРБУРГ/gi, 'Санкт-Петербург')
-        .replace(/ПР-КТ/gi, 'проспект')
-        .replace(/УЛ\./gi, 'улица')
-        .replace(/Д\./gi, 'д.')
-        .replace(/К\./gi, 'корп.');
-      variants.push(simple);
-      variants.push(withoutIndex);
-      
-      return variants.filter(function(v, i, self) {
-        return self.indexOf(v) === i && v.length > 5;
-      });
-    }
-    
-    // Создаём карту API 2.1
-    var map = new ymaps.Map(containerId, {
-      center: [55.755814, 37.617635], // Москва [широта, долгота] для API 2.1
+  function initMap(containerId, address, title, isLegal) {
+    // Нормализуем адрес для поиска
+    var normalizedAddr = address
+      .replace(/^\d{6},\s*/, '') // Убираем индекс
+      .replace(/Г\.МОСКВА/gi, 'Москва')
+      .replace(/Г\.САНКТ-ПЕТЕРБУРГ/gi, 'Санкт-Петербург')
+      .replace(/ПР-КТ/gi, 'проспект')
+      .replace(/УЛ\./gi, 'улица')
+      .replace(/Д\./gi, 'д.')
+      .replace(/К\./gi, 'корп.')
+      .trim();
+
+    // Создание карты
+    var myMap = new ymaps.Map(containerId, {
+      center: [55.76, 37.64],
       zoom: 10,
       controls: ['zoomControl', 'fullscreenControl', 'typeSelector']
     });
-    
-    var searchVariants = createSearchVariants(address);
-    console.log('Поиск адреса:', title, searchVariants);
-    
-    // Пробуем варианты адреса через HTTP геокодер
-    var apiKey = '692ebf62729afc22637e1678';
-    
-    function tryGeocode(variantIndex) {
-      if (variantIndex >= searchVariants.length) {
-        console.warn('Все варианты адреса не найдены для:', title);
-        return;
+
+    // Ищем координаты указанного адреса
+    var geocoder = ymaps.geocode(normalizedAddr);
+
+    // После того, как поиск вернул результат, вызывается callback-функция
+    geocoder.then(
+      function (res) {
+        if (res.geoObjects.getLength() > 0) {
+          // Координаты объекта
+          var coordinates = res.geoObjects.get(0).geometry.getCoordinates();
+
+          // Перемещаем карту на найденное место
+          myMap.setCenter(coordinates);
+          myMap.setZoom(15);
+
+          // Добавление метки (Placemark) на карту
+          var placemark = new ymaps.Placemark(
+            coordinates,
+            {
+              'hintContent': title,
+              'balloonContent': '<strong>' + title + '</strong><br/>' + address
+            },
+            {
+              'preset': isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
+              'iconColor': isLegal ? '#3b82f6' : '#10b981'
+            }
+          );
+
+          myMap.geoObjects.add(placemark);
+          placemark.balloon.open();
+        } else {
+          console.warn('Адрес не найден:', normalizedAddr);
+        }
+      },
+      function (err) {
+        console.warn('Ошибка геокодинга:', err);
       }
-      
-      var searchAddr = searchVariants[variantIndex];
-      console.log('Попытка геокодинга вариант ' + (variantIndex + 1) + ':', searchAddr);
-      
-      // Используем HTTP геокодер
-      fetch('https://geocode-maps.yandex.ru/1.x/?apikey=' + apiKey + '&format=json&geocode=' + encodeURIComponent(searchAddr))
-        .then(function(response) {
-          if (!response.ok) {
-            throw new Error('HTTP error: ' + response.status);
-          }
-          return response.json();
-        })
-        .then(function(data) {
-          if (data && data.response && data.response.GeoObjectCollection && 
-              data.response.GeoObjectCollection.featureMember && 
-              data.response.GeoObjectCollection.featureMember.length > 0) {
-            
-            var geoObject = data.response.GeoObjectCollection.featureMember[0].GeoObject;
-            var pos = geoObject.Point.pos.split(' '); // формат: "долгота широта"
-            var coordinates = [parseFloat(pos[1]), parseFloat(pos[0])]; // [широта, долгота] для API 2.1
-            
-            console.log('✓ Адрес найден! Координаты:', coordinates);
-            
-            map.setCenter(coordinates);
-            map.setZoom(15);
-            
-            var placemark = new ymaps.Placemark(coordinates, {
-              hintContent: title,
-              balloonContent: '<div style="padding:8px"><strong style="display:block;margin-bottom:4px">' + title + '</strong><div style="font-size:13px;color:#666">' + address + '</div></div>'
-            }, {
-              preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-              iconColor: isLegal ? '#3b82f6' : '#10b981'
-            });
-            
-            map.geoObjects.add(placemark);
-            placemark.balloon.open();
-          } else {
-            console.warn('Вариант ' + (variantIndex + 1) + ' не найден');
-            tryGeocode(variantIndex + 1);
-          }
-        })
-        .catch(function(err) {
-          console.warn('Ошибка геокодинга вариант ' + (variantIndex + 1) + ':', err);
-          tryGeocode(variantIndex + 1);
-        });
-    }
-    
-    tryGeocode(0);
+    );
   }
 </script>
 
