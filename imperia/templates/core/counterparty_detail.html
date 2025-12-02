@@ -1,178 +1,186 @@
 {% extends "base.html" %}
 {% load humanize %}
-
-{% block title %}Контрагент — {{ obj.name }}{% endblock %}
+{% block title %}{{ obj.name }} — IndigoFlow{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-2">{{ obj.name }}</h1>
 
-{# Кнопки доступны только оператору/директору #}
-{% if can_edit_client %}
-  <div class="mb-4 flex gap-2">
-    <a href="{% url 'core:counterparty_update' obj.pk %}" class="rounded-xl border px-3 py-1">Редактировать</a>
-    <a href="{% url 'core:counterparty_delete' obj.pk %}" class="rounded-xl border px-3 py-1 text-red-600">Удалить</a>
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">{{ obj.name }}</h1>
+      <p class="card-subtitle">Детальная информация о контрагенте</p>
+    </div>
+    {% if can_edit_client %}
+      <div style="display:flex;gap:8px">
+        <a href="{% url 'core:counterparty_update' obj.pk %}" class="btn btn-secondary">Редактировать</a>
+        <a href="{% url 'core:counterparty_delete' obj.pk %}" class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca">Удалить</a>
+      </div>
+    {% endif %}
   </div>
-{% endif %}
+</div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <!-- Реквизиты -->
-  <div class="rounded-xl border p-4">
-    <h2 class="font-semibold mb-2">Реквизиты</h2>
-    <div class="space-y-1 text-sm">
-      <div><span class="text-gray-500">ИНН:</span> {{ obj.inn }}</div>
-      {% if obj.kpp %}<div><span class="text-gray-500">КПП:</span> {{ obj.kpp }}</div>{% endif %}
-      {% if obj.ogrn %}<div><span class="text-gray-500">ОГРН:</span> {{ obj.ogrn }}</div>{% endif %}
-      {% if obj.full_name %}<div><span class="text-gray-500">Полное наименование:</span> {{ obj.full_name }}</div>{% endif %}
-      {% if obj.address %}<div><span class="text-gray-500">Юридический адрес:</span> {{ obj.address }}</div>{% endif %}
-      {% if obj.actual_address %}<div><span class="text-gray-500">Фактический / адрес доставки:</span> {{ obj.actual_address }}</div>{% endif %}
+<div class="grid grid-2">
+  {# Реквизиты #}
+  <div class="card">
+    <h2 style="font-size:18px;font-weight:700;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid var(--border)">Реквизиты</h2>
+    <div style="display:grid;gap:12px">
+      <div><span style="color:var(--muted);font-size:13px">ИНН:</span> <span style="font-weight:600">{{ obj.inn }}</span></div>
+      {% if obj.kpp %}<div><span style="color:var(--muted);font-size:13px">КПП:</span> <span style="font-weight:600">{{ obj.kpp }}</span></div>{% endif %}
+      {% if obj.ogrn %}<div><span style="color:var(--muted);font-size:13px">ОГРН:</span> <span style="font-weight:600">{{ obj.ogrn }}</span></div>{% endif %}
+      {% if obj.full_name %}<div><span style="color:var(--muted);font-size:13px">Полное наименование:</span> <div style="margin-top:4px">{{ obj.full_name }}</div></div>{% endif %}
+      {% if obj.address %}<div><span style="color:var(--muted);font-size:13px">Юридический адрес:</span> <div style="margin-top:4px">{{ obj.address }}</div></div>{% endif %}
+      {% if obj.actual_address %}<div><span style="color:var(--muted);font-size:13px">Фактический адрес:</span> <div style="margin-top:4px">{{ obj.actual_address }}</div></div>{% endif %}
       {% if obj.website %}
         <div>
-          <span class="text-gray-500">Сайт:</span>
-          <a href="{{ obj.website }}" class="text-blue-600" target="_blank" rel="noopener">{{ obj.website }}</a>
+          <span style="color:var(--muted);font-size:13px">Сайт:</span>
+          <a href="{{ obj.website }}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-weight:600">{{ obj.website }}</a>
         </div>
       {% endif %}
-      <div><span class="text-gray-500">Страна:</span> {{ obj.registration_country }}</div>
-      <div class="text-xs text-gray-500 mt-2">Обновлено: {{ obj.updated_at }}</div>
+      <div><span style="color:var(--muted);font-size:13px">Страна:</span> <span style="font-weight:600">{{ obj.registration_country }}</span></div>
+      <div style="margin-top:8px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">Обновлено: {{ obj.updated_at|date:"d.m.Y H:i" }}</div>
     </div>
   </div>
 
-  <!-- Финансовые показатели -->
-  <div class="rounded-xl border p-4">
-    <h2 class="font-semibold mb-2">Финансовые показатели</h2>
-
-    {% if can_edit_client %}
-      <form method="post" action="{% url 'core:counterparty_refresh_finance' obj.pk %}" class="mb-3">
-        {% csrf_token %}
-        <button class="rounded-xl border px-3 py-1">Обновить из ЕГРЮЛ</button>
-      </form>
-    {% endif %}
+  {# Финансовые показатели #}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <h2 style="font-size:18px;font-weight:700;margin:0">Финансовые показатели</h2>
+      {% if can_edit_client %}
+        <form method="post" action="{% url 'core:counterparty_refresh_finance' obj.pk %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary" style="font-size:13px;padding:6px 12px">Обновить из ЕГРЮЛ</button>
+        </form>
+      {% endif %}
+    </div>
 
     {% if obj.finance %}
-      <div class="space-y-1 text-sm">
+      <div style="display:grid;gap:12px">
         <div>
-          <span class="text-gray-500">Выручка (последний год):</span>
-          {% if obj.finance.revenue_last %}{{ obj.finance.revenue_last|floatformat:0|intcomma }} ₽{% else %}—{% endif %}
+          <div style="color:var(--muted);font-size:13px;margin-bottom:4px">Выручка (последний год)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--primary)">
+            {% if obj.finance.revenue_last %}{{ obj.finance.revenue_last|floatformat:0|intcomma }} ₽{% else %}—{% endif %}
+          </div>
         </div>
         <div>
-          <span class="text-gray-500">Чистая прибыль (последний год):</span>
-          {% if obj.finance.profit_last is not None %}{{ obj.finance.profit_last|floatformat:0|intcomma }} ₽{% else %}—{% endif %}
+          <div style="color:var(--muted);font-size:13px;margin-bottom:4px">Чистая прибыль (последний год)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--primary)">
+            {% if obj.finance.profit_last is not None %}{{ obj.finance.profit_last|floatformat:0|intcomma }} ₽{% else %}—{% endif %}
+          </div>
         </div>
       </div>
     {% else %}
-      <p class="text-sm text-gray-500">Финансовых данных нет.</p>
+      <div style="color:var(--muted);font-size:14px;padding:24px;text-align:center">Финансовых данных нет</div>
     {% endif %}
   </div>
 </div>
 
-<!-- Платёжные реквизиты (НОВОЕ) -->
-<div class="rounded-xl border p-4 mt-4">
-  <h2 class="font-semibold mb-2">Платёжные реквизиты</h2>
-  <div class="grid md:grid-cols-3 gap-3 text-sm">
+{# Платёжные реквизиты #}
+<div class="card">
+  <h2 style="font-size:18px;font-weight:700;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid var(--border)">Платёжные реквизиты</h2>
+  <div class="grid grid-3">
     <div>
-      <div class="text-gray-500">Банк</div>
-      <div>{{ obj.bank_name|default:"—" }}</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:4px">Банк</div>
+      <div style="font-weight:600">{{ obj.bank_name|default:"—" }}</div>
     </div>
     <div>
-      <div class="text-gray-500">БИК</div>
-      <div>{{ obj.bank_bik|default:"—" }}</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:4px">БИК</div>
+      <div style="font-weight:600;font-family:ui-monospace">{{ obj.bank_bik|default:"—" }}</div>
     </div>
     <div>
-      <div class="text-gray-500">Расчётный счёт</div>
-      <div>{{ obj.bank_account|default:"—" }}</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:4px">Расчётный счёт</div>
+      <div style="font-weight:600;font-family:ui-monospace">{{ obj.bank_account|default:"—" }}</div>
     </div>
   </div>
 </div>
 
-<!-- Контакты -->
-<div class="rounded-xl border p-4 mt-4">
-  <div class="flex items-center justify-between mb-2">
-    <h2 class="font-semibold">Контактные лица</h2>
+{# Контакты #}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <h2 style="font-size:18px;font-weight:700;margin:0">Контактные лица</h2>
     {% if can_add_contact %}
-      <a href="{% url 'core:contact_add' obj.pk %}" class="rounded-xl border px-3 py-1">Добавить контакт</a>
+      <a href="{% url 'core:contact_add' obj.pk %}" class="btn btn-secondary">+ Добавить контакт</a>
     {% endif %}
   </div>
 
   {% if obj.contacts.all %}
-    <div class="space-y-2 text-sm">
+    <div style="display:grid;gap:12px">
       {% for c in obj.contacts.all %}
-        <div class="border rounded-lg p-2">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="font-medium">{{ c.full_name }}</div>
-              <div class="text-gray-600">{{ c.position }}</div>
+        <div style="padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:16px;margin-bottom:4px">{{ c.full_name }}</div>
+              <div style="color:var(--muted);font-size:14px;margin-bottom:8px">{{ c.position }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:14px">
+                {% if c.email %}<span>✉️ <a href="mailto:{{ c.email }}" style="color:var(--primary);text-decoration:none">{{ c.email }}</a></span>{% endif %}
+                {% if c.phone %}<span>☎️ <a href="tel:{{ c.phone }}" style="color:var(--text);text-decoration:none">{{ c.phone }}</a></span>{% endif %}
+                {% if c.mobile %}<span>📱 <a href="tel:{{ c.mobile }}" style="color:var(--text);text-decoration:none">{{ c.mobile }}</a></span>{% endif %}
+              </div>
+              {% if c.note %}<div style="margin-top:8px;color:var(--muted);font-size:13px">{{ c.note }}</div>{% endif %}
             </div>
             {% if can_edit_contact %}
-              <div class="flex gap-2">
-                <a href="{% url 'core:contact_edit' pk=obj.pk contact_id=c.pk %}" class="text-blue-600 text-sm">Редактировать</a>
-                <a href="{% url 'core:contact_delete' pk=obj.pk contact_id=c.pk %}" class="text-red-600 text-sm">Удалить</a>
+              <div style="display:flex;gap:8px">
+                <a href="{% url 'core:contact_edit' pk=obj.pk contact_id=c.pk %}" class="btn btn-secondary" style="font-size:13px;padding:6px 12px">Редактировать</a>
+                <a href="{% url 'core:contact_delete' pk=obj.pk contact_id=c.pk %}" class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca;font-size:13px;padding:6px 12px">Удалить</a>
               </div>
             {% endif %}
           </div>
-          <div class="mt-1">
-            {% if c.email %}<span class="mr-3">✉️ {{ c.email }}</span>{% endif %}
-            {% if c.phone %}<span class="mr-3">☎️ {{ c.phone }}</span>{% endif %}
-            {% if c.mobile %}<span>📱 {{ c.mobile }}</span>{% endif %}
-          </div>
-          {% if c.note %}<div class="text-gray-500 mt-1">{{ c.note }}</div>{% endif %}
         </div>
       {% endfor %}
     </div>
   {% else %}
-    <p class="text-sm text-gray-500">Контактов пока нет.</p>
+    <div style="padding:24px;text-align:center;color:var(--muted)">Контактов пока нет</div>
   {% endif %}
 </div>
 
-<!-- Менеджеры -->
-<div class="rounded-xl border p-4 mt-4">
-  <div class="flex items-center justify-between mb-2">
-    <h2 class="font-semibold">Менеджеры</h2>
+{# Менеджеры #}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <h2 style="font-size:18px;font-weight:700;margin:0">Менеджеры</h2>
     {% if can_edit_client %}
-      <a href="{% url 'core:counterparty_update' obj.pk %}#managers" class="rounded-xl border px-3 py-1">Назначить</a>
+      <a href="{% url 'core:counterparty_update' obj.pk %}#managers" class="btn btn-secondary">Назначить</a>
     {% endif %}
   </div>
 
   {% with managers=obj.managers.all %}
     {% if managers %}
-      <div class="space-y-2 text-sm">
+      <div style="display:grid;gap:12px">
         {% for m in managers %}
-          <div class="border rounded-lg p-2">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="font-medium">{{ m.get_full_name|default:m.username }}</div>
-                <div class="text-gray-600">@{{ m.username }}{% if m.email %} • {{ m.email }}{% endif %}</div>
-              </div>
-              {% if can_edit_client %}
-                <form method="post" action="{% url 'core:counterparty_manager_remove' obj.pk m.pk %}">
-                  {% csrf_token %}
-                  <button type="submit" class="text-red-600 text-sm">Удалить</button>
-                </form>
-              {% endif %}
+          <div style="padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:600;font-size:16px">{{ m.get_full_name|default:m.username }}</div>
+              <div style="color:var(--muted);font-size:14px">@{{ m.username }}{% if m.email %} • {{ m.email }}{% endif %}</div>
             </div>
+            {% if can_edit_client %}
+              <form method="post" action="{% url 'core:counterparty_manager_remove' obj.pk m.pk %}" style="margin:0">
+                {% csrf_token %}
+                <button type="submit" class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca;font-size:13px;padding:6px 12px">Удалить</button>
+              </form>
+            {% endif %}
           </div>
         {% endfor %}
       </div>
     {% else %}
-      <p class="text-sm text-gray-500">Менеджеры не назначены.</p>
+      <div style="padding:24px;text-align:center;color:var(--muted)">Менеджеры не назначены</div>
     {% endif %}
   {% endwith %}
 </div>
 
-<!-- Документы -->
-<div class="rounded-xl border p-4 mt-4">
-  <h2 class="font-semibold mb-2">Документы</h2>
+{# Документы #}
+<div class="card">
+  <h2 style="font-size:18px;font-weight:700;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid var(--border)">Документы</h2>
   {% if obj.documents.all %}
-    <ul class="list-disc pl-5 text-sm">
+    <div style="display:grid;gap:8px">
       {% for d in obj.documents.all %}
-        <li>
-          <a href="{{ d.file.url }}" target="_blank" class="text-blue-600 underline">
-            {{ d.title|default:d.file.name }}
-          </a>
-          <span class="text-xs text-gray-500">— {{ d.created_at }}</span>
-        </li>
+        <a href="{{ d.file.url }}" target="_blank" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text);transition:background 0.2s"
+           onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+          <span style="font-weight:600">{{ d.title|default:d.file.name }}</span>
+          <span style="font-size:12px;color:var(--muted)">{{ d.created_at|date:"d.m.Y" }}</span>
+        </a>
       {% endfor %}
-    </ul>
+    </div>
   {% else %}
-    <p class="text-sm text-gray-500">Документы не загружены.</p>
+    <div style="padding:24px;text-align:center;color:var(--muted)">Документы не загружены</div>
   {% endif %}
 </div>
+
 {% endblock %}

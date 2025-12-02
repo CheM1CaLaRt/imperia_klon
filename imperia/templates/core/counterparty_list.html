@@ -1,95 +1,121 @@
 {% extends "base.html" %}
 {% block wrap_mod %}wrap--xl{% endblock %}
 {% load static %}
-{% block title %}Клиенты{% endblock %}
-
-
+{% block title %}Клиенты — IndigoFlow{% endblock %}
 
 {% block content %}
 
-<h1 class="text-2xl font-semibold mb-4">Клиенты</h1>
-
-{# ===== Роль-ориентированная мини-навигация ===== #}
-{% with n=request.resolver_match.url_name %}
-  <div class="mb-5 flex flex-wrap items-center gap-2">
-    {% if is_manager %}
-      <div class="inline-flex items-center gap-px rounded-full bg-gray-100 p-1 shadow-inner">
-        <a href="{% url 'core:counterparty_request_create' %}"
-           class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition
-                  {% if n == 'counterparty_request_create' %} bg-black text-white shadow {% else %} bg-white text-gray-800 hover:bg-gray-50 {% endif %}">
-          <svg class="h-4 w-4 opacity-80" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5a1 1 0 011 1v5h5a1 1 0 010 2h-5v5a1 1 0 01-2 0v-5H6a1 1 0 010-2h5V6a1 1 0 011-1z"/></svg>
-          <span>Новая заявка (контрагент)</span>
-        </a>
-        <a href="{% url 'core:manager_counterparty_requests' %}"
-           class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition
-                  {% if n == 'manager_counterparty_requests' %} bg-black text-white shadow {% else %} bg-white text-gray-800 hover:bg-gray-50 {% endif %}">
-          <svg class="h-4 w-4 opacity-80" viewBox="0 0 24 24" fill="currentColor"><path d="M5 6h14a1 1 0 010 2H5a1 1 0 110-2zm0 5h14a1 1 0 010 2H5a1 1 0 110-2zm0 5h9a1 1 0 010 2H5a1 1 0 110-2z"/></svg>
-          <span>Мои заявки</span>
-        </a>
-      </div>
-    {% endif %}
-
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Клиенты</h1>
+      <p class="card-subtitle">Управление контрагентами</p>
+    </div>
     {% if is_operator or is_director %}
-      <a href="{% url 'core:counterparty_review_queue' %}"
-         class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm text-gray-800 border transition hover:bg-gray-50
-                {% if n == 'counterparty_review_queue' %} !bg-black !text-white border-black shadow {% endif %}">
-        <svg class="h-4 w-4 opacity-80" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M9 12l2 2 4-4a1 1 0 011.41 1.41l-4.7 4.7a1 1 0 01-1.41 0L7.6 13.4A1 1 0 019 12z"/>
-          <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16z"/>
-        </svg>
-        <span>Подтверждение контрагентов</span>
-        {% if pending_count %}
-          <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-yellow-500 px-1.5 text-[11px] font-medium text-white">{{ pending_count }}</span>
-        {% endif %}
+      <a href="{% url 'core:counterparty_create' %}" class="btn btn-primary">
+        + Добавить клиента
       </a>
     {% endif %}
   </div>
-{% endwith %}
-
-{# ===== Поиск + добавление ===== #}
-<div class="flex items-center justify-between mb-4 gap-3">
-  <form method="get" class="flex-1 flex gap-2">
-    <input type="search" name="q" value="{{ q }}" placeholder="Поиск по названию или ИНН"
-           class="rounded-xl border px-3 py-2 w-full outline-none focus:ring-2 focus:ring-blue-500">
-    <button class="rounded-xl border px-4 hover:bg-gray-50">Найти</button>
-    {% if q %}
-      <a href="{% url 'core:counterparty_list' %}" class="rounded-xl border px-3 py-2 hover:bg-gray-50">Сброс</a>
-    {% endif %}
-  </form>
-
-  {% if is_operator or is_director %}
-    <a href="{% url 'core:counterparty_create' %}"
-       class="inline-flex items-center gap-2 rounded-xl bg-black text-white px-4 py-2 shadow hover:opacity-90">
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"/></svg>
-      Добавить клиента
-    </a>
-  {% endif %}
 </div>
 
-{# ===== Список клиентов (на всю доступную ширину) ===== #}
-{% if objects %}
-  <div class="clients-list rounded-xl border divide-y bg-white">
-    {% for obj in objects %}
-      <a href="{% url 'core:counterparty_detail' obj.pk %}"
-         class="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
-        <div class="min-w-0">
-          <div class="font-medium truncate">{{ obj.name }}</div>
-          <div class="text-sm text-gray-600">
-            ИНН: {{ obj.inn }}{% if obj.kpp %} • КПП: {{ obj.kpp }}{% endif %}
-          </div>
-        </div>
-        {% if obj.managers.all %}
-          <div class="hidden md:flex gap-1 shrink-0">
-            {% for m in obj.managers.all %}
-              <span class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs">{{ m.get_full_name|default:m.username }}</span>
-            {% endfor %}
-          </div>
+{# Роль-ориентированная мини-навигация #}
+{% with n=request.resolver_match.url_name %}
+  {% if is_manager or is_operator or is_director %}
+    <div class="card" style="padding:16px 20px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        {% if is_manager %}
+          <a href="{% url 'core:counterparty_request_create' %}"
+             class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-weight:600 transition
+                    {% if n == 'counterparty_request_create' %} bg-black text-white shadow {% else %} bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 {% endif %}"
+             style="text-decoration:none;border:1px solid var(--border);background:var(--card);color:var(--text)">
+            <span>+</span>
+            <span>Новая заявка (контрагент)</span>
+          </a>
+          <a href="{% url 'core:manager_counterparty_requests' %}"
+             class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-weight:600 transition
+                    {% if n == 'manager_counterparty_requests' %} bg-black text-white shadow {% else %} bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 {% endif %}"
+             style="text-decoration:none;border:1px solid var(--border);background:var(--card);color:var(--text)">
+            <span>📋</span>
+            <span>Мои заявки</span>
+          </a>
         {% endif %}
-      </a>
-    {% endfor %}
+
+        {% if is_operator or is_director %}
+          <a href="{% url 'core:counterparty_review_queue' %}"
+             class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-weight:600 transition
+                    {% if n == 'counterparty_review_queue' %} !bg-black !text-white border-black shadow {% else %} bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 {% endif %}"
+             style="text-decoration:none;border:1px solid var(--border);background:var(--card);color:var(--text)">
+            <span>✓</span>
+            <span>Подтверждение контрагентов</span>
+            {% if pending_count %}
+              <span style="display:inline-flex;height:20px;min-width:20px;align-items:center;justify-content:center;border-radius:999px;background:#f59e0b;padding:0 6px;font-size:11px;font-weight:600;color:#fff">{{ pending_count }}</span>
+            {% endif %}
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+{% endwith %}
+
+{# Поиск #}
+<div class="card">
+  <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px">
+      <label class="field label" style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px">Поиск</label>
+      <input type="search" name="q" value="{{ q }}" placeholder="По названию или ИНН"
+             style="width:100%;padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:12px;font-size:15px">
+    </div>
+    <button type="submit" class="btn btn-primary">Найти</button>
+    {% if q %}
+      <a href="{% url 'core:counterparty_list' %}" class="btn btn-secondary">Сброс</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Список клиентов #}
+{% if objects %}
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="display:grid;gap:0">
+      {% for obj in objects %}
+        <a href="{% url 'core:counterparty_detail' obj.pk %}"
+           style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;transition:background 0.2s;gap:16px"
+           onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:16px;margin-bottom:4px;color:var(--text)">{{ obj.name }}</div>
+            <div style="font-size:14px;color:var(--muted)">
+              ИНН: {{ obj.inn }}{% if obj.kpp %} • КПП: {{ obj.kpp }}{% endif %}
+            </div>
+          </div>
+          {% if obj.managers.all %}
+            <div style="display:none;flex-wrap:wrap;gap:6px;flex-shrink:0">
+              {% for m in obj.managers.all %}
+                <span style="display:inline-block;border-radius:999px;background:var(--bg);padding:4px 10px;font-size:12px;color:var(--text)">{{ m.get_full_name|default:m.username }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
   </div>
 {% else %}
-  <p class="text-sm text-gray-500">Ничего не найдено.</p>
+  <div class="card">
+    <div style="padding:48px 24px;text-align:center;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">👥</div>
+      <div style="font-size:18px;font-weight:600;margin-bottom:4px;color:var(--text)">Клиенты не найдены</div>
+      <div style="font-size:14px">{% if q %}Попробуйте другой поисковый запрос{% else %}Добавьте первого клиента{% endif %}</div>
+    </div>
+  </div>
 {% endif %}
 
+<style>
+@media (min-width:768px){
+  .card a div[style*="display:none"]{display:flex !important}
+}
+@media (max-width:640px){
+  .card-header{flex-direction:column;align-items:stretch;gap:12px}
+  .card-header .btn{width:100%}
+  .card a{flex-direction:column;align-items:flex-start}
+}
+</style>
 {% endblock %}

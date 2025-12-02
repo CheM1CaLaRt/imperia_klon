@@ -4,62 +4,107 @@
 
 {% block title %}Склад — панель{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <h1 class="text-2xl font-semibold">Склады</h1>
-  {% if request.user|in_groups:"director" %}
-    <a href="{% url 'warehouse_create' %}" class="btn btn-primary">+ Склад</a>
-  {% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Склады</h1>
+      <p class="card-subtitle">Управление складами и товарами</p>
+    </div>
+    {% if request.user|in_groups:"director" %}
+      <a href="{% url 'warehouse_create' %}" class="btn btn-primary">+ Новый склад</a>
+    {% endif %}
+  </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
-  {% for w in warehouses %}
-    <a href="{% url 'warehouse_detail' w.pk %}" class="block rounded-xl border p-4 hover:bg-gray-50">
-      <div class="text-lg font-medium mb-1">{{ w.code }} — {{ w.name }}</div>
-      <div class="text-sm text-gray-500 mb-2">{{ w.address }}</div>
-      <div class="text-sm">
-        Ячеек: {{ w.bins_count}} |
-        Позиции: {{ w.inv_positions }} |
-        Кол-во: {{ w.inv_qty|floatformat:0 }}
-      </div>
-      <div class="mt-3"><span class="btn">Открыть</span></div>
-    </a>
-  {% empty %}
-    <p>Нет складов</p>
-  {% endfor %}
-</div>
-
-<h2 class="text-xl font-semibold mb-2">Недавние движения</h2>
-<table class="min-w-full rounded-xl overflow-hidden">
-  <thead>
-    <tr class="text-left bg-gray-100">
-      <th class="p-2">Время</th>
-      <th class="p-2">Тип</th>
-      <th class="p-2">Склад</th>
-      <th class="p-2">Из</th>
-      <th class="p-2">В</th>
-      <th class="p-2">Товар</th>
-      <th class="p-2">Кол-во</th>
-      <th class="p-2">Кто</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for m in recent_moves %}
-      <tr class="border-t">
-        <td class="p-2 text-xs text-gray-500">{{ m.timestamp|date:"d.m.Y H:i" }}</td>
-        <td class="p-2">{{ m.get_movement_type_display }}</td>
-        <td class="p-2">{{ m.warehouse.code }}</td>
-        <td class="p-2">{% if m.bin_from %}{{ m.bin_from.code }}{% else %}—{% endif %}</td>
-        <td class="p-2">{% if m.bin_to %}{{ m.bin_to.code }}{% else %}—{% endif %}</td>
-        <td class="p-2">
-          <div class="font-mono text-sm">{{ m.product.barcode }}</div>
-          <div class="text-xs text-gray-600">{{ m.product.name }}</div>
-        </td>
-        <td class="p-2">{{ m.quantity|floatformat:0 }}</td>
-        <td class="p-2 text-xs">{{ m.actor|default:"—" }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="8" class="p-3 text-gray-500">Движений ещё нет</td></tr>
+{% if warehouses %}
+  <div class="grid grid-3">
+    {% for w in warehouses %}
+      <a href="{% url 'warehouse_detail' w.pk %}" class="stat-card" style="text-align:left;text-decoration:none;color:inherit">
+        <div style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Склад</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px">{{ w.code }}</div>
+        <div style="font-size:16px;color:var(--text);margin-bottom:12px">{{ w.name }}</div>
+        {% if w.address %}
+          <div style="font-size:13px;color:var(--muted);margin-bottom:16px">{{ w.address|truncatewords:8 }}</div>
+        {% endif %}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:16px;border-top:1px solid var(--border);font-size:13px">
+          <div>
+            <div style="color:var(--muted)">Ячеек</div>
+            <div style="font-weight:600;font-size:16px;color:var(--primary)">{{ w.bins_count|default:0 }}</div>
+          </div>
+          <div>
+            <div style="color:var(--muted)">Позиций</div>
+            <div style="font-weight:600;font-size:16px;color:var(--primary)">{{ w.inv_positions|default:0 }}</div>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <span class="btn btn-primary" style="width:100%;font-size:14px;padding:8px 16px">Открыть склад</span>
+        </div>
+      </a>
     {% endfor %}
-  </tbody>
-</table>
+  </div>
+{% else %}
+  <div class="card">
+    <div style="padding:48px 24px;text-align:center;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">📦</div>
+      <div style="font-size:18px;font-weight:600;margin-bottom:4px;color:var(--text)">Склады не найдены</div>
+      <div style="font-size:14px">Добавьте первый склад для начала работы</div>
+    </div>
+  </div>
+{% endif %}
+
+{% if recent_moves %}
+  <div class="card" style="margin-top:24px">
+    <h2 style="font-size:20px;font-weight:700;margin:0 0 20px 0;padding-bottom:16px;border-bottom:1px solid var(--border)">Недавние движения</h2>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Время</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Тип</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Склад</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Из</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">В</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Товар</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Кол-во</th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase">Кто</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in recent_moves %}
+            <tr style="border-bottom:1px solid var(--border);transition:background 0.2s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+              <td style="padding:12px;font-size:13px;color:var(--muted)">{{ m.timestamp|date:"d.m.Y H:i" }}</td>
+              <td style="padding:12px;font-size:14px">{{ m.get_movement_type_display }}</td>
+              <td style="padding:12px;font-size:14px;font-weight:600">{{ m.warehouse.code }}</td>
+              <td style="padding:12px;font-size:14px;font-family:ui-monospace">{% if m.bin_from %}{{ m.bin_from.code }}{% else %}—{% endif %}</td>
+              <td style="padding:12px;font-size:14px;font-family:ui-monospace">{% if m.bin_to %}{{ m.bin_to.code }}{% else %}—{% endif %}</td>
+              <td style="padding:12px">
+                <div style="font-family:ui-monospace;font-size:13px;font-weight:600">{{ m.product.barcode }}</div>
+                <div style="font-size:13px;color:var(--muted)">{{ m.product.name|truncatewords:5 }}</div>
+              </td>
+              <td style="padding:12px;font-size:14px;font-weight:600">{{ m.quantity|floatformat:0 }}</td>
+              <td style="padding:12px;font-size:13px;color:var(--muted)">{{ m.actor|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<style>
+@media (max-width:940px){
+  .grid-3{grid-template-columns:1fr}
+  .stat-card:hover{transform:none}
+}
+@media (max-width:640px){
+  .card table{font-size:12px}
+  .card th,.card td{padding:8px}
+  .card thead{display:none}
+  .card tbody tr{display:block;margin-bottom:16px;border:1px solid var(--border);border-radius:12px;padding:12px}
+  .card tbody td{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bg)}
+  .card tbody td:before{content:attr(data-label);font-weight:600;color:var(--muted)}
+  .card tbody td:last-child{border-bottom:0}
+}
+</style>
 {% endblock %}

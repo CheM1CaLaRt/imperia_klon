@@ -1,27 +1,34 @@
 {% extends "base.html" %}
 {% load access %}
-{% block title %}Заявки{% endblock %}
+{% block title %}Заявки — IndigoFlow{% endblock %}
 
 {% block content %}
-<header class="rq-header">
-  <h1 class="rq-title">Заявки</h1>
-  {% if request.user|in_groups:"manager,operator,director" %}
-    <a href="{% url 'core:request_create' %}" class="rq-cta">+ Новая заявка</a>
-  {% endif %}
-</header>
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Заявки</h1>
+      <p class="card-subtitle">Управление заявками и заказами</p>
+    </div>
+    {% if request.user|in_groups:"manager,operator,director" %}
+      <a href="{% url 'core:request_create' %}" class="btn btn-primary">+ Новая заявка</a>
+    {% endif %}
+  </div>
+</div>
 
-<nav class="rq-filters" aria-label="Фильтр по статусу">
-  <a href="{% url 'core:request_list' %}" class="rq-seg {% if not status %}is-active{% endif %}">Все</a>
-  <a href="?status=submitted" class="rq-seg {% if status == 'submitted' %}is-active{% endif %}">На согласовании</a>
-  <a href="?status=quote" class="rq-seg {% if status == 'quote' %}is-active{% endif %}">КП</a>
-  <a href="?status=approved" class="rq-seg {% if status == 'approved' %}is-active{% endif %}">Согласованы</a>
-  <a href="?status=rejected" class="rq-seg {% if status == 'rejected' %}is-active{% endif %}">Не согласованы</a>
-  <a href="?status=to_pick" class="rq-seg {% if status == 'to_pick' %}is-active{% endif %}">В сборку</a>
-  <a href="?status=in_progress" class="rq-seg {% if status == 'in_progress' %}is-active{% endif %}">Собираются</a>
-  <a href="?status=ready_to_ship" class="rq-seg {% if status == 'ready_to_ship' %}is-active{% endif %}">К отгрузке</a>
-  <a href="?status={{ statuses.DELIVERED }}" class="rq-seg {% if status == statuses.DELIVERED %}is-active{% endif %}">Доставлены</a>
-  <a href="?status=done" class="rq-seg {% if status == 'done' %}is-active{% endif %}">Завершены</a>
-</nav>
+<div class="card">
+  <nav class="rq-filters" aria-label="Фильтр по статусу">
+    <a href="{% url 'core:request_list' %}" class="rq-seg {% if not status %}is-active{% endif %}">Все</a>
+    <a href="?status=submitted" class="rq-seg {% if status == 'submitted' %}is-active{% endif %}">На согласовании</a>
+    <a href="?status=quote" class="rq-seg {% if status == 'quote' %}is-active{% endif %}">КП</a>
+    <a href="?status=approved" class="rq-seg {% if status == 'approved' %}is-active{% endif %}">Согласованы</a>
+    <a href="?status=rejected" class="rq-seg {% if status == 'rejected' %}is-active{% endif %}">Не согласованы</a>
+    <a href="?status=to_pick" class="rq-seg {% if status == 'to_pick' %}is-active{% endif %}">В сборку</a>
+    <a href="?status=in_progress" class="rq-seg {% if status == 'in_progress' %}is-active{% endif %}">Собираются</a>
+    <a href="?status=ready_to_ship" class="rq-seg {% if status == 'ready_to_ship' %}is-active{% endif %}">К отгрузке</a>
+    <a href="?status={{ statuses.DELIVERED }}" class="rq-seg {% if status == statuses.DELIVERED %}is-active{% endif %}">Доставлены</a>
+    <a href="?status=done" class="rq-seg {% if status == 'done' %}is-active{% endif %}">Завершены</a>
+  </nav>
+</div>
 
 <section class="rq-list" aria-live="polite">
   {% for r in requests %}
@@ -35,16 +42,12 @@
             · {{ r.created_at|date:"d.m.Y H:i" }}
           </div>
         </div>
-
         <div class="rq-item__badges">
-          {# ОСНОВНОЙ СТАТУС: если canceled — показываем «Завершена» #}
           {% if r.status == 'canceled' %}
             <span class="rq-chip rq-chip--done">Завершена</span>
           {% else %}
             <span class="rq-chip rq-chip--{{ r.status }}">{{ r.get_status_display }}</span>
           {% endif %}
-
-          {# ДОП. ФЛАГИ: оплата и отмена — контурные бейджи #}
           {% if r.is_paid %}
             <span class="rq-chip rq-chip--flag">Оплачено</span>
           {% endif %}
@@ -55,52 +58,57 @@
       </div>
     </a>
   {% empty %}
-    <div class="rq-empty">Заявок нет</div>
+    <div class="card">
+      <div class="rq-empty">
+        <div style="font-size:48px;margin-bottom:12px">📋</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:4px">Заявок нет</div>
+        <div style="color:var(--muted);font-size:14px">Создайте первую заявку, используя кнопку выше</div>
+      </div>
+    </div>
   {% endfor %}
 </section>
 
 <style>
-:root{ --bg:#f6f7f8; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --accent:#111; --radius:14px; }
+.rq-filters{position:sticky;top:72px;z-index:10;background:var(--card);padding:16px 0;display:flex;flex-wrap:wrap;gap:8px;margin:-20px -20px 20px -20px;padding-left:20px;padding-right:20px;border-bottom:1px solid var(--border)}
+.rq-seg{white-space:nowrap;padding:8px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-weight:600;text-decoration:none;font-size:14px;transition:all 0.2s}
+.rq-seg:hover{background:var(--bg);border-color:var(--primary)}
+.rq-seg.is-active{background:var(--primary);color:#fff;border-color:var(--primary)}
 
-.rq-title{font-size:28px;font-weight:700;color:var(--text);}
-.rq-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
-.rq-cta{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:#111;color:#fff;border:1px solid #111;font-weight:700;text-decoration:none}
-.rq-cta:hover{opacity:.92}
+.rq-list{display:grid;gap:12px}
+.rq-item{display:block;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;text-decoration:none;color:inherit;transition:all 0.2s;box-shadow:var(--shadow)}
+.rq-item:hover{background:#fff;border-color:var(--primary);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.rq-item__row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.rq-item__main{flex:1;min-width:0}
+.rq-item__title{font-weight:700;font-size:16px;margin-bottom:6px;color:var(--text)}
+.rq-item__meta{color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rq-item__badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
-.rq-filters{position:sticky;top:0;z-index:3;background:transparent;padding:10px 0 12px;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.rq-seg{white-space:nowrap;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#111;font-weight:700;text-decoration:none}
-.rq-seg.is-active{background:#111;color:#fff;border-color:#111}
+.rq-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--card);color:var(--text);white-space:nowrap}
+.rq-chip--done{background:var(--primary);border-color:var(--primary);color:#fff}
+.rq-chip--flag{background:var(--card);border:1px dashed var(--border);color:var(--text)}
+.rq-chip--submitted{background:#eef2ff;border-color:#c7d2fe;color:#1f2937}
+.rq-chip--quote{background:#fef3c7;border-color:#fde68a;color:#78350f}
+.rq-chip--approved{background:#e0f2fe;border-color:#bae6fd;color:#075985}
+.rq-chip--to_pick{background:#f5f3ff;border-color:#ddd6fe;color:#3730a3}
+.rq-chip--in_progress{background:#ecfeff;border-color:#a5f3fc;color:#155e75}
+.rq-chip--ready_to_ship{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.rq-chip--delivered{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+.rq-chip--rejected{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
 
-.rq-list{display:grid;gap:10px}
-.rq-item{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-decoration:none;color:inherit}
-.rq-item:hover{background:#fbfbfb;border-color:#dcdfe3}
-.rq-item__row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.rq-item__title{font-weight:800}
-.rq-item__meta{color:#6b7280;font-size:14px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rq-item__badges{display:flex;gap:8px;align-items:center}
+.rq-empty{display:grid;place-items:center;gap:12px;padding:48px 24px;text-align:center;color:var(--muted)}
 
-/* Чипы */
-.rq-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;color:#111}
-.rq-chip--done{background:#111;border-color:#111;color:#fff}
-.rq-chip--flag{background:#fff;border:1px dashed #111;color:#111}
-
-/* Цветные статусы (если нужны для остальных этапов) */
-.rq-chip--submitted     { background:#eef2ff; border-color:#c7d2fe; color:#1f2937; }
-.rq-chip--quote         { background:#fef3c7; border-color:#fde68a; color:#78350f; }
-.rq-chip--approved      { background:#e0f2fe; border-color:#bae6fd; color:#075985; }
-.rq-chip--to_pick       { background:#f5f3ff; border-color:#ddd6fe; color:#3730a3; }
-.rq-chip--in_progress   { background:#ecfeff; border-color:#a5f3fc; color:#155e75; }
-.rq-chip--ready_to_ship { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
-.rq-chip--delivered     { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
-.rq-chip--rejected      { background:#fee2e2; border-color:#fecaca; color:#7f1d1d; }
-
-/* Пусто */
-.rq-empty{display:grid;place-items:center;gap:10px;padding:26px;border:1px dashed var(--line);border-radius:12px;color:#6b7280;background:#fff}
-
-/* Адаптив */
-@media (max-width: 720px){
-  .rq-header{flex-direction:column; align-items:flex-start}
-  .rq-item__row{flex-direction:column; align-items:flex-start}
+@media (max-width:940px){
+  .rq-filters{position:static;margin:-16px -16px 16px -16px;padding-left:16px;padding-right:16px}
+  .rq-item{padding:14px 16px}
+  .rq-item__row{flex-direction:column;align-items:flex-start;gap:12px}
+  .rq-item__meta{white-space:normal}
+}
+@media (max-width:640px){
+  .rq-filters{overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:8px}
+  .rq-filters::-webkit-scrollbar{display:none}
+  .rq-seg{font-size:13px;padding:6px 12px}
+  .rq-item__title{font-size:15px}
+  .rq-item__meta{font-size:13px}
 }
 </style>
 {% endblock %}
