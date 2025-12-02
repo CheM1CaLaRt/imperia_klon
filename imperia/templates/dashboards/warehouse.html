@@ -1,9 +1,59 @@
 {% extends "base.html" %}
-{% block title %}Склад — Imperia{% endblock %}
+{% load humanize %}
+{% block title %}Кладовщик — IndigoFlow{% endblock %}
 {% block content %}
-  <div class="card" style="width: min(720px,100%); padding: 24px; margin: 0 auto; ">
-    <h1>Склад — дашборд</h1>
-    <h2>Здравствуйте, {% firstof request.user.first_name request.user.username %}!</h2>
-    <p>Доступно только группе <b>warehouse</b>.</p>
+<div class="grid gap-6">
+  
+  <!-- Приветствие -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h1 class="card-title">Добро пожаловать, {% firstof request.user.first_name request.user.username %}!</h1>
+        <p class="card-subtitle">Панель управления кладовщика</p>
+      </div>
+    </div>
   </div>
+
+  <!-- Быстрые действия -->
+  <div class="grid grid-2">
+    <div class="stat-card">
+      <div class="stat-label">Склад</div>
+      <div class="stat-value">—</div>
+      <a href="{% url 'warehouse_new_dashboard' %}" class="btn btn-primary" style="margin-top:12px;width:100%">
+        Открыть склад
+      </a>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Заказы</div>
+      <div class="stat-value">—</div>
+      <a href="{% url 'core:request_list' %}" class="btn btn-primary" style="margin-top:12px;width:100%">
+        Просмотреть заказы
+      </a>
+    </div>
+  </div>
+
+  <!-- Информационная карточка -->
+  <div class="card">
+    <h2 style="margin:0 0 16px 0;font-size:18px;font-weight:600">Ваши возможности</h2>
+    <div class="grid grid-2" style="gap:12px">
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">📦 Управление складом</div>
+        <div style="font-size:14px;color:var(--muted)">Работайте с остатками и перемещениями товаров</div>
+      </div>
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">✅ Комплектация заказов</div>
+        <div style="font-size:14px;color:var(--muted)">Формируйте и обрабатывайте заказы со склада</div>
+      </div>
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">📊 Инвентаризация</div>
+        <div style="font-size:14px;color:var(--muted)">Ведите учет и контроль складских остатков</div>
+      </div>
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">🔄 Перемещения</div>
+        <div style="font-size:14px;color:var(--muted)">Управляйте движением товаров между ячейками</div>
+      </div>
+    </div>
+  </div>
+
+</div>
 {% endblock %}

@@ -1,9 +1,73 @@
 {% extends "base.html" %}
-{% block title %}Управляющий — Imperia{% endblock %}
+{% load humanize %}
+{% block title %}Управляющий — IndigoFlow{% endblock %}
 {% block content %}
+<div class="grid gap-6">
+  
+  <!-- Приветствие -->
   <div class="card">
-    <h1>Управляющий — дашборд</h1>
-    <h2>Здравствуйте, {% firstof request.user.first_name request.user.username %}!</h2>
-    <p>Доступно только группе <b>director</b>.</p>
+    <div class="card-header">
+      <div>
+        <h1 class="card-title">Добро пожаловать, {% firstof request.user.first_name request.user.username %}!</h1>
+        <p class="card-subtitle">Панель управления директора</p>
+      </div>
+    </div>
   </div>
+
+  <!-- Статистика -->
+  <div class="grid grid-4">
+    <div class="stat-card">
+      <div class="stat-label">Заказы</div>
+      <div class="stat-value">—</div>
+      <a href="{% url 'core:request_list' %}" class="btn btn-primary" style="margin-top:12px;width:100%">
+        Просмотреть
+      </a>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Клиенты</div>
+      <div class="stat-value">—</div>
+      <a href="{% url 'core:counterparty_list' %}" class="btn btn-primary" style="margin-top:12px;width:100%">
+        Управление
+      </a>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Склад</div>
+      <div class="stat-value">—</div>
+      <a href="{% url 'warehouse_new_dashboard' %}" class="btn btn-primary" style="margin-top:12px;width:100%">
+        Открыть
+      </a>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Товары</div>
+      <div class="stat-value">—</div>
+      <a href="{% url 'product-list' %}" class="btn btn-primary" style="margin-top:12px;width:100%">
+        Каталог
+      </a>
+    </div>
+  </div>
+
+  <!-- Информационная карточка -->
+  <div class="card">
+    <h2 style="margin:0 0 16px 0;font-size:18px;font-weight:600">Возможности управления</h2>
+    <div class="grid grid-2" style="gap:12px">
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">🎯 Стратегический контроль</div>
+        <div style="font-size:14px;color:var(--muted)">Полный обзор всех процессов и показателей</div>
+      </div>
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">📊 Аналитика и отчеты</div>
+        <div style="font-size:14px;color:var(--muted)">Детальная аналитика по всем направлениям</div>
+      </div>
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">👥 Управление командами</div>
+        <div style="font-size:14px;color:var(--muted)">Координация работы всех подразделений</div>
+      </div>
+      <div style="padding:16px;background:var(--bg);border-radius:12px">
+        <div style="font-weight:600;margin-bottom:8px">⚙️ Настройки системы</div>
+        <div style="font-size:14px;color:var(--muted)">Доступ к административным функциям</div>
+      </div>
+    </div>
+  </div>
+
+</div>
 {% endblock %}
