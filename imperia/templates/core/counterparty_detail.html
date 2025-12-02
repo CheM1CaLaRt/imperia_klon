@@ -341,11 +341,6 @@
       return;
     }
 
-    if (typeof ymaps === 'undefined') {
-      showError(containerId, address, 'Библиотека карт не загружена');
-      return;
-    }
-
     // Сразу показываем карту с поисковой строкой, затем пытаемся найти адрес
     var map = null;
     var mapInitialized = false;
@@ -353,6 +348,11 @@
     function initBaseMap() {
       if (mapInitialized) return;
       mapInitialized = true;
+      
+      if (typeof ymaps === 'undefined') {
+        showError(containerId, address, 'Библиотека карт не загружена');
+        return;
+      }
       
       try {
         map = new ymaps.Map(containerId, {
@@ -370,8 +370,10 @@
         
         map.behaviors.disable('scrollZoom');
         
-        // Пробуем найти адрес через геокодинг в фоне
-        tryGeocodeAddress();
+        // Пробуем найти адрес через геокодинг в фоне (не блокируем показ карты)
+        setTimeout(function() {
+          tryGeocodeAddress();
+        }, 500);
         
         // Показываем адрес в поисковой строке
         setTimeout(function() {
@@ -388,81 +390,136 @@
         
       } catch(e) {
         console.error('Ошибка создания карты:', e);
-        showError(containerId, address, 'Не удалось загрузить карту');
+        showError(containerId, address, 'Не удалось загрузить карту: ' + (e.message || 'Неизвестная ошибка'));
       }
     }
     
     function tryGeocodeAddress() {
-      // Нормализуем адрес
-      var cleanAddr = address.trim();
-      var normalized = cleanAddr.replace(/Г\.МОСКВА/gi, 'Москва');
-      
-      // Извлекаем основные части
-      var parts = normalized.split(',').map(function(p) { return p.trim(); });
-      var city = '';
-      var street = '';
-      var house = '';
-      
-      for (var i = 0; i < parts.length; i++) {
-        var part = parts[i];
-        if (/^\d{6}$/.test(part)) continue;
-        if (part.match(/^Москва$/i)) { city = 'Москва'; continue; }
-        if (part.match(/^УЛ\./i)) {
-          street = part.replace(/^УЛ\.\s*/i, '');
-          street = street.charAt(0).toUpperCase() + street.slice(1).toLowerCase() + ' улица';
-        }
-        if (part.match(/^Д\./i)) {
-          house = part.replace(/^Д\.\s*/i, '');
-        }
-      }
-      
-      var searchAddr = city && street && house 
-        ? city + ', ' + street + ', ' + house
-        : normalized;
-      
-      console.log('Попытка геокодинга:', searchAddr);
-      
-      ymaps.geocode(searchAddr).then(
-        function(res) {
-          if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
-            console.warn('Адрес не найден через геокодинг');
+      try {
+        // Преобразуем адрес в простой формат для геокодера
+        var cleanAddr = address.trim();
+        
+        // Убираем индекс и сокращения
+        var normalized = cleanAddr
+          .replace(/^\d{6},\s*/, '') // Убираем индекс
+          .replace(/Г\.МОСКВА/gi, 'Москва')
+          .replace(/УЛ\./gi, 'улица')
+          .replace(/Д\./gi, 'д.')
+          .replace(/К\./gi, 'корп.')
+          .replace(/ЭТ\./gi, 'этаж')
+          .replace(/ПОМ\./gi, 'пом.')
+          .replace(/КОМ\./gi, 'к.');
+        
+        // Пробуем несколько вариантов
+        var variants = [
+          normalized,
+          normalized.replace(/улица\s+/gi, 'ул. ').replace(/д\.\s+/gi, 'д.'),
+          normalized.split(',').slice(0, 3).join(',') // Только первые 3 части
+        ];
+        
+        function tryVariant(index) {
+          if (index >= variants.length) {
+            console.warn('Все варианты геокодинга не сработали');
             return;
           }
           
-          var firstGeo = res.geoObjects.get(0);
-          if (!firstGeo) return;
+          var searchAddr = variants[index].trim();
+          if (!searchAddr || searchAddr.length < 5) {
+            tryVariant(index + 1);
+            return;
+          }
           
-          var coords = firstGeo.geometry.getCoordinates();
-          if (!coords || !Array.isArray(coords) || coords.length !== 2) return;
+          console.log('Попытка геокодинга вариант ' + (index + 1) + ':', searchAddr);
           
-          console.log('✓ Адрес найден! Перемещаем карту');
-          
-          if (map) {
-            map.setCenter(coords, 15);
-            
-            var isLegal = title.indexOf('Юридический') !== -1;
-            var placemark = new ymaps.Placemark(coords, {
-              hintContent: address,
-              balloonContent: '<strong>' + title + '</strong><br/>' + address
-            }, {
-              preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-              iconColor: isLegal ? '#3b82f6' : '#10b981'
+          try {
+            var geocoder = ymaps.geocode(searchAddr, {
+              results: 1
             });
             
-            map.geoObjects.add(placemark);
+            geocoder.then(
+              function(res) {
+                try {
+                  if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
+                    console.warn('Вариант ' + (index + 1) + ' не найден');
+                    tryVariant(index + 1);
+                    return;
+                  }
+                  
+                  var firstGeo = res.geoObjects.get(0);
+                  if (!firstGeo) {
+                    tryVariant(index + 1);
+                    return;
+                  }
+                  
+                  var coords = firstGeo.geometry.getCoordinates();
+                  if (!coords || !Array.isArray(coords) || coords.length !== 2) {
+                    tryVariant(index + 1);
+                    return;
+                  }
+                  
+                  console.log('✓ Адрес найден! Координаты:', coords);
+                  
+                  if (map) {
+                    map.setCenter(coords, 15);
+                    
+                    var isLegal = title.indexOf('Юридический') !== -1;
+                    var placemark = new ymaps.Placemark(coords, {
+                      hintContent: address,
+                      balloonContent: '<strong>' + title + '</strong><br/>' + address
+                    }, {
+                      preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
+                      iconColor: isLegal ? '#3b82f6' : '#10b981'
+                    });
+                    
+                    map.geoObjects.add(placemark);
+                  }
+                } catch(e) {
+                  console.error('Ошибка обработки результата геокодинга:', e);
+                  tryVariant(index + 1);
+                }
+              },
+              function(err) {
+                console.warn('Ошибка геокодинга вариант ' + (index + 1) + ':', err);
+                tryVariant(index + 1);
+              }
+            );
+          } catch(e) {
+            console.error('Ошибка вызова геокодера:', e);
+            tryVariant(index + 1);
           }
-        },
-        function(err) {
-          console.warn('Ошибка геокодинга:', err);
         }
-      );
+        
+        tryVariant(0);
+        
+      } catch(e) {
+        console.error('Критическая ошибка в tryGeocodeAddress:', e);
+      }
     }
     
     // Показываем индикатор загрузки на короткое время
     showLoading(containerId);
     
-    // Инициализируем карту через небольшую задержку
-    setTimeout(initBaseMap, 300);
+    // Инициализируем карту сразу после проверки ymaps
+    // Проверяем, что ymaps уже загружен, иначе ждём
+    if (typeof ymaps !== 'undefined') {
+      initBaseMap();
+    } else {
+      // Ждём загрузки ymaps и инициализируем карту
+      var checkYmaps = setInterval(function() {
+        if (typeof ymaps !== 'undefined') {
+          clearInterval(checkYmaps);
+          initBaseMap();
+        }
+      }, 100);
+      
+      // Таймаут на случай, если ymaps не загрузится
+      setTimeout(function() {
+        clearInterval(checkYmaps);
+        if (!mapInitialized) {
+          showError(containerId, address, 'Не удалось загрузить библиотеку карт');
+        }
+      }, 10000);
+    }
   }
 
   function startInit() {
