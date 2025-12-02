@@ -1,41 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Перемещение между ячейками{% endblock %}
+{% block title %}Перемещение между ячейками — {{ warehouse.code }}{% endblock %}
+
 {% block content %}
-
-<h1 class="text-2xl font-semibold mb-6">Перемещение между ячейками</h1>
-
-<form method="post" class="max-w-xl">
-  {% csrf_token %}
-
-  <label class="form-label">Из ячейки:</label>
-  <input type="text" name="from_bin" class="input" list="bins_list" placeholder="например: A1">
-
-  <label class="form-label mt-3">В ячейку:</label>
-  <input type="text" name="to_bin" class="input" list="bins_list" placeholder="например: B2">
-
-  <datalist id="bins_list">
-    {% for b in bins %}
-      <option value="{{ b.code }}">{{ b.code }}</option>
-    {% endfor %}
-  </datalist>
-
-  <label class="form-label mt-3">Штрихкод:</label>
-  <input type="text" name="barcode" class="input" required>
-
-  <label class="form-label mt-3">Кол-во:</label>
-  <input type="number" step="1" min="1" name="qty" class="input" required>
-
-  <div class="mt-3">
-    <label class="inline-flex items-center gap-2 text-sm">
-      <input type="checkbox" name="create_to" checked>
-      Создать ячейку-получателя, если нет
-    </label>
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Перемещение между ячейками</h1>
+      <p class="card-subtitle">Склад: {{ warehouse.code }} — {{ warehouse.name }}</p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'warehouse_detail' warehouse.pk %}">← Назад к складу</a>
   </div>
-
-  <div class="flex items-center gap-3 mt-4">
-  <button class="btn btn-primary" type="submit">Переместить</button>
-  <a class="btn btn-light" href="{% url 'warehouse_detail' warehouse.pk %}">Назад</a>
 </div>
-</form>
 
+<div class="card" style="max-width:600px">
+  <form method="post" style="display:grid;gap:16px">
+    {% csrf_token %}
+
+    <div class="field">
+      <label class="field label">Из ячейки</label>
+      <input type="text" name="from_bin" list="bins_list" placeholder="например: A1" style="width:100%;font-family:ui-monospace">
+      <datalist id="bins_list">
+        {% for b in bins %}
+          <option value="{{ b.code }}">{{ b.code }}</option>
+        {% endfor %}
+      </datalist>
+      <div style="margin-top:6px;font-size:13px;color:var(--muted)">Начните вводить код ячейки</div>
+    </div>
+
+    <div class="field">
+      <label class="field label">В ячейку</label>
+      <input type="text" name="to_bin" list="bins_list" placeholder="например: B2" style="width:100%;font-family:ui-monospace">
+      <div style="margin-top:6px;font-size:13px;color:var(--muted)">Ячейка назначения</div>
+    </div>
+
+    <div class="field">
+      <label class="field label">Штрихкод</label>
+      <input type="text" name="barcode" style="width:100%;font-family:ui-monospace;font-size:15px" required
+             placeholder="Введите или отсканируйте штрихкод">
+    </div>
+
+    <div class="field">
+      <label class="field label">Количество</label>
+      <input type="number" step="1" min="1" name="qty" style="width:100%" required>
+    </div>
+
+    <div style="padding:12px 16px;background:var(--bg);border-radius:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" name="create_to" checked style="width:18px;height:18px;cursor:pointer">
+        <span style="font-size:14px">Создать ячейку-получателя, если её нет</span>
+      </label>
+    </div>
+
+    <div style="display:flex;gap:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <button class="btn btn-primary" type="submit" style="flex:1">Переместить</button>
+      <a class="btn btn-secondary" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
+    </div>
+  </form>
+</div>
 {% endblock %}

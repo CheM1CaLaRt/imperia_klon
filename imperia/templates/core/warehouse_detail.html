@@ -5,163 +5,152 @@
 {% block title %}{{ warehouse.code }} — {{ warehouse.name }}{% endblock %}
 
 {% block content %}
-<div class="flex gap-5" style="float: right">
-    <a class="btn" href="{% url 'put_away' warehouse.pk %}">Приёмка/Размещение</a>
-    <a class="btn" href="{% url 'move_between_bins' warehouse.pk %}">Перемещение</a>
-    {% if request.user|in_groups:"director" %}
-      <a class="btn btn-danger"
-         href="{% url 'warehouse_delete' warehouse.pk %}"
-         onclick="return confirm('Удалить склад и все связанные данные?')">
-        Удалить склад
-      </a>
-    {% endif %}
+
+{# Шапка склада #}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">{{ warehouse.code }} — {{ warehouse.name }}</h1>
+      {% if warehouse.address %}
+        <p class="card-subtitle">{{ warehouse.address }}</p>
+      {% endif %}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-primary" href="{% url 'put_away' warehouse.pk %}">Приёмка/Размещение</a>
+      <a class="btn btn-secondary" href="{% url 'move_between_bins' warehouse.pk %}">Перемещение</a>
+      {% if request.user|in_groups:"director" %}
+        <a class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca"
+           href="{% url 'warehouse_delete' warehouse.pk %}"
+           onclick="return confirm('Удалить склад и все связанные данные?')">
+          Удалить склад
+        </a>
+      {% endif %}
+    </div>
+  </div>
 </div>
-<br>
-<div>
-    <h1 class="text-2xl font-semibold">{{ warehouse.code }} — {{ warehouse.name }}</h1>
-    {% if warehouse.address %}
-      <div class="text-sm text-gray-500">{{ warehouse.address }}</div>
-    {% endif %}
-</div>
-<br> <br>
 
-
-
-
-{# ---------- Фильтры ---------- #}
-<form method="get" class="flex flex-wrap items-end gap-4 mb-6">
-  <div class="flex-1 min-w-[220px]">
-    <label class="block text-sm text-gray-500 mb-1">Поиск (штрихкод/название)</label>
-    <input
-      type="text"
-      name="q"
-      value="{{ request.GET.q|default_if_none:'' }}"
-      class="input w-full"
-      placeholder="Начните вводить…">
-  </div>
-
-  <div>
-    <label class="block text-sm text-gray-500 mb-1">Ячейка</label>
-    <select name="bin" class="select">
-      <option value="">— все ячейки —</option>
-      {% for b in bins %}
-        <option value="{{ b.code }}" {% if request.GET.bin == b.code %}selected{% endif %}>
-          {{ b.code }}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
-
-  <div class="flex gap-2">
-    <button class="btn" type="submit">Применить</button>
-    <a class="btn btn-light" href="{% url 'warehouse_detail' warehouse.pk %}">Сбросить</a>
-  </div>
-</form>
-
-
-
-{# ---------- Ячейки ---------- #}
-
-<h2 class="text-xl font-semibold mb-2">Ячейки</h2>
-{% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
-  <a class="btn" href="{% url 'bin_create' warehouse.pk %}">+ Ячейка</a>
-{% endif %}
-
-{% if request.GET.bin %}
-  <div class="mb-3 text-sm">
-    Фильтр по ячейке:
-    <span class="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-2 py-1 text-blue-700">
-      <span class="font-mono">{{ request.GET.bin }}</span>
-      <a class="hover:underline"
-         href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.sort %}sort={{ request.GET.sort }}&{% endif %}{% if request.GET.order %}order={{ request.GET.order }}&{% endif %}">
-        сбросить
-      </a>
-    </span>
-  </div>
-{% endif %}
-
-<div class="flex flex-wrap gap-2 mb-6">
-  {% for b in bins %}
-    <div
-      class="inline-flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 transition
-             {% if not b.is_active %} opacity-70 border-dashed {% endif %}
-             {% if request.GET.bin and request.GET.bin == b.code %} bg-blue-50 ring-1 ring-blue-200 {% else %} hover:bg-gray-50 {% endif %}"
-      {% if not b.is_active %} title="Ячейка неактивна" {% endif %}
-    >
-      {# левая кликабельная часть — фильтр по ячейке #}
-      <a
-        href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}bin={{ b.code }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}"
-        class="min-w-0"
-        title="Показать только ячейку {{ b.code }}"
-      >
-        <div class="leading-tight">
-          <div class="font-mono font-medium truncate max-w-[180px]">
+{# Фильтры #}
+<div class="card">
+  <form method="get" style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:end;flex-wrap:wrap">
+    <div class="field" style="margin:0">
+      <label class="field label">Поиск (штрихкод/название)</label>
+      <input
+        type="text"
+        name="q"
+        value="{{ request.GET.q|default_if_none:'' }}"
+        placeholder="Начните вводить..."
+        style="width:100%">
+    </div>
+    <div class="field" style="margin:0;min-width:180px">
+      <label class="field label">Ячейка</label>
+      <select name="bin" style="width:100%">
+        <option value="">— все ячейки —</option>
+        {% for b in bins %}
+          <option value="{{ b.code }}" {% if request.GET.bin == b.code %}selected{% endif %}>
             {{ b.code }}
-            {% if not b.is_active %}
-              <span class="ml-1 align-middle text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-700">
-                неактивна
-              </span>
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary">Применить</button>
+      <a class="btn btn-secondary" href="{% url 'warehouse_detail' warehouse.pk %}">Сбросить</a>
+    </div>
+  </form>
+</div>
+
+{# Ячейки #}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:12px">
+    <h2 style="font-size:18px;font-weight:700;margin:0">Ячейки</h2>
+    {% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
+      <a class="btn btn-secondary" href="{% url 'bin_create' warehouse.pk %}">+ Ячейка</a>
+    {% endif %}
+  </div>
+
+  {% if request.GET.bin %}
+    <div style="margin-bottom:16px;padding:12px 16px;background:var(--bg);border-radius:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;color:var(--muted)">Фильтр по ячейке:</span>
+        <span style="font-family:ui-monospace;font-weight:600;font-size:14px;padding:4px 10px;background:var(--primary);color:#fff;border-radius:8px">{{ request.GET.bin }}</span>
+      </div>
+      <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.sort %}sort={{ request.GET.sort }}&{% endif %}{% if request.GET.order %}order={{ request.GET.order }}&{% endif %}"
+         style="font-size:13px;color:var(--primary);text-decoration:none;font-weight:600">
+        Сбросить фильтр
+      </a>
+    </div>
+  {% endif %}
+
+  {% if bins %}
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      {% for b in bins %}
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--card);transition:all 0.2s;flex:0 1 auto;min-width:0"
+             {% if not b.is_active %}style="opacity:0.7;border-style:dashed"{% endif %}
+             onmouseover="if(this.onmouseover) this.style.borderColor='var(--primary)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'"
+             onmouseout="if(this.onmouseout) this.style.borderColor=''; this.style.boxShadow=''">
+          <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}bin={{ b.code }}{% if request.GET.sort %}&sort={{ request.GET.sort }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}"
+             style="flex:1;min-width:0;text-decoration:none;color:inherit">
+            <div style="font-family:ui-monospace;font-weight:600;font-size:15px;margin-bottom:4px;color:var(--text)">
+              {{ b.code }}
+              {% if not b.is_active %}
+                <span style="display:inline-block;margin-left:6px;padding:2px 6px;border-radius:4px;background:var(--bg);color:var(--muted);font-size:11px;font-weight:normal">неактивна</span>
+              {% endif %}
+            </div>
+            {% if b.description %}
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px">{{ b.description|truncatewords:8 }}</div>
             {% endif %}
-          </div>
-          {% if b.description %}
-            <div class="text-[11px] text-gray-500 truncate max-w-[180px]">{{ b.description }}</div>
-          {% endif %}
-          {# мини-статистика, если есть данные #}
-          {% if b.product_count or b.qty_sum %}
-            <div class="mt-0.5 text-[11px] text-gray-500">
-              {% if b.product_count %}Позиции: {{ b.product_count }}{% endif %}
-              {% if b.product_count and b.qty_sum %} • {% endif %}
-              {% if b.qty_sum %}Кол-во: {{ b.qty_sum|floatformat:0 }}{% endif %}
+            {% if b.product_count or b.qty_sum %}
+              <div style="font-size:12px;color:var(--muted)">
+                {% if b.product_count %}Позиции: <strong style="color:var(--text)">{{ b.product_count }}</strong>{% endif %}
+                {% if b.product_count and b.qty_sum %} • {% endif %}
+                {% if b.qty_sum %}Кол-во: <strong style="color:var(--text)">{{ b.qty_sum|floatformat:0 }}</strong>{% endif %}
+              </div>
+            {% endif %}
+          </a>
+          {% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
+            <div style="display:flex;align-items:center;gap:4px;padding-left:8px;border-left:1px solid var(--border)">
+              <a href="{% url 'bin_edit' warehouse.pk b.pk %}"
+                 class="btn btn-secondary"
+                 style="font-size:12px;padding:4px 8px"
+                 onclick="event.stopPropagation();">Изм.</a>
+              <form method="post"
+                    action="{% url 'bin_delete' warehouse.pk b.pk %}"
+                    class="bin-delete-form"
+                    data-bin-code="{{ b.code }}"
+                    data-has-items="{% if b.qty_sum or b.product_count or b.items_count %}1{% else %}0{% endif %}"
+                    data-qty="{{ b.qty_sum|default_if_none:'' }}"
+                    data-positions="{{ b.product_count|default_if_none:'' }}"
+                    style="margin:0;display:inline"
+                    onclick="event.stopPropagation();">
+                {% csrf_token %}
+                <button type="submit" class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca;font-size:16px;padding:4px 8px;line-height:1" title="Удалить">×</button>
+              </form>
             </div>
           {% endif %}
         </div>
-      </a>
-
-      <span class="h-4 w-px bg-gray-200"></span>
-
-      {# действия — всегда видны #}
-      {% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
-        <div class="flex items-center gap-1">
-          <a
-            href="{% url 'bin_edit' warehouse.pk b.pk %}"
-            class="btn btn-xs"
-            title="Изменить ячейку"
-            onclick="event.stopPropagation();"
-          >Изм.</a>
-
-          {# УДАЛЕНИЕ: блокируется скриптом, если есть товар #}
-          <form method="post"
-                action="{% url 'bin_delete' warehouse.pk b.pk %}"
-                class="bin-delete-form"
-                data-bin-code="{{ b.code }}"
-                data-has-items="{% if b.qty_sum or b.product_count or b.items_count %}1{% else %}0{% endif %}"
-                data-qty="{{ b.qty_sum|default_if_none:'' }}"
-                data-positions="{{ b.product_count|default_if_none:'' }}">
-            {% csrf_token %}
-            <button class="btn btn-xs btn-danger" type="submit" title="Удалить">×</button>
-          </form>
-        </div>
-      {% endif %}
+      {% endfor %}
     </div>
-  {% empty %}
-    <p>Нет ячеек</p>
-  {% endfor %}
+  {% else %}
+    <div style="padding:32px;text-align:center;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:8px">📦</div>
+      <div>Ячеек пока нет</div>
+    </div>
+  {% endif %}
 </div>
 
-
-{# ---- Модалка "удаление недоступно" ---- #}
-<dialog id="bin-block-modal" class="rounded-2xl p-0 w-[min(520px,92vw)] shadow-2xl backdrop:bg-black/30">
-  <form method="dialog" class="m-0">
-    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-      <h2 class="text-lg font-semibold">Удаление ячейки недоступно</h2>
-      <button class="rounded-xl px-3 py-1 text-sm hover:bg-gray-100">Закрыть</button>
+{# Модалка "удаление недоступно" #}
+<dialog id="bin-block-modal" style="border-radius:18px;padding:0;max-width:520px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);border:1px solid var(--border)">
+  <form method="dialog" style="margin:0">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <h2 style="font-size:18px;font-weight:700;margin:0">Удаление ячейки недоступно</h2>
+      <button type="button" class="btn btn-secondary" style="font-size:13px;padding:6px 12px">Закрыть</button>
     </div>
-    <div class="p-4 text-sm">
-      <p class="mb-2">
-        Нельзя удалить ячейку <span id="bin-block-code" class="font-mono"></span> — в ней есть товар.
+    <div style="padding:20px;font-size:14px">
+      <p style="margin-bottom:12px">
+        Нельзя удалить ячейку <span id="bin-block-code" style="font-family:ui-monospace;font-weight:600"></span> — в ней есть товар.
       </p>
-      <p id="bin-block-stats" class="mb-3 text-gray-600"></p>
-      <ul class="list-disc pl-5 text-gray-600">
+      <p id="bin-block-stats" style="margin-bottom:16px;color:var(--muted)"></p>
+      <ul style="margin:0;padding-left:20px;color:var(--muted)">
         <li>Переместите остатки в другую ячейку;</li>
         <li>или обнулите остатки через операции приёмки/перемещения.</li>
       </ul>
@@ -170,7 +159,6 @@
 </dialog>
 
 <script>
-  // Перехват submit у форм удаления ячеек (надёжнее, чем ловить click у кнопки)
   document.addEventListener('submit', function(e) {
     const form = e.target.closest('.bin-delete-form');
     if (!form) return;
@@ -180,7 +168,6 @@
     const qty = form.dataset.qty || '';
     const pos = form.dataset.positions || '';
 
-    // Если есть товар — не отправляем форму, показываем модалку с причиной
     if (hasItems) {
       e.preventDefault();
       const codeEl = document.getElementById('bin-block-code');
@@ -194,13 +181,11 @@
       return;
     }
 
-    // Если пустая — спрашиваем подтверждение
     if (!confirm('Удалить ячейку ' + code + '?')) {
       e.preventDefault();
     }
   });
 
-  // Закрытие модалки по клику по фону
   (function(){
     const dlg = document.getElementById('bin-block-modal');
     dlg?.addEventListener('click', (e) => {
@@ -212,122 +197,142 @@
   })();
 </script>
 
-
-
-
-{# ---------- Остатки ---------- #}
-<h2 class="text-xl font-semibold mb-2">Остатки</h2>
-<div class="rounded-xl border overflow-hidden">
-  <table class="min-w-full">
-    <thead>
-      <tr class="text-left bg-gray-100">
-        <th class="p-2">
-          <a class="link"
-             href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=bin&order={% if request.GET.sort == 'bin' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}">
-            Ячейка
-          </a>
-        </th>
-        <th class="p-2">
-          <a class="link"
-             href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=barcode&order={% if request.GET.sort == 'barcode' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}">
-            Штрихкод
-          </a>
-        </th>
-        <th class="p-2">
-          <a class="link"
-             href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=name&order={% if request.GET.sort == 'name' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}">
-            Товар
-          </a>
-        </th>
-        <th class="p-2 w-24 text-right">
-          <a class="link"
-             href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=qty&order={% if request.GET.sort == 'qty' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}">
-            Кол-во
-          </a>
-        </th>
-        <th class="p-2">
-          <a class="link"
-             href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=updated&order={% if request.GET.sort == 'updated' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}">
-            Обновлено
-          </a>
-        </th>
-        <th class="p-2 w-28">Действия</th>
-      </tr>
-    </thead>
-
-    <tbody class="divide-y divide-gray-200">
-      {% for row in inventory %}
-        {% if not request.GET.bin or row.bin and row.bin.code == request.GET.bin %}
-          {% if not request.GET.q or request.GET.q|lower in row.product.name|lower or request.GET.q|lower in row.product.barcode|lower %}
-            <tr class="hover:bg-gray-50">
-              <td class="p-2">{% if row.bin %}{{ row.bin.code }}{% else %}—{% endif %}</td>
-
-              {# клик по штрихкоду тоже открывает карточку #}
-              <td class="p-2 font-mono">
-                <a href="#"
-                   hx-get="{% url 'product_card' row.product.id %}"
-                   hx-target="#product-modal-body"
-                   hx-swap="innerHTML"
-                   onclick="event.preventDefault();">
-                  {{ row.product.barcode }}
-                </a>
-              </td>
-
-              <td class="p-2">
-                <a href="#"
-                   class="hover:underline"
-                   hx-get="{% url 'product_card' row.product.id %}"
-                   hx-target="#product-modal-body"
-                   hx-swap="innerHTML"
-                   onclick="event.preventDefault();">
-                  {{ row.product.name }}
-                </a>
-              </td>
-
-              <td class="p-2 text-right">{{ row.quantity|floatformat:0 }}</td>
-              <td class="p-2 text-xs text-gray-500">{{ row.updated_at|date:"d.m.Y H:i" }}</td>
-              <td class="p-2">
-                {% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
-                  <a class="btn btn-xs"
-                     href="{% url 'inventory_edit' warehouse.pk row.pk %}">
-                    Изменить
-                  </a>
-                {% else %}—{% endif %}
+{# Остатки #}
+<div class="card" style="overflow:hidden;padding:0">
+  <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+    <h2 style="font-size:18px;font-weight:700;margin:0">Остатки</h2>
+  </div>
+  {% if inventory %}
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg);border-bottom:2px solid var(--border)">
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;white-space:nowrap">
+              <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=bin&order={% if request.GET.sort == 'bin' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}"
+                 style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:4px">
+                Ячейка
+                <span style="font-size:10px">↕</span>
+              </a>
+            </th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;white-space:nowrap">
+              <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=barcode&order={% if request.GET.sort == 'barcode' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}"
+                 style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:4px">
+                Штрихкод
+                <span style="font-size:10px">↕</span>
+              </a>
+            </th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;white-space:nowrap">
+              <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=name&order={% if request.GET.sort == 'name' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}"
+                 style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:4px">
+                Товар
+                <span style="font-size:10px">↕</span>
+              </a>
+            </th>
+            <th style="padding:12px;text-align:right;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;white-space:nowrap">
+              <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=qty&order={% if request.GET.sort == 'qty' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}"
+                 style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:4px;justify-content:flex-end">
+                Кол-во
+                <span style="font-size:10px">↕</span>
+              </a>
+            </th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;white-space:nowrap">
+              <a href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&{% endif %}{% if request.GET.bin %}bin={{ request.GET.bin }}&{% endif %}sort=updated&order={% if request.GET.sort == 'updated' and request.GET.order != 'desc' %}desc{% else %}asc{% endif %}"
+                 style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:4px">
+                Обновлено
+                <span style="font-size:10px">↕</span>
+              </a>
+            </th>
+            <th style="padding:12px;text-align:left;font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;white-space:nowrap">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in inventory %}
+            {% if not request.GET.bin or row.bin and row.bin.code == request.GET.bin %}
+              {% if not request.GET.q or request.GET.q|lower in row.product.name|lower or request.GET.q|lower in row.product.barcode|lower %}
+                <tr style="border-bottom:1px solid var(--border);transition:background 0.2s"
+                    onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+                  <td style="padding:12px;font-size:14px;font-family:ui-monospace;font-weight:600" data-label="Ячейка">
+                    {% if row.bin %}{{ row.bin.code }}{% else %}—{% endif %}
+                  </td>
+                  <td style="padding:12px" data-label="Штрихкод">
+                    <a href="#"
+                       hx-get="{% url 'product_card' row.product.id %}"
+                       hx-target="#product-modal-body"
+                       hx-swap="innerHTML"
+                       onclick="event.preventDefault();"
+                       style="font-family:ui-monospace;font-size:13px;font-weight:600;color:var(--primary);text-decoration:none">
+                      {{ row.product.barcode }}
+                    </a>
+                  </td>
+                  <td style="padding:12px" data-label="Товар">
+                    <a href="#"
+                       hx-get="{% url 'product_card' row.product.id %}"
+                       hx-target="#product-modal-body"
+                       hx-swap="innerHTML"
+                       onclick="event.preventDefault();"
+                       style="color:var(--text);text-decoration:none;font-size:14px">
+                      {{ row.product.name|truncatewords:10 }}
+                    </a>
+                  </td>
+                  <td style="padding:12px;text-align:right;font-size:15px;font-weight:600;color:var(--primary)" data-label="Кол-во">
+                    {{ row.quantity|floatformat:0 }}
+                  </td>
+                  <td style="padding:12px;font-size:13px;color:var(--muted)" data-label="Обновлено">
+                    {{ row.updated_at|date:"d.m.Y H:i" }}
+                  </td>
+                  <td style="padding:12px" data-label="Действия">
+                    {% if request.user|in_groups:"warehouse" or request.user|in_groups:"director" %}
+                      <a class="btn btn-secondary"
+                         href="{% url 'inventory_edit' warehouse.pk row.pk %}"
+                         style="font-size:13px;padding:6px 12px">
+                        Изменить
+                      </a>
+                    {% else %}
+                      <span style="color:var(--muted)">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endif %}
+            {% endif %}
+          {% empty %}
+            <tr>
+              <td colspan="6" style="padding:48px 24px;text-align:center;color:var(--muted)">
+                <div style="font-size:32px;margin-bottom:8px">📦</div>
+                <div>Остатки не заведены</div>
               </td>
             </tr>
-          {% endif %}
-        {% endif %}
-      {% empty %}
-        <tr>
-          <td colspan="6" class="p-3 text-gray-500">Остатки не заведены</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div style="padding:48px 24px;text-align:center;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:8px">📦</div>
+      <div>Остатки не заведены</div>
+    </div>
+  {% endif %}
 </div>
 
-{# ---------- Модалка карточки товара ---------- #}
-<dialog id="product-modal" class="rounded-2xl p-0 w-[min(700px,92vw)] shadow-2xl backdrop:bg-black/30">
-  <form method="dialog" class="m-0">
-    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-      <h2 class="text-lg font-semibold">Товар</h2>
-      <button class="rounded-xl px-3 py-1 text-sm hover:bg-gray-100">Закрыть</button>
+{# Модалка карточки товара #}
+<dialog id="product-modal" style="border-radius:18px;padding:0;max-width:700px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);border:1px solid var(--border)">
+  <form method="dialog" style="margin:0">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <h2 style="font-size:18px;font-weight:700;margin:0">Товар</h2>
+      <button type="button" class="btn btn-secondary" style="font-size:13px;padding:6px 12px">Закрыть</button>
     </div>
-    <div id="product-modal-body" class="p-4">
-      <div class="text-gray-500">Загрузка…</div>
+    <div id="product-modal-body" style="padding:20px">
+      <div style="color:var(--muted)">Загрузка…</div>
     </div>
   </form>
 </dialog>
 
 <script>
-  // 1) Убедимся, что HTMX есть (если нет — подгружаем)
   if (!window.htmx) {
     var s = document.createElement('script');
     s.src = 'https://unpkg.com/htmx.org@1.9.12';
     document.head.appendChild(s);
   }
 
-  // 2) Открываем диалог после любого успешного HTMX-запроса в #product-modal-body
   document.addEventListener('htmx:afterOnLoad', function (e) {
     if (e.detail && e.detail.target && e.detail.target.id === 'product-modal-body') {
       const dlg = document.getElementById('product-modal');
@@ -335,7 +340,6 @@
     }
   });
 
-  // 3) Закрытие по клику вне окна и по Esc
   (function () {
     const dlg = document.getElementById('product-modal');
     dlg?.addEventListener('click', function (e) {
@@ -349,4 +353,24 @@
     });
   })();
 </script>
+
+<style>
+@media (max-width:940px){
+  .card form[style*="grid-template-columns"]{grid-template-columns:1fr !important}
+  .card form .field{min-width:auto !important}
+  .card-header{flex-wrap:wrap}
+}
+@media (max-width:640px){
+  .card-header{flex-direction:column;align-items:stretch;gap:12px}
+  .card-header .btn{width:100%}
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table thead{display:none}
+  table tbody{display:block}
+  table tbody tr{display:block;margin-bottom:12px;border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+  table tbody td{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bg);text-align:right !important}
+  table tbody td:before{content:attr(data-label);font-weight:600;color:var(--muted);margin-right:auto;text-align:left}
+  table tbody td:last-child{border-bottom:0}
+  table tbody td a{word-break:break-word}
+}
+</style>
 {% endblock %}

@@ -1,11 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Удалить ячейку {{ bin.code }}{% endblock %}
+{% block title %}Удалить ячейку {{ bin.code }} — IndigoFlow{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Удалить ячейку «{{ bin.code }}»?</h1>
-<p class="mb-4 text-gray-600">Действие необратимо. Привязанные остатки останутся без ячейки.</p>
-<form method="post" class="flex gap-2">
-  {% csrf_token %}
-  <button class="btn btn-danger">Удалить</button>
-  <a class="btn btn-ghost" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
-</form>
+<div class="card" style="max-width:500px">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Удалить ячейку?</h1>
+      <p class="card-subtitle">Ячейка: <span style="font-family:ui-monospace;font-weight:600">{{ bin.code }}</span></p>
+    </div>
+  </div>
+
+  <div style="padding:20px">
+    <div style="padding:16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;margin-bottom:20px">
+      <div style="font-size:48px;text-align:center;margin-bottom:12px">⚠️</div>
+      <div style="text-align:center;color:#7f1d1d;font-weight:600;margin-bottom:8px">Действие необратимо</div>
+      <div style="text-align:center;color:#7f1d1d;font-size:14px">Привязанные остатки останутся без ячейки</div>
+    </div>
+
+    <form method="post" style="display:flex;gap:12px">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca;flex:1">Удалить ячейку</button>
+      <a class="btn btn-secondary" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
+    </form>
+  </div>
+</div>
 {% endblock %}

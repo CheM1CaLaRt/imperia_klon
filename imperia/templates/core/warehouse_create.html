@@ -1,35 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Новый склад{% endblock %}
+{% block title %}Новый склад — IndigoFlow{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Создать склад</h1>
-
-<form method="post" class="grid gap-3 max-w-xl">
-  {% csrf_token %}
-  <div>
-    <label class="block text-sm font-medium">Код склада</label>
-    {{ form.code }}
-    {% if form.code.errors %}<p class="text-red-600 text-sm">{{ form.code.errors.0 }}</p>{% endif %}
-  </div>
-  <div>
-    <label class="block text-sm font-medium">Название</label>
-    {{ form.name }}
-    {% if form.name.errors %}<p class="text-red-600 text-sm">{{ form.name.errors.0 }}</p>{% endif %}
-  </div>
-  <div>
-    <label class="block text-sm font-medium">Адрес</label>
-    {{ form.address }}
-  </div>
-  <div>
-    <label class="block text-sm font-medium">Комментарий</label>
-    {{ form.comment }}
-  </div>
-  <div class="flex items-center gap-2">
-    {{ form.is_active }} <span>Активен</span>
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Создать склад</h1>
+      <p class="card-subtitle">Добавление нового склада в систему</p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'warehouse_new_dashboard' %}">← Назад</a>
   </div>
 
-  <div class="mt-3 flex gap-2">
-    <button type="submit" class="btn btn-primary">Создать</button>
-    <a href="{% url 'warehouse_dashboard' %}" class="btn">Отмена</a>
-  </div>
-</form>
+  <form method="post" style="padding-top:20px;display:grid;gap:16px;max-width:600px">
+    {% csrf_token %}
+    
+    {% if form.non_field_errors %}
+      <div style="padding:12px 16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field label">Код склада</label>
+      {{ form.code }}
+      {% if form.code.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.code.errors.0 }}</div>{% endif %}
+      <div style="margin-top:6px;font-size:13px;color:var(--muted)">Уникальный код склада (например: 0001)</div>
+    </div>
+
+    <div class="field">
+      <label class="field label">Название</label>
+      {{ form.name }}
+      {% if form.name.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.name.errors.0 }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label class="field label">Адрес</label>
+      {{ form.address }}
+      {% if form.address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.address.errors }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label class="field label">Комментарий</label>
+      {{ form.comment }}
+      {% if form.comment.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.comment.errors }}</div>{% endif %}
+    </div>
+
+    <div style="padding:12px 16px;background:var(--bg);border-radius:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        {{ form.is_active }}
+        <span style="font-size:14px">Активен</span>
+      </label>
+    </div>
+
+    <div style="display:flex;gap:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <button type="submit" class="btn btn-primary" style="flex:1">Создать склад</button>
+      <a href="{% url 'warehouse_new_dashboard' %}" class="btn btn-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
 {% endblock %}

@@ -1,34 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Редактирование позиции{% endblock %}
+{% block title %}Редактирование позиции — IndigoFlow{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">
-  {{ warehouse.code }} — {{ warehouse.name }} • Редактирование позиции
-</h1>
-
-<div class="rounded-xl border p-4 mb-4">
-  <div class="text-sm text-gray-600 mb-2">
-    Штрихкод: <span class="font-mono">{{ inv.product.barcode }}</span><br>
-    Товар: {{ inv.product.name }}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Редактирование позиции</h1>
+      <p class="card-subtitle">Склад: {{ warehouse.code }} — {{ warehouse.name }}</p>
+    </div>
+    <a class="btn btn-secondary" href="{% url 'warehouse_detail' warehouse.pk %}">← Назад</a>
   </div>
 
-  <form method="post" class="space-y-3">
+  <div style="padding:16px 20px;background:var(--bg);border-radius:12px;margin-top:20px;margin-bottom:20px">
+    <div style="font-size:14px;color:var(--muted);margin-bottom:4px">Товар</div>
+    <div style="font-family:ui-monospace;font-weight:600;font-size:15px;margin-bottom:8px">{{ inv.product.barcode }}</div>
+    <div style="font-size:15px;font-weight:600;color:var(--text)">{{ inv.product.name|truncatewords:15 }}</div>
+  </div>
+
+  <form method="post" style="display:grid;gap:16px">
     {% csrf_token %}
-    <div>
-      <label class="block text-sm mb-1">{{ form.bin.label }}</label>
+    
+    {% if form.non_field_errors %}
+      <div style="padding:12px 16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="field label">{{ form.bin.label }}</label>
       {{ form.bin }}
-      {% if form.bin.errors %}<div class="text-red-600 text-sm">{{ form.bin.errors }}</div>{% endif %}
-    </div>
-    <div>
-      <label class="block text-sm mb-1">{{ form.quantity.label }}</label>
-      {{ form.quantity}}
-      <div class="text-xs text-gray-500">{{ form.fields.quantity.help_text }}</div>
-      {% if form.quantity.errors %}<div class="text-red-600 text-sm">{{ form.quantity.errors }}</div>{% endif %}
+      {% if form.bin.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.bin.errors }}</div>{% endif %}
     </div>
 
-    <div class="flex gap-2">
-      <button type="submit" class="btn btn-primary">Сохранить</button>
-      <a class="btn" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
-      <button type="submit" name="delete" value="1" class="btn btn-danger"
+    <div class="field">
+      <label class="field label">{{ form.quantity.label }}</label>
+      {{ form.quantity }}
+      {% if form.fields.quantity.help_text %}
+        <div style="margin-top:6px;font-size:13px;color:var(--muted)">{{ form.fields.quantity.help_text }}</div>
+      {% endif %}
+      {% if form.quantity.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.quantity.errors }}</div>{% endif %}
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)">
+      <button type="submit" class="btn btn-primary" style="flex:1">Сохранить</button>
+      <a class="btn btn-secondary" href="{% url 'warehouse_detail' warehouse.pk %}">Отмена</a>
+      <button type="submit" name="delete" value="1" class="btn" style="background:#fee2e2;color:#7f1d1d;border-color:#fecaca"
               onclick="return confirm('Удалить позицию?');">
         Удалить
       </button>
