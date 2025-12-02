@@ -241,15 +241,18 @@
 
 {# Подключение и инициализация Яндекс карт #}
 {% if obj.address or obj.actual_address %}
-<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+<script src="https://api-maps.yandex.ru/2.1/?apikey=61d952c3-f131-4b50-89c4-7035053deeaf&lang=ru_RU" type="text/javascript"></script>
 <script>
 (function() {
-  if (typeof ymaps === 'undefined') {
-    console.warn('Яндекс карты не загружены');
-    return;
-  }
+  // Ждём загрузки библиотеки Яндекс карт
+  function initMaps() {
+    if (typeof ymaps === 'undefined') {
+      console.warn('Яндекс карты не загружены, повторная попытка...');
+      setTimeout(initMaps, 500);
+      return;
+    }
 
-  ymaps.ready(function() {
+    ymaps.ready(function() {
     // Геокодинг адреса и создание карты
     function initMap(address, mapContainerId, title) {
       if (!address || !mapContainerId) return;
@@ -260,18 +263,34 @@
       // Показываем индикатор загрузки
       mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted)"><div style="text-align:center"><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px">Загрузка карты...</div></div></div>';
 
-      ymaps.geocode(address, {
+      // Добавляем "Россия" к адресу для лучшего геокодинга, если его нет
+      const addrLower = address.toLowerCase().trim();
+      const searchAddress = addrLower.includes('россия') || addrLower.includes('russia') 
+        ? address.trim() 
+        : address.trim() + ', Россия';
+      
+      ymaps.geocode(searchAddress, {
         results: 1
       }).then(function(res) {
+        if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
+          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден на карте</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
+          return;
+        }
+
         const firstGeoObject = res.geoObjects.get(0);
-        
         if (!firstGeoObject) {
-          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден на карте</div><div style="font-size:12px;opacity:0.8">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
+          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден на карте</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
           return;
         }
 
         const coords = firstGeoObject.geometry.getCoordinates();
-        const bounds = firstGeoObject.properties.get('boundedBy');
+        let bounds = null;
+        
+        try {
+          bounds = firstGeoObject.properties.get('boundedBy');
+        } catch(e) {
+          console.warn('Не удалось получить bounds для адреса:', e);
+        }
 
         const map = new ymaps.Map(mapContainerId, {
           center: coords,
@@ -294,18 +313,31 @@
 
         map.geoObjects.add(placemark);
 
-        if (bounds) {
-          map.setBounds(bounds, {
-            checkZoomRange: true,
-            duration: 300
-          });
+        // Устанавливаем границы, если они есть
+        if (bounds && Array.isArray(bounds)) {
+          try {
+            map.setBounds(bounds, {
+              checkZoomRange: true,
+              duration: 300
+            });
+          } catch(e) {
+            console.warn('Не удалось установить границы карты:', e);
+            map.setZoom(15);
+          }
+        } else {
+          map.setZoom(15);
         }
 
         // Отключаем скролл колесом мыши (чтобы не мешало прокрутке страницы)
         map.behaviors.disable('scrollZoom');
       }).catch(function(err) {
         console.error('Ошибка геокодинга для ' + mapContainerId + ':', err);
-        mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px">Не удалось загрузить карту</div></div></div>';
+        console.error('Адрес:', searchAddress);
+        let errorMsg = 'Не удалось загрузить карту';
+        if (err && err.message) {
+          errorMsg += ': ' + err.message;
+        }
+        mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px;background:var(--bg)"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px;margin-bottom:4px">' + errorMsg + '</div><div style="font-size:12px;opacity:0.8;margin-top:8px">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div><div style="font-size:11px;opacity:0.6;margin-top:8px">Проверьте консоль браузера для деталей</div></div></div>';
       });
     }
 
@@ -317,7 +349,15 @@
     {% if obj.actual_address %}
       initMap('{{ obj.actual_address|escapejs }}', 'map-actual', 'Фактический адрес');
     {% endif %}
-  });
+    });
+  }
+
+  // Запускаем инициализацию после загрузки страницы
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMaps);
+  } else {
+    initMaps();
+  }
 })();
 </script>
 
