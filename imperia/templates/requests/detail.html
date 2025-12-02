@@ -29,17 +29,48 @@
 
   <!-- ===== Прогресс-этапы ===== -->
   {% with s=obj.status %}
-  <ol class="rq-steps" aria-label="Этапы заявки">
-    <li class="rq-step {% if s != 'draft' %}is-done{% endif %}">Создана</li>
-    <li class="rq-step {% if s in 'submitted quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %}">На согласовании</li>
-    <li class="rq-step {% if s in 'quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %}">КП</li>
-    <li class="rq-step {% if s in 'approved to_pick in_progress ready_to_ship delivered done canceled' %}is-done{% endif %}">Согласована</li>
-    {% if s == 'rejected' %}<li class="rq-step rq-step--rejected is-done">Не согласована</li>{% endif %}
-    <li class="rq-step {% if s in 'in_progress ready_to_ship delivered done canceled' %}is-done{% endif %}">Собирается</li>
-    <li class="rq-step {% if s in 'ready_to_ship delivered done canceled' %}is-done{% endif %}">К отгрузке</li>
-    <li class="rq-step {% if s in 'delivered done canceled' %}is-done{% endif %}">Доставлена</li>
-    <li class="rq-step {% if s in 'done canceled' %}is-done{% endif %}">Завершена</li>
-  </ol>
+  <div class="card" style="padding:16px 20px;margin-bottom:16px">
+    <ol class="rq-steps" aria-label="Этапы заявки">
+      <li class="rq-step {% if s != 'draft' %}is-done{% endif %} {% if s == 'draft' %}is-current{% endif %}">
+        <span class="rq-step__number">1</span>
+        <span>Создана</span>
+      </li>
+      <li class="rq-step {% if s in 'submitted quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %} {% if s == 'submitted' %}is-current{% endif %}">
+        <span class="rq-step__number">2</span>
+        <span>На согласовании</span>
+      </li>
+      <li class="rq-step {% if s in 'quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %} {% if s == 'quote' %}is-current{% endif %}">
+        <span class="rq-step__number">3</span>
+        <span>КП</span>
+      </li>
+      <li class="rq-step {% if s in 'approved to_pick in_progress ready_to_ship delivered done canceled' %}is-done{% endif %} {% if s == 'approved' %}is-current{% endif %}">
+        <span class="rq-step__number">4</span>
+        <span>Согласована</span>
+      </li>
+      {% if s == 'rejected' %}
+      <li class="rq-step rq-step--rejected is-done is-current">
+        <span class="rq-step__number">!</span>
+        <span>Не согласована</span>
+      </li>
+      {% endif %}
+      <li class="rq-step {% if s in 'in_progress ready_to_ship delivered done canceled' %}is-done{% endif %} {% if s == 'in_progress' %}is-current{% endif %}">
+        <span class="rq-step__number">5</span>
+        <span>Собирается</span>
+      </li>
+      <li class="rq-step {% if s in 'ready_to_ship delivered done canceled' %}is-done{% endif %} {% if s == 'ready_to_ship' %}is-current{% endif %}">
+        <span class="rq-step__number">6</span>
+        <span>К отгрузке</span>
+      </li>
+      <li class="rq-step {% if s in 'delivered done canceled' %}is-done{% endif %} {% if s == 'delivered' %}is-current{% endif %}">
+        <span class="rq-step__number">7</span>
+        <span>Доставлена</span>
+      </li>
+      <li class="rq-step {% if s in 'done canceled' %}is-done{% endif %} {% if s == 'done' %}is-current{% endif %}">
+        <span class="rq-step__number">8</span>
+        <span>Завершена</span>
+      </li>
+    </ol>
+  </div>
   {% endwith %}
 
   <!-- ===== Макет: 2 колонки ===== -->
@@ -575,13 +606,60 @@
 </div>
 
 {# ===== Модалка предпросмотра КП ===== #}
-<div id="previewModal" class="fixed inset-0 bg-black/60 hidden z-50">
-  <div class="bg-white rounded-2xl shadow-xl w-11/12 max-w-5xl mx-auto my-8 relative">
-    <button id="closePreview" class="absolute top-2 right-3 text-gray-600 text-lg hover:text-black">✕</button>
-    <div id="previewTitle" class="p-3 border-b text-sm font-semibold text-gray-700"></div>
-    <iframe id="previewFrame" src="" class="w-full h-[80vh] rounded-b-2xl"></iframe>
+<div id="previewModal" class="fixed inset-0 bg-black/60 hidden z-50 items-center justify-center" style="display:none">
+  <div style="background:var(--card);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,0.3);width:92vw;max-width:800px;max-height:90vh;display:flex;flex-direction:column;position:relative">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div id="previewTitle" style="font-size:16px;font-weight:700;color:var(--text)"></div>
+      <button id="closePreview" type="button" class="btn btn-secondary" style="padding:6px 12px;font-size:14px">Закрыть</button>
+    </div>
+    <iframe id="previewFrame" src="" style="width:100%;flex:1;min-height:400px;border:none;border-radius:0 0 18px 18px"></iframe>
   </div>
 </div>
+
+<script>
+(function(){
+  const modal = document.getElementById('previewModal');
+  const closeBtn = document.getElementById('closePreview');
+  const titleEl = document.getElementById('previewTitle');
+  const frameEl = document.getElementById('previewFrame');
+  
+  document.querySelectorAll('.open-preview').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const url = this.dataset.url;
+      const name = this.dataset.name || 'Файл';
+      if (titleEl) titleEl.textContent = name;
+      if (frameEl) frameEl.src = url;
+      if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+    });
+  });
+  
+  function closeModal() {
+    if (modal) {
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    if (frameEl) frameEl.src = '';
+  }
+  
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) closeModal();
+    });
+  }
+  
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modal && modal.style.display !== 'none') {
+      closeModal();
+    }
+  });
+})();
+</script>
 
 <style>
 :root{ --bg:#f6f7f8; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --accent:#111; --radius:14px; }
@@ -601,10 +679,15 @@
 .rq-card__head h2{font-size:16px;font-weight:800}
 .rq-card__body{padding:12px 14px}
 
-.rq-steps{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px;padding:0;list-style:none}
-.rq-step{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;font-weight:700;font-size:13px;color:#111}
-.rq-step.is-done{background:#111;color:#fff;border-color:#111}
+.rq-steps{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.rq-step{display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid var(--line);border-radius:12px;background:#fff;font-weight:600;font-size:13px;color:var(--text);transition:all 0.2s;position:relative}
+.rq-step__number{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--bg);color:var(--text);font-weight:700;font-size:12px;flex-shrink:0}
+.rq-step.is-done{background:var(--primary);border-color:var(--primary);color:#fff}
+.rq-step.is-done .rq-step__number{background:rgba(255,255,255,0.2);color:#fff}
+.rq-step.is-current{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.15);transform:scale(1.05)}
+.rq-step.is-current .rq-step__number{background:rgba(255,255,255,0.3);color:#fff;font-weight:800}
 .rq-step--rejected{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+.rq-step--rejected .rq-step__number{background:#fecaca;color:#7f1d1d}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border-radius:12px;border:1px solid #111;background:#111;color:#fff;font-weight:700;text-decoration:none}
 .btn:hover{opacity:.92}
@@ -654,11 +737,23 @@
   .rq-sticky{position:static}
   .rq-additem{grid-template-columns:1fr 120px 1fr auto}
   .rq-actions__col{grid-template-columns:1fr;}
+  .rq-header{flex-direction:column;align-items:flex-start;gap:12px}
+  .rq-file{flex-direction:column;align-items:flex-start;gap:8px}
+  .rq-file__actions{width:100%;flex-wrap:wrap}
 }
-@media (max-width: 560px){
-  .rq-additem{grid-template-columns:1fr 1fr;gap:6px}
+@media (max-width: 640px){
+  .rq-title{font-size:20px}
+  .rq-meta{flex-direction:column;align-items:flex-start;gap:6px}
+  .rq-steps{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .rq-steps::-webkit-scrollbar{display:none}
+  .rq-step{flex-shrink:0;font-size:12px;padding:5px 10px}
+  .rq-additem{grid-template-columns:1fr 1fr;gap:8px}
   .rq-additem__note{grid-column:1 / -1}
-  .rq-trow{grid-template-columns:1fr 90px 1fr}
+  .rq-trow{grid-template-columns:1fr 90px 1fr;gap:8px;padding:8px 12px}
+  .rq-file__actions{flex-direction:column;width:100%}
+  .rq-file__actions .btn{width:100%;justify-content:center}
+  .rq-card__head{flex-wrap:wrap;gap:12px}
+  #previewModal > div{width:98vw;max-width:98vw;height:95vh;max-height:95vh;margin:2.5vh auto}
 }
 </style>
 {% endblock %}

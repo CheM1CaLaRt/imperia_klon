@@ -1,55 +1,75 @@
 {% extends "base.html" %}
 {% block title %}Новая заявка — IndigoFlow{% endblock %}
 {% block content %}
+
 <div class="card">
   <div class="card-header">
     <div>
       <h1 class="card-title">Новая заявка</h1>
       <p class="card-subtitle">Создайте новую заявку для клиента</p>
     </div>
+    <a href="{% url 'core:request_list' %}" class="btn btn-secondary">← Назад к заявкам</a>
   </div>
   
-  <form method="post" class="space-y-5" style="padding-top:20px">
+  <form method="post" style="padding-top:20px;display:grid;gap:20px">
     {% csrf_token %}
     
     {% if form.non_field_errors %}
-      <div style="padding:12px 16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
+      <div style="padding:14px 18px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
         {{ form.non_field_errors }}
       </div>
     {% endif %}
 
     <div class="grid grid-2">
       <div class="field">
-        {{ form.title.label_tag }}
+        <label class="field label">{{ form.title.label }}</label>
         {{ form.title }}
-        {% if form.title.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.title.errors }}</div>{% endif %}
+        {% if form.title.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.title.errors }}</div>{% endif %}
+        <div style="margin-top:6px;font-size:13px;color:var(--muted)">Краткое описание заявки</div>
       </div>
       <div class="field">
-        {{ form.counterparty.label_tag }}
+        <label class="field label">{{ form.counterparty.label }}</label>
         {{ form.counterparty }}
-        {% if form.counterparty.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.counterparty.errors }}</div>{% endif %}
+        {% if form.counterparty.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.counterparty.errors }}</div>{% endif %}
+        <div style="margin-top:6px;font-size:13px;color:var(--muted)">Выберите контрагента (опционально)</div>
       </div>
     </div>
 
     <div class="field">
-      {{ form.comment_internal.label_tag }}
+      <label class="field label">{{ form.comment_internal.label }}</label>
       {{ form.comment_internal }}
-      {% if form.comment_internal.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.comment_internal.errors }}</div>{% endif %}
+      {% if form.comment_internal.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.comment_internal.errors }}</div>{% endif %}
+      <div style="margin-top:6px;font-size:13px;color:var(--muted)">Внутренние комментарии и примечания</div>
     </div>
 
     {% if form.items_bulk %}
     <div class="field">
-      {{ form.items_bulk.label_tag }}
+      <label class="field label">{{ form.items_bulk.label }}</label>
       {{ form.items_bulk }}
-      {% if form.items_bulk.help_text %}<div style="color:var(--muted);font-size:13px;margin-top:4px">{{ form.items_bulk.help_text }}</div>{% endif %}
-      {% if form.items_bulk.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.items_bulk.errors }}</div>{% endif %}
+      {% if form.items_bulk.help_text %}
+        <div style="margin-top:8px;padding:12px 16px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--muted);line-height:1.6">
+          {{ form.items_bulk.help_text|safe }}
+        </div>
+      {% endif %}
+      {% if form.items_bulk.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.items_bulk.errors }}</div>{% endif %}
     </div>
     {% endif %}
 
-    <div class="flex gap-3" style="padding-top:12px;border-top:1px solid var(--border)">
-      <button name="draft" type="submit" class="btn btn-secondary">Сохранить черновик</button>
-      <button name="submit" type="submit" class="btn btn-primary">Отправить</button>
+    <div style="display:flex;gap:12px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <button name="draft" type="submit" class="btn btn-secondary" style="flex:1;min-width:140px">Сохранить черновик</button>
+      <button name="submit" type="submit" class="btn btn-primary" style="flex:1;min-width:140px">Отправить заявку</button>
+      <a href="{% url 'core:request_list' %}" class="btn" style="background:var(--card);border-color:var(--border);color:var(--text)">Отмена</a>
     </div>
   </form>
 </div>
+
+<style>
+@media (max-width:640px){
+  .grid-2{grid-template-columns:1fr}
+  .card-header{flex-direction:column;align-items:stretch;gap:12px}
+  .card-header .btn{width:100%;justify-content:center}
+  form > div[style*="flex"]{flex-direction:column}
+  form > div[style*="flex"] .btn{width:100%}
+}
+</style>
 {% endblock %}
