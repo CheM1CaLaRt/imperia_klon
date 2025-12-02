@@ -24,14 +24,20 @@
 
   <div class="grid grid-cols-1 gap-4">
 
-    {# ИНН + кнопка ЕГРЮЛ #}
+    {# ИНН + автоматический поиск в ЕГРЮЛ по Enter #}
     <div>
       {{ form.inn.label_tag }}
-      {{ form.inn }}
-      {% if form.inn.errors %}<div class="text-red-600 text-sm">{{ form.inn.errors }}</div>{% endif %}
-      <div class="mt-2">
-        <button type="button" id="btn-egrul" class="rounded-xl border px-3 py-2">Найти в ЕГРЮЛ</button>
+      <div style="position:relative">
+        {{ form.inn }}
+        <div id="egrul-loading" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--primary);font-size:14px">
+          Поиск...
+        </div>
       </div>
+      {% if form.inn.errors %}<div class="text-red-600 text-sm">{{ form.inn.errors }}</div>{% endif %}
+      <div style="margin-top:6px;font-size:13px;color:var(--muted)">
+        Введите ИНН и нажмите Enter для автоматического поиска в ЕГРЮЛ
+      </div>
+      <button type="button" id="btn-egrul" style="display:none">Найти в ЕГРЮЛ</button>
     </div>
 
     {# Краткое и полное наименование #}
@@ -184,24 +190,28 @@
 
 {# ===== JS: ЕГРЮЛ и подсказки адресов – как у формы операторов ===== #}
 <script>
-  // 1) Автозаполнение из ЕГРЮЛ
+  // 1) Автозаполнение из ЕГРЮЛ по Enter
   (function () {
+    const innInput = document.getElementById('id_inn');
     const btn = document.getElementById('btn-egrul');
-    if (!btn) return;
+    const loadingEl = document.getElementById('egrul-loading');
+    
+    if (!innInput) return;
 
     const lookupUrl = "{% url 'core:counterparty_lookup_inn' %}";
 
-    btn.addEventListener('click', async function () {
-      const innInput = document.getElementById('id_inn');
-      const inn = (innInput?.value || '').trim();
+    async function performLookup() {
+      const inn = (innInput.value || '').trim();
 
       if (!/^\d{10}(\d{2})?$/.test(inn)) {
         alert('Введите корректный ИНН: 10 (юр.лицо) или 12 (ИП) цифр.');
-        innInput?.focus();
+        innInput.focus();
         return;
       }
 
-      btn.disabled = true;
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (btn) btn.disabled = true;
+      innInput.disabled = true;
 
       try {
         const resp = await fetch(`${lookupUrl}?inn=${encodeURIComponent(inn)}`, { method: 'GET' });
@@ -225,13 +235,38 @@
         setVal('id_registration_country', d.registration_country || 'РОССИЯ');
         setVal('id_address', d.address);
         setVal('id_website', d.website);
+
+        if (loadingEl) {
+          loadingEl.style.color = '#10b981';
+          loadingEl.textContent = '✓ Данные загружены';
+          setTimeout(() => {
+            loadingEl.style.display = 'none';
+            loadingEl.style.color = '';
+            loadingEl.textContent = 'Поиск...';
+          }, 2000);
+        }
       } catch (e) {
         console.error(e);
         alert('Ошибка запроса к ЕГРЮЛ.');
+        if (loadingEl) loadingEl.style.display = 'none';
       } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
+        innInput.disabled = false;
+      }
+    }
+
+    // Обработка Enter в поле ИНН
+    innInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        performLookup();
       }
     });
+
+    // Кнопка как fallback
+    if (btn) {
+      btn.addEventListener('click', performLookup);
+    }
   })();
 
   // 2) Подсказки адресов (OSM Nominatim)

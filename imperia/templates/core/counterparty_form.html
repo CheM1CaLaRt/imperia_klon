@@ -1,207 +1,227 @@
 {# templates/core/counterparty_form.html #}
 {% extends "base.html" %}
 
-{% block title %}{% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %}{% endblock %}
+{% block title %}{% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %} — IndigoFlow{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">
-  {% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %}
-</h1>
-
-<form method="post" enctype="multipart/form-data" class="space-y-5">
-  {% csrf_token %}
-
-  <div class="grid grid-cols-1 gap-4">
-
-    {# ИНН + кнопка ЕГРЮЛ #}
+<div class="card">
+  <div class="card-header">
     <div>
-      {{ form.inn.label_tag }}
-      {{ form.inn }}
-      {% if form.inn.errors %}<div class="text-red-600 text-sm">{{ form.inn.errors }}</div>{% endif %}
-      <div class="mt-2">
-        <button type="button" id="btn-egrul" class="rounded-xl border px-3 py-2">Найти в ЕГРЮЛ</button>
-      </div>
-    </div>
-
-    {# Краткое и полное наименование #}
-    <div>
-      {{ form.name.label_tag }}
-      {{ form.name }}
-      {% if form.name.errors %}<div class="text-red-600 text-sm">{{ form.name.errors }}</div>{% endif %}
-    </div>
-
-    <div>
-      {{ form.full_name.label_tag }}
-      {{ form.full_name }}
-      {% if form.full_name.errors %}<div class="text-red-600 text-sm">{{ form.full_name.errors }}</div>{% endif %}
-    </div>
-
-    {# КПП / ОГРН / Страна #}
-    <div class="grid md:grid-cols-3 gap-4">
-      <div>
-        {{ form.kpp.label_tag }}
-        {{ form.kpp }}
-        {% if form.kpp.errors %}<div class="text-red-600 text-sm">{{ form.kpp.errors }}</div>{% endif %}
-      </div>
-      <div>
-        {{ form.ogrn.label_tag }}
-        {{ form.ogrn }}
-        {% if form.ogrn.errors %}<div class="text-red-600 text-sm">{{ form.ogrn.errors }}</div>{% endif %}
-      </div>
-      <div>
-        {{ form.registration_country.label_tag }}
-        {{ form.registration_country }}
-        {% if form.registration_country.errors %}<div class="text-red-600 text-sm">{{ form.registration_country.errors }}</div>{% endif %}
-      </div>
-    </div>
-
-    {# Юр. адрес #}
-    <div>
-      {{ form.address.label_tag }}
-      {{ form.address }}
-      {% if form.address.errors %}<div class="text-red-600 text-sm">{{ form.address.errors }}</div>{% endif %}
-    </div>
-
-    {# Фактический/доставки #}
-    <div>
-      {{ form.actual_address.label_tag }}
-      {{ form.actual_address }}
-      {% if form.actual_address.errors %}<div class="text-red-600 text-sm">{{ form.actual_address.errors }}</div>{% endif %}
-    </div>
-
-    {# Банк: наименование / БИК / счёт #}
-    <div class="grid md:grid-cols-3 gap-4">
-      <div>
-        {{ form.bank_name.label_tag }}
-        {{ form.bank_name }}
-        {% if form.bank_name.errors %}<div class="text-red-600 text-sm">{{ form.bank_name.errors }}</div>{% endif %}
-      </div>
-      <div>
-        {{ form.bank_bik.label_tag }}
-        {{ form.bank_bik }}
-        {% if form.bank_bik.errors %}<div class="text-red-600 text-sm">{{ form.bank_bik.errors }}</div>{% endif %}
-      </div>
-      <div>
-        {{ form.bank_account.label_tag }}
-        {{ form.bank_account }}
-        {% if form.bank_account.errors %}<div class="text-red-600 text-sm">{{ form.bank_account.errors }}</div>{% endif %}
-      </div>
-    </div>
-
-    {# Сайт #}
-    <div>
-      {{ form.website.label_tag }}
-      {{ form.website }}
-      {% if form.website.errors %}<div class="text-red-600 text-sm">{{ form.website.errors }}</div>{% endif %}
-    </div>
-
-    {# Менеджеры #}
-    <div>
-      <label class="block text-sm text-gray-600 mb-1">Закреплённые менеджеры</label>
-      {{ form.managers }}
-      {% if form.managers.errors %}<div class="text-red-600 text-sm">{{ form.managers.errors }}</div>{% endif %}
-      <p class="text-xs text-gray-500 mt-1">Можно выбрать несколько.</p>
+      <h1 class="card-title">{% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %}</h1>
+      <p class="card-subtitle">{% if edit_mode %}Редактирование информации о контрагенте{% else %}Создание нового контрагента в системе{% endif %}</p>
     </div>
   </div>
 
-  {# Сканы документов #}
-  {% if doc_formset %}
-  <div class="rounded-xl border p-4">
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="font-semibold">Сканы документов</h2>
-      <button type="button" id="add-doc" class="rounded-xl border px-3 py-1">Добавить файл</button>
-    </div>
+  <form method="post" enctype="multipart/form-data" class="space-y-5" style="padding-top:20px">
+    {% csrf_token %}
 
-    {{ doc_formset.management_form }}
+    {% if form.non_field_errors %}
+      <div style="padding:12px 16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
 
-    <div id="doc-forms" class="space-y-3">
-      {% for f in doc_formset.forms %}
-        {{ f.id }} {# скрытое поле для существующих #}
-        <div class="border rounded-lg p-3">
-          <div class="grid md:grid-cols-3 gap-4 items-start">
-            <div>
-              {{ f.title.label_tag }}
-              {{ f.title }}
-              {% if f.title.errors %}<div class="text-red-600 text-sm">{{ f.title.errors }}</div>{% endif %}
-            </div>
-            <div>
-              {{ f.file.label_tag }}
-              {{ f.file }}
-              {% if f.file.errors %}<div class="text-red-600 text-sm">{{ f.file.errors }}</div>{% endif %}
-              {% if f.instance.pk and f.instance.file %}
-                <div class="mt-1 text-sm">
-                  <a href="{{ f.instance.file.url }}" target="_blank" class="text-blue-600 underline">Просмотреть текущий файл</a>
-                </div>
-              {% endif %}
-            </div>
-            <div class="pt-6">
-              {% if f.DELETE %}
-                <label class="inline-flex items-center gap-2 text-red-600">
-                  {{ f.DELETE }} удалить
-                </label>
-              {% endif %}
-            </div>
+    <div class="grid grid-cols-1 gap-5">
+
+      {# ИНН + автоматический поиск в ЕГРЮЛ по Enter #}
+      <div class="field">
+        {{ form.inn.label_tag }}
+        <div style="position:relative">
+          {{ form.inn }}
+          <div id="egrul-loading" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--primary);font-size:14px">
+            Поиск...
           </div>
         </div>
-      {% endfor %}
-    </div>
+        {% if form.inn.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.inn.errors }}</div>{% endif %}
+        <div style="margin-top:6px;font-size:13px;color:var(--muted)">
+          Введите ИНН и нажмите Enter для автоматического поиска в ЕГРЮЛ
+        </div>
+        <button type="button" id="btn-egrul" style="display:none">Найти в ЕГРЮЛ</button>
+      </div>
 
-    {# Пустой блок для JS-добавления новой строки #}
-    <template id="doc-empty">
-      <div class="border rounded-lg p-3">
-        <div class="grid md:grid-cols-3 gap-4 items-start">
-          <div>
-            <label class="block text-sm text-gray-600 mb-1">Название</label>
-            REPLACE_TITLE
-          </div>
-          <div>
-            <label class="block text-sm text-gray-600 mb-1">Файл</label>
-            REPLACE_FILE
-          </div>
+      {# Краткое и полное наименование #}
+      <div class="field">
+        {{ form.name.label_tag }}
+        {{ form.name }}
+        {% if form.name.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.name.errors }}</div>{% endif %}
+      </div>
+
+      <div class="field">
+        {{ form.full_name.label_tag }}
+        {{ form.full_name }}
+        {% if form.full_name.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.full_name.errors }}</div>{% endif %}
+      </div>
+
+      {# КПП / ОГРН / Страна #}
+      <div class="grid grid-3">
+        <div class="field">
+          {{ form.kpp.label_tag }}
+          {{ form.kpp }}
+          {% if form.kpp.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.kpp.errors }}</div>{% endif %}
+        </div>
+        <div class="field">
+          {{ form.ogrn.label_tag }}
+          {{ form.ogrn }}
+          {% if form.ogrn.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.ogrn.errors }}</div>{% endif %}
+        </div>
+        <div class="field">
+          {{ form.registration_country.label_tag }}
+          {{ form.registration_country }}
+          {% if form.registration_country.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.registration_country.errors }}</div>{% endif %}
         </div>
       </div>
-    </template>
-  </div>
-  {% endif %}
-{# перед кнопками #}
-{% if form.non_field_errors %}
-  <div class="rounded-md bg-red-50 text-red-700 px-3 py-2 text-sm mb-2">
-    {{ form.non_field_errors }}
-  </div>
-{% endif %}
-{% if doc_formset %}
-  {% if doc_formset.non_form_errors %}
-    <div class="rounded-md bg-red-50 text-red-700 px-3 py-2 text-sm mb-2">
-      {{ doc_formset.non_form_errors }}
+
+      {# Юр. адрес #}
+      <div class="field">
+        {{ form.address.label_tag }}
+        {{ form.address }}
+        {% if form.address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.address.errors }}</div>{% endif %}
+      </div>
+
+      {# Фактический/доставки #}
+      <div class="field">
+        {{ form.actual_address.label_tag }}
+        {{ form.actual_address }}
+        {% if form.actual_address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.actual_address.errors }}</div>{% endif %}
+      </div>
+
+      {# Банк: наименование / БИК / счёт #}
+      <div class="grid grid-3">
+        <div class="field">
+          {{ form.bank_name.label_tag }}
+          {{ form.bank_name }}
+          {% if form.bank_name.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.bank_name.errors }}</div>{% endif %}
+        </div>
+        <div class="field">
+          {{ form.bank_bik.label_tag }}
+          {{ form.bank_bik }}
+          {% if form.bank_bik.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.bank_bik.errors }}</div>{% endif %}
+        </div>
+        <div class="field">
+          {{ form.bank_account.label_tag }}
+          {{ form.bank_account }}
+          {% if form.bank_account.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.bank_account.errors }}</div>{% endif %}
+        </div>
+      </div>
+
+      {# Сайт #}
+      <div class="field">
+        {{ form.website.label_tag }}
+        {{ form.website }}
+        {% if form.website.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.website.errors }}</div>{% endif %}
+      </div>
+
+      {# Менеджеры #}
+      <div class="field">
+        <label class="field label">Закреплённые менеджеры</label>
+        {{ form.managers }}
+        {% if form.managers.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.managers.errors }}</div>{% endif %}
+        <p style="font-size:13px;color:var(--muted);margin-top:4px">Можно выбрать несколько.</p>
+      </div>
     </div>
-  {% endif %}
-{% endif %}
-  <div class="flex gap-2">
-    <button type="submit" class="rounded-xl bg-black text-white px-4 py-2">Сохранить</button>
-    <a href="javascript:history.back()" class="rounded-xl border px-4 py-2">Отмена</a>
-  </div>
-</form>
+
+    {# Сканы документов #}
+    {% if doc_formset %}
+    <div class="card" style="margin-top:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+        <h2 style="font-size:18px;font-weight:700;margin:0">Сканы документов</h2>
+        <button type="button" id="add-doc" class="btn btn-secondary">+ Добавить файл</button>
+      </div>
+
+      {{ doc_formset.management_form }}
+
+      <div id="doc-forms" style="display:grid;gap:12px">
+        {% for f in doc_formset.forms %}
+          {{ f.id }}
+          <div style="padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg)">
+            <div class="grid grid-3" style="gap:16px">
+              <div class="field">
+                {{ f.title.label_tag }}
+                {{ f.title }}
+                {% if f.title.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ f.title.errors }}</div>{% endif %}
+              </div>
+              <div class="field">
+                {{ f.file.label_tag }}
+                {{ f.file }}
+                {% if f.file.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ f.file.errors }}</div>{% endif %}
+                {% if f.instance.pk and f.instance.file %}
+                  <div style="margin-top:8px">
+                    <a href="{{ f.instance.file.url }}" target="_blank" style="color:var(--primary);text-decoration:none;font-size:13px">Просмотреть текущий файл</a>
+                  </div>
+                {% endif %}
+              </div>
+              <div style="display:flex;align-items:end;padding-bottom:8px">
+                {% if f.DELETE %}
+                  <label style="display:flex;align-items:center;gap:8px;color:#7f1d1d;font-size:14px;cursor:pointer">
+                    {{ f.DELETE }}
+                    <span>Удалить</span>
+                  </label>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      {# Пустой блок для JS-добавления новой строки #}
+      <template id="doc-empty">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg)">
+          <div class="grid grid-3" style="gap:16px">
+            <div class="field">
+              <label class="field label">Название</label>
+              REPLACE_TITLE
+            </div>
+            <div class="field">
+              <label class="field label">Файл</label>
+              REPLACE_FILE
+            </div>
+            <div></div>
+          </div>
+        </div>
+      </template>
+    </div>
+    {% endif %}
+
+    {% if doc_formset %}
+      {% if doc_formset.non_form_errors %}
+        <div style="padding:12px 16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px;margin-top:20px">
+          {{ doc_formset.non_form_errors }}
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div style="display:flex;gap:12px;padding-top:20px;border-top:1px solid var(--border);margin-top:24px">
+      <button type="submit" class="btn btn-primary">Сохранить</button>
+      <a href="javascript:history.back()" class="btn btn-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
+
 <script>
   // ==========================
-  // 1) Автозаполнение из ЕГРЮЛ
+  // 1) Автозаполнение из ЕГРЮЛ по Enter
   // ==========================
   (function () {
+    const innInput = document.getElementById('id_inn');
     const btn = document.getElementById('btn-egrul');
-    if (!btn) return;
+    const loadingEl = document.getElementById('egrul-loading');
+    
+    if (!innInput) return;
 
-    const lookupUrl = "{% url 'core:counterparty_lookup_inn' %}"; // /counterparties/lookup/
+    const lookupUrl = "{% url 'core:counterparty_lookup_inn' %}";
 
-    btn.addEventListener('click', async function () {
-      const innInput = document.getElementById('id_inn');
-      const inn = (innInput?.value || '').trim();
+    async function performLookup() {
+      const inn = (innInput.value || '').trim();
 
       if (!/^\d{10}(\d{2})?$/.test(inn)) {
         alert('Введите корректный ИНН: 10 (юр.лицо) или 12 (ИП) цифр.');
-        innInput?.focus();
+        innInput.focus();
         return;
       }
 
-      btn.disabled = true;
+      if (loadingEl) loadingEl.style.display = 'block';
+      if (btn) btn.disabled = true;
+      innInput.disabled = true;
 
       try {
         const resp = await fetch(`${lookupUrl}?inn=${encodeURIComponent(inn)}`, { method: 'GET' });
@@ -228,55 +248,67 @@
         setVal('id_address', d.address);
         setVal('id_website', d.website);
 
-        // Новые поля обычно не приходят из ЕГРЮЛ — оставляем как есть:
-        // setVal('id_actual_address', d.actual_address);
-        // setVal('id_bank_name', d.bank_name);
-        // setVal('id_bank_bik', d.bank_bik);
-        // setVal('id_bank_account', d.bank_account);
+        // Показываем уведомление об успехе
+        if (loadingEl) {
+          loadingEl.style.color = '#10b981';
+          loadingEl.textContent = '✓ Данные загружены';
+          setTimeout(() => {
+            loadingEl.style.display = 'none';
+            loadingEl.style.color = '';
+            loadingEl.textContent = 'Поиск...';
+          }, 2000);
+        }
       } catch (e) {
         console.error(e);
         alert('Ошибка запроса к ЕГРЮЛ.');
+        if (loadingEl) loadingEl.style.display = 'none';
       } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
+        innInput.disabled = false;
+      }
+    }
+
+    // Обработка Enter в поле ИНН
+    innInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        performLookup();
       }
     });
+
+    // Кнопка как fallback (скрыта, но можно использовать программно)
+    if (btn) {
+      btn.addEventListener('click', performLookup);
+    }
   })();
 
 
   // ==========================================
-  // 2) Подсказки адресов (OSM Nominatim, бесплатно)
-  //    для поля "Фактический адрес / адрес доставки"
+  // 2) Подсказки адресов (OSM Nominatim)
   // ==========================================
   (function () {
     const input = document.getElementById('id_actual_address');
     if (!input) return;
 
-    // создаём контейнер подсказок, если его нет
     const boxId = 'addr-suggest-box';
     let box = document.getElementById(boxId);
     if (!box) {
       box = document.createElement('div');
       box.id = boxId;
-      box.className = 'hidden absolute z-50 mt-1 w-full rounded-lg border bg-white shadow';
-      // обёртка-родитель для нормального позиционирования
+      box.style.cssText = 'display:none;position:absolute;z-index:50;margin-top:4px;width:100%;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow);max-height:300px;overflow-y:auto';
       const wrapper = document.createElement('div');
-      wrapper.className = 'relative';
+      wrapper.style.position = 'relative';
       input.parentNode.insertBefore(wrapper, input);
       wrapper.appendChild(input);
       wrapper.appendChild(box);
     }
 
-    const endpoint = "{% url 'core:address_suggest_osm' %}"; // /api/suggest/address/osm
+    const endpoint = "{% url 'core:address_suggest_osm' %}";
     let timer = null;
     let lastQuery = '';
 
-    function hideBox() {
-      box.classList.add('hidden');
-      box.innerHTML = '';
-    }
-    function showBox() {
-      box.classList.remove('hidden');
-    }
+    function hideBox() { box.style.display = 'none'; box.innerHTML = ''; }
+    function showBox() { box.style.display = 'block'; }
     function esc(s) {
       return (s || '').replace(/&/g, '&amp;')
                       .replace(/</g, '&lt;')
@@ -284,13 +316,12 @@
                       .replace(/"/g, '&quot;');
     }
     function render(items) {
-      if (!items || !items.length) {
-        hideBox();
-        return;
-      }
+      if (!items || !items.length) { hideBox(); return; }
       box.innerHTML = items.map(it => `
         <button type="button"
-                class="w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100"
+                style="width:100%;text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.2s"
+                onmouseover="this.style.background='var(--bg)'"
+                onmouseout="this.style.background='transparent'"
                 data-value="${esc(it.value)}">
           ${esc(it.value)}
         </button>
@@ -328,7 +359,6 @@
 
     input.addEventListener('input', onType);
     input.addEventListener('focus', () => { if (box.innerHTML.trim()) showBox(); });
-    // небольшая задержка, чтобы успеть кликнуть по пункту
     input.addEventListener('blur', () => setTimeout(hideBox, 150));
 
     box.addEventListener('click', (e) => {
@@ -338,9 +368,8 @@
       hideBox();
     });
 
-    // ESC — скрыть подсказки
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { hideBox(); }
+      if (e.key === 'Escape') hideBox();
     });
   })();
 
@@ -352,7 +381,6 @@
     const addBtn = document.getElementById('add-doc');
     if (!addBtn) return;
 
-    // Если doc_formset не передан в шаблон — защищаемся от пустого селектора
     const totalInput = document.querySelector('input[name="{{ doc_formset.prefix|default_if_none:"__doc__" }}-TOTAL_FORMS"]') ||
                        document.querySelector('input[name$="-TOTAL_FORMS"]');
     const container  = document.getElementById('doc-forms');
@@ -364,9 +392,9 @@
 
     addBtn.addEventListener('click', function () {
       const idx = parseInt(totalInput.value || '0', 10);
-      const prefix = totalInput.name.replace(/-TOTAL_FORMS$/, ''); // вычисляем актуальный prefix
-      const titleHtml = `<input type="text" name="${prefix}-${idx}-title" class="input">`;
-      const fileHtml  = `<input type="file" name="${prefix}-${idx}-file" class="input">`;
+      const prefix = totalInput.name.replace(/-TOTAL_FORMS$/, '');
+      const titleHtml = `<input type="text" name="${prefix}-${idx}-title" class="field input">`;
+      const fileHtml  = `<input type="file" name="${prefix}-${idx}-file" class="field input">`;
 
       let html = tmpl.replace('REPLACE_TITLE', titleHtml)
                      .replace('REPLACE_FILE', fileHtml);
@@ -379,5 +407,4 @@
     });
   })();
 </script>
-
 {% endblock %}
