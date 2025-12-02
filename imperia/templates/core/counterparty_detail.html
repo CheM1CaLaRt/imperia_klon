@@ -74,6 +74,62 @@
   </div>
 </div>
 
+{# Яндекс карты для адресов #}
+{% if obj.address or obj.actual_address %}
+<div style="margin-top:16px">
+  {% if obj.address and obj.actual_address %}
+    {# Обе карты - показываем в две колонки #}
+    <div class="grid grid-2" style="gap:16px">
+      <div class="card" style="overflow:hidden;padding:0">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
+          <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
+            <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></span>
+            Юридический адрес
+          </h2>
+          <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.address }}</div>
+        </div>
+        <div id="map-legal" style="width:100%;height:420px"></div>
+      </div>
+      
+      <div class="card" style="overflow:hidden;padding:0">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
+          <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
+            <span style="width:8px;height:8px;border-radius:50%;background:#10b981"></span>
+            Фактический адрес
+          </h2>
+          <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.actual_address }}</div>
+        </div>
+        <div id="map-actual" style="width:100%;height:420px"></div>
+      </div>
+    </div>
+  {% elif obj.address %}
+    {# Только юридический #}
+    <div class="card" style="overflow:hidden;padding:0">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
+        <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></span>
+          Юридический адрес
+        </h2>
+        <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.address }}</div>
+      </div>
+      <div id="map-legal" style="width:100%;height:420px"></div>
+    </div>
+  {% elif obj.actual_address %}
+    {# Только фактический #}
+    <div class="card" style="overflow:hidden;padding:0">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
+        <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#10b981"></span>
+          Фактический адрес
+        </h2>
+        <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.actual_address }}</div>
+      </div>
+      <div id="map-actual" style="width:100%;height:420px"></div>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {# Платёжные реквизиты #}
 <div class="card">
   <h2 style="font-size:18px;font-weight:700;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid var(--border)">Платёжные реквизиты</h2>
@@ -182,5 +238,98 @@
     <div style="padding:24px;text-align:center;color:var(--muted)">Документы не загружены</div>
   {% endif %}
 </div>
+
+{# Подключение и инициализация Яндекс карт #}
+{% if obj.address or obj.actual_address %}
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+<script>
+(function() {
+  if (typeof ymaps === 'undefined') {
+    console.warn('Яндекс карты не загружены');
+    return;
+  }
+
+  ymaps.ready(function() {
+    // Геокодинг адреса и создание карты
+    function initMap(address, mapContainerId, title) {
+      if (!address || !mapContainerId) return;
+      
+      const mapContainer = document.getElementById(mapContainerId);
+      if (!mapContainer) return;
+
+      // Показываем индикатор загрузки
+      mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted)"><div style="text-align:center"><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px">Загрузка карты...</div></div></div>';
+
+      ymaps.geocode(address, {
+        results: 1
+      }).then(function(res) {
+        const firstGeoObject = res.geoObjects.get(0);
+        
+        if (!firstGeoObject) {
+          mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px"><div><div style="font-size:32px;margin-bottom:8px">📍</div><div style="font-size:14px;margin-bottom:4px">Адрес не найден на карте</div><div style="font-size:12px;opacity:0.8">' + (address.length > 60 ? address.substring(0, 60) + '...' : address) + '</div></div></div>';
+          return;
+        }
+
+        const coords = firstGeoObject.geometry.getCoordinates();
+        const bounds = firstGeoObject.properties.get('boundedBy');
+
+        const map = new ymaps.Map(mapContainerId, {
+          center: coords,
+          zoom: 15,
+          controls: ['zoomControl', 'fullscreenControl']
+        });
+
+        const shortAddress = address.split(',').slice(0, 2).join(',');
+        const metaText = firstGeoObject.properties.get('metaDataProperty.GeocoderMetaData.text') || address;
+        
+        const placemark = new ymaps.Placemark(coords, {
+          balloonContentHeader: '<strong style="font-size:16px;display:block;margin-bottom:8px">' + title + '</strong>',
+          balloonContentBody: '<div style="color:#666;line-height:1.6;margin-bottom:8px">' + address + '</div>',
+          hintContent: shortAddress
+        }, {
+          preset: title.includes('Юридический') ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
+          iconColor: title.includes('Юридический') ? '#3b82f6' : '#10b981',
+          draggable: false
+        });
+
+        map.geoObjects.add(placemark);
+
+        if (bounds) {
+          map.setBounds(bounds, {
+            checkZoomRange: true,
+            duration: 300
+          });
+        }
+
+        // Отключаем скролл колесом мыши (чтобы не мешало прокрутке страницы)
+        map.behaviors.disable('scrollZoom');
+      }).catch(function(err) {
+        console.error('Ошибка геокодинга для ' + mapContainerId + ':', err);
+        mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);text-align:center;padding:32px"><div><div style="font-size:32px;margin-bottom:8px">⚠️</div><div style="font-size:14px">Не удалось загрузить карту</div></div></div>';
+      });
+    }
+
+    // Инициализация карт
+    {% if obj.address %}
+      initMap('{{ obj.address|escapejs }}', 'map-legal', 'Юридический адрес');
+    {% endif %}
+
+    {% if obj.actual_address %}
+      initMap('{{ obj.actual_address|escapejs }}', 'map-actual', 'Фактический адрес');
+    {% endif %}
+  });
+})();
+</script>
+
+<style>
+@media (max-width:940px){
+  .grid-2[style*="gap:16px"]{grid-template-columns:1fr}
+  #map-legal,#map-actual{height:350px !important}
+}
+@media (max-width:640px){
+  #map-legal,#map-actual{height:300px !important}
+}
+</style>
+{% endif %}
 
 {% endblock %}
