@@ -76,6 +76,15 @@
         {{ form.address.label_tag }}
         {{ form.address }}
         {% if form.address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.address.errors }}</div>{% endif %}
+        <button type="button" 
+                class="yandex-map-btn" 
+                data-address-field="id_address"
+                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none"
+                onmouseover="this.style.opacity='0.9'" 
+                onmouseout="this.style.opacity='1'">
+          <span>🗺️</span>
+          <span>Открыть на карте</span>
+        </button>
       </div>
 
       {# Фактический/доставки #}
@@ -83,6 +92,15 @@
         {{ form.actual_address.label_tag }}
         {{ form.actual_address }}
         {% if form.actual_address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.actual_address.errors }}</div>{% endif %}
+        <button type="button" 
+                class="yandex-map-btn" 
+                data-address-field="id_actual_address"
+                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none"
+                onmouseover="this.style.opacity='0.9'" 
+                onmouseout="this.style.opacity='1'">
+          <span>🗺️</span>
+          <span>Открыть на карте</span>
+        </button>
       </div>
 
       {# Банк: наименование / БИК / счёт #}
@@ -405,6 +423,59 @@
 
       totalInput.value = idx + 1;
     });
+  })();
+
+
+  // ==========================================
+  // 4) Кнопки "Открыть на карте" для адресов
+  // ==========================================
+  (function () {
+    function updateButtonStyle(btn, hasValue) {
+      if (hasValue) {
+        btn.style.background = 'var(--primary)';
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+      } else {
+        btn.style.background = 'var(--muted)';
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+      }
+    }
+
+    function setupMapButton(btn) {
+      var fieldId = btn.getAttribute('data-address-field');
+      var addressField = document.getElementById(fieldId);
+      
+      if (!addressField) return;
+      
+      // Обновляем стиль кнопки при загрузке страницы
+      updateButtonStyle(btn, (addressField.value || '').trim().length > 0);
+      
+      // Обновляем стиль при вводе текста
+      addressField.addEventListener('input', function() {
+        updateButtonStyle(btn, (this.value || '').trim().length > 0);
+      });
+      
+      // Обработка клика
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        var address = (addressField.value || '').trim();
+        
+        if (!address) {
+          alert('Сначала заполните адрес в поле');
+          addressField.focus();
+          return;
+        }
+        
+        var url = 'https://yandex.ru/maps/?text=' + encodeURIComponent(address);
+        window.open(url, '_blank', 'noopener,noreferrer');
+      });
+    }
+
+    // Настраиваем все кнопки
+    document.querySelectorAll('.yandex-map-btn').forEach(setupMapButton);
   })();
 </script>
 {% endblock %}
