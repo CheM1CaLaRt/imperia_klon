@@ -341,165 +341,128 @@
       return;
     }
 
-    showLoading(containerId);
+    if (typeof ymaps === 'undefined') {
+      showError(containerId, address, 'Библиотека карт не загружена');
+      return;
+    }
 
-    try {
-      // Преобразуем адрес из формата ЕГРЮЛ в формат для геокодера
-      var cleanAddr = address.trim();
-      var searchVariants = [];
+    // Сразу показываем карту с поисковой строкой, затем пытаемся найти адрес
+    var map = null;
+    var mapInitialized = false;
+    
+    function initBaseMap() {
+      if (mapInitialized) return;
+      mapInitialized = true;
       
-      // Самый простой и надежный вариант: "Москва, улица, дом"
-      var parts = cleanAddr.split(',').map(function(p) { return p.trim(); });
-      var cityPart = '';
-      var streetPart = '';
-      var housePart = '';
+      try {
+        map = new ymaps.Map(containerId, {
+          center: [55.755814, 37.617635], // Центр Москвы
+          zoom: 10,
+          controls: ['zoomControl', 'fullscreenControl', 'typeSelector',
+            new ymaps.control.SearchControl({
+              options: {
+                size: 'large',
+                provider: 'yandex#search'
+              }
+            })
+          ]
+        });
+        
+        map.behaviors.disable('scrollZoom');
+        
+        // Пробуем найти адрес через геокодинг в фоне
+        tryGeocodeAddress();
+        
+        // Показываем адрес в поисковой строке
+        setTimeout(function() {
+          try {
+            var searchControl = map.controls.get('searchControl');
+            if (searchControl) {
+              var normalizedAddr = address.replace(/Г\.МОСКВА/gi, 'Москва');
+              searchControl.search(normalizedAddr);
+            }
+          } catch(e) {
+            console.warn('Не удалось установить поиск:', e);
+          }
+        }, 1000);
+        
+      } catch(e) {
+        console.error('Ошибка создания карты:', e);
+        showError(containerId, address, 'Не удалось загрузить карту');
+      }
+    }
+    
+    function tryGeocodeAddress() {
+      // Нормализуем адрес
+      var cleanAddr = address.trim();
+      var normalized = cleanAddr.replace(/Г\.МОСКВА/gi, 'Москва');
+      
+      // Извлекаем основные части
+      var parts = normalized.split(',').map(function(p) { return p.trim(); });
+      var city = '';
+      var street = '';
+      var house = '';
       
       for (var i = 0; i < parts.length; i++) {
         var part = parts[i];
-        if (/^\d{6}$/.test(part)) continue; // Пропускаем индекс
-        
-        if (part.match(/^Г\.МОСКВА$/i)) {
-          cityPart = 'Москва';
-        } else if (part.match(/^УЛ\./i)) {
-          streetPart = part.replace(/^УЛ\.\s*/i, '').toLowerCase()
-            .replace(/\b\w/g, function(l) { return l.toUpperCase(); });
-        } else if (part.match(/^Д\./i)) {
-          housePart = part.replace(/^Д\.\s*/i, '');
+        if (/^\d{6}$/.test(part)) continue;
+        if (part.match(/^Москва$/i)) { city = 'Москва'; continue; }
+        if (part.match(/^УЛ\./i)) {
+          street = part.replace(/^УЛ\.\s*/i, '');
+          street = street.charAt(0).toUpperCase() + street.slice(1).toLowerCase() + ' улица';
+        }
+        if (part.match(/^Д\./i)) {
+          house = part.replace(/^Д\.\s*/i, '');
         }
       }
       
-      // Собираем нормализованные варианты
-      if (cityPart && streetPart && housePart) {
-        searchVariants.push(cityPart + ', ' + streetPart + ' улица, ' + housePart);
-        searchVariants.push(cityPart + ', ул. ' + streetPart + ', д. ' + housePart);
-      }
+      var searchAddr = city && street && house 
+        ? city + ', ' + street + ', ' + house
+        : normalized;
       
-      // Добавляем упрощенные варианты
-      var simple = cleanAddr.replace(/Г\.МОСКВА/gi, 'Москва').replace(/УЛ\./gi, 'ул.').replace(/Д\./gi, 'д.');
-      searchVariants.push(simple);
+      console.log('Попытка геокодинга:', searchAddr);
       
-      var withoutIndex = cleanAddr.replace(/^\d{6},\s*/, '').replace(/Г\.МОСКВА/gi, 'Москва');
-      if (withoutIndex !== cleanAddr) {
-        searchVariants.push(withoutIndex);
-      }
-      
-      // Убираем дубликаты
-      searchVariants = searchVariants.filter(function(item, index, self) {
-        return self.indexOf(item) === index && item.length > 5;
-      });
-      
-      console.log('Исходный адрес:', address);
-      console.log('Варианты для поиска:', searchVariants);
-
-      if (typeof ymaps === 'undefined') {
-        showError(containerId, address, 'Библиотека карт не загружена');
-        return;
-      }
-
-      // Пробуем геокодинг для каждого варианта адреса по очереди
-      function tryNextVariant(index) {
-        if (index >= searchVariants.length) {
-          // Если все варианты не сработали, показываем карту с поисковой строкой
-          showMapWithError(containerId, address, title);
-          return;
+      ymaps.geocode(searchAddr).then(
+        function(res) {
+          if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
+            console.warn('Адрес не найден через геокодинг');
+            return;
+          }
+          
+          var firstGeo = res.geoObjects.get(0);
+          if (!firstGeo) return;
+          
+          var coords = firstGeo.geometry.getCoordinates();
+          if (!coords || !Array.isArray(coords) || coords.length !== 2) return;
+          
+          console.log('✓ Адрес найден! Перемещаем карту');
+          
+          if (map) {
+            map.setCenter(coords, 15);
+            
+            var isLegal = title.indexOf('Юридический') !== -1;
+            var placemark = new ymaps.Placemark(coords, {
+              hintContent: address,
+              balloonContent: '<strong>' + title + '</strong><br/>' + address
+            }, {
+              preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
+              iconColor: isLegal ? '#3b82f6' : '#10b981'
+            });
+            
+            map.geoObjects.add(placemark);
+          }
+        },
+        function(err) {
+          console.warn('Ошибка геокодинга:', err);
         }
-        
-        var searchAddr = searchVariants[index];
-        console.log('Попытка геокодинга вариант ' + (index + 1) + ':', searchAddr);
-        
-        // Геокодинг адреса (как в примере с сайта)
-        // https://tech.yandex.ru/maps/doc/jsapi/2.1/ref/reference/geocode-docpage/
-        var geocoder = ymaps.geocode(searchAddr);
-        
-        geocoder.then(
-          function(res) {
-            try {
-              // Проверяем, что есть результаты (как в примере)
-              if (!res || !res.geoObjects || res.geoObjects.getLength() === 0) {
-                console.warn('Вариант ' + (index + 1) + ' не найден, пробуем следующий...');
-                tryNextVariant(index + 1);
-                return;
-              }
-
-              // Получаем первый результат (как в примере)
-              var firstGeoObject = res.geoObjects.get(0);
-              if (!firstGeoObject) {
-                tryNextVariant(index + 1);
-                return;
-              }
-
-              // Получаем координаты (как в примере)
-              var coordinates = firstGeoObject.geometry.getCoordinates();
-              
-              if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) {
-                tryNextVariant(index + 1);
-                return;
-              }
-
-              console.log('✓ Адрес найден! Координаты:', coordinates);
-
-              // Создаём карту
-              var map = new ymaps.Map(containerId, {
-                center: coordinates,
-                zoom: 15,
-                controls: ['zoomControl', 'fullscreenControl']
-              });
-
-              var isLegal = title.indexOf('Юридический') !== -1;
-              
-              // Создаём метку (как в примере с сайта)
-              var placemark = new ymaps.Placemark(
-                coordinates,
-                {
-                  hintContent: address,
-                  balloonContent: '<strong>' + title + '</strong><br/>' + address
-                },
-                {
-                  preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-                  iconColor: isLegal ? '#3b82f6' : '#10b981'
-                }
-              );
-
-              // Добавляем метку на карту
-              map.geoObjects.add(placemark);
-              
-              // Отключаем скролл колесом мыши
-              map.behaviors.disable('scrollZoom');
-              
-            } catch(e) {
-              console.error('Ошибка создания карты:', e);
-              tryNextVariant(index + 1);
-            }
-          },
-          function(err) {
-            console.warn('✗ Ошибка геокодинга для варианта ' + (index + 1) + ':', err);
-            if (err && err.message) {
-              console.warn('Детали ошибки:', err.message);
-            }
-            // Пробуем следующий вариант только если это не последний
-            if (index + 1 < searchVariants.length) {
-              tryNextVariant(index + 1);
-            } else {
-              // Последняя попытка - показываем карту Москвы с сообщением
-              showMapWithError(containerId, address, title);
-            }
-          }
-        ).catch(function(err) {
-          console.error('Критическая ошибка геокодинга:', err);
-          if (index + 1 < searchVariants.length) {
-            tryNextVariant(index + 1);
-          } else {
-            showMapWithError(containerId, address, title);
-          }
-        });
-      }
-      
-      // Начинаем с первого варианта
-      tryNextVariant(0);
-    } catch(e) {
-      console.error('Критическая ошибка:', e);
-      showError(containerId, address, 'Ошибка инициализации: ' + (e.message || 'Неизвестная ошибка'));
+      );
     }
+    
+    // Показываем индикатор загрузки на короткое время
+    showLoading(containerId);
+    
+    // Инициализируем карту через небольшую задержку
+    setTimeout(initBaseMap, 300);
   }
 
   function startInit() {
