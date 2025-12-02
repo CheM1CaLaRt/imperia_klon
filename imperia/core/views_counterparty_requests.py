@@ -6,17 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
 from .forms import CounterpartyCreateRequestForm, CounterpartyCreateRequestDocFormSet
 from .models import CounterpartyCreateRequest
-from .utils.roles import is_manager, can_review
-from django.contrib.auth.decorators import login_required, user_passes_test
-try:
-    from .utils.roles import is_operator, is_director, is_manager
-except Exception:
-    # fallback, если utils.roles нет
-    def _in(u, names):
-        return u.is_authenticated and (u.is_superuser or u.groups.filter(name__in=names).exists())
-    def is_operator(u): return _in(u, ["operator"])
-    def is_director(u): return _in(u, ["director"])
-    def is_manager(u):  return _in(u, ["manager"])
+from .utils.roles import is_manager, can_review, is_operator, is_director
 
 
 PRESET_REASONS = [

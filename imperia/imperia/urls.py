@@ -1,29 +1,20 @@
 from django.contrib import admin
-from django.urls import path, reverse_lazy
+from django.urls import path, reverse_lazy, include
 from django.contrib.auth import views as auth_views
-from core import views
 from django.conf import settings
 from django.conf.urls.static import static
-from core.api import product_by_barcode
-from django.contrib import admin
-from django.contrib import admin
-from django.urls import path
-from core.views import home, product_list
-from core.views import product_detail_json
-from django.urls import path
+
 from core import views
-from core import views_counterparty as v
-from django.urls import path, include
 from core import views_counterparty
+from core.views import home, product_list, product_detail_json
+from core.api import product_by_barcode
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # даём пустому пути второе имя 'home'
-    path('', views.post_login_router, name='home'),
-    path("", home, name="post_login_router"),  # ссылка из base.html
-    path("", include(("core.urls", "core"), namespace="core")),  # если приложение импортируется как 'core'
-    path("home/", home, name="home"),  # альтернативное имя
+    path("", include(("core.urls", "core"), namespace="core")),
+    path("", views.post_login_router, name="home"),
+    path("home/", home, name="home"),
     path("products/", product_list, name="product-list"),
     path("warehouse/", views.warehouse_dashboard, name="warehouse_dashboard"),
     # НОВЫЙ дашборд
@@ -34,9 +25,6 @@ urlpatterns = [
     path("warehouse/<int:pk>/", views.warehouse_detail, name="warehouse_detail"),
     path("warehouse/<int:pk>/put-away/", views.put_away_view, name="put_away"),
     path("warehouse/<int:pk>/move/", views.move_view, name="move_between_bins"),
-    path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/",
-         views.inventory_edit, name="inventory_edit"),
-
     path("products/<int:pk>/card/", views.product_card, name="product_card"),
     path("ajax/product-by-barcode/", views.product_by_barcode, name="product_by_barcode"),
     path("ajax/product-create-inline/", views.product_create_inline, name="product_create_inline"),
@@ -51,7 +39,7 @@ urlpatterns = [
                       name="bin_delete",
                   ),
 
-# Редактирование позиции остатка
+    # Редактирование позиции остатка
     path("warehouse/<int:warehouse_pk>/inventory/<int:pk>/edit/", views.inventory_edit, name="inventory_edit"),
 
     path("api/suggest/address/osm", views_counterparty.address_suggest_osm, name="address_suggest_osm"),

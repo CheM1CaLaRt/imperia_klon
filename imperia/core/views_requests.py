@@ -114,8 +114,8 @@ def _parse_qty(v: str) -> Decimal:
         return Decimal("1")
 
 
-def _in_groups(user, names):
-    return user.is_authenticated and user.groups.filter(name__in=names).exists()
+# Импортируем из общих утилит
+from .utils.roles import _in_groups
 
 
 # ---------- Создание заявки ----------

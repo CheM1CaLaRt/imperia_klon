@@ -5,16 +5,11 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-
-STATICFILES_DIRS = [BASE_DIR / "static"]  # если этой записи нет
-
-
-BASE_DIR = Path(__file__).resolve().parent.parent
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 SECRET_KEY = "django-insecure-замените-на-свой"
 
