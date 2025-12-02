@@ -4,6 +4,24 @@
 {% block title %}{% if edit_mode %}Изменить контрагента{% else %}Новый контрагент{% endif %} — IndigoFlow{% endblock %}
 
 {% block content %}
+<style>
+  .yandex-map-btn {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    box-shadow: none !important;
+  }
+  .yandex-map-btn:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  .yandex-map-btn:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  }
+  .yandex-map-btn:invalid {
+    box-shadow: none !important;
+  }
+</style>
 <div class="card">
   <div class="card-header">
     <div>
@@ -79,9 +97,8 @@
         <button type="button" 
                 class="yandex-map-btn" 
                 data-address-field="id_address"
-                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none"
-                onmouseover="this.style.opacity='0.9'" 
-                onmouseout="this.style.opacity='1'">
+                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
+                tabindex="0">
           <span>🗺️</span>
           <span>Открыть на карте</span>
         </button>
@@ -95,9 +112,8 @@
         <button type="button" 
                 class="yandex-map-btn" 
                 data-address-field="id_actual_address"
-                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none"
-                onmouseover="this.style.opacity='0.9'" 
-                onmouseout="this.style.opacity='1'">
+                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
+                tabindex="0">
           <span>🗺️</span>
           <span>Открыть на карте</span>
         </button>
@@ -265,6 +281,22 @@
         setVal('id_registration_country', d.registration_country || 'РОССИЯ');
         setVal('id_address', d.address);
         setVal('id_website', d.website);
+        
+        // Обновляем кнопки карт после автозаполнения
+        setTimeout(function() {
+          document.querySelectorAll('.yandex-map-btn').forEach(function(btn) {
+            var fieldId = btn.getAttribute('data-address-field');
+            var addressField = document.getElementById(fieldId);
+            if (addressField) {
+              var hasValue = (addressField.value || '').trim().length > 0;
+              if (hasValue) {
+                btn.style.background = 'var(--primary)';
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+              }
+            }
+          });
+        }, 100);
 
         // Показываем уведомление об успехе
         if (loadingEl) {
@@ -435,10 +467,12 @@
         btn.style.background = 'var(--primary)';
         btn.style.opacity = '1';
         btn.style.cursor = 'pointer';
+        btn.style.pointerEvents = 'auto';
       } else {
         btn.style.background = 'var(--muted)';
         btn.style.opacity = '0.6';
         btn.style.cursor = 'not-allowed';
+        btn.style.pointerEvents = 'auto';
       }
     }
 
@@ -456,26 +490,61 @@
         updateButtonStyle(btn, (this.value || '').trim().length > 0);
       });
       
+      // Обновляем стиль при изменении значения (для автозаполнения из ЕГРЮЛ)
+      addressField.addEventListener('change', function() {
+        updateButtonStyle(btn, (this.value || '').trim().length > 0);
+      });
+      
+      // Обработчики наведения
+      btn.addEventListener('mouseenter', function() {
+        if ((addressField.value || '').trim().length > 0) {
+          this.style.opacity = '0.9';
+          this.style.transform = 'scale(1.02)';
+        }
+      });
+      
+      btn.addEventListener('mouseleave', function() {
+        this.style.opacity = '';
+        this.style.transform = '';
+      });
+      
       // Обработка клика
       btn.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         
         var address = (addressField.value || '').trim();
         
         if (!address) {
           alert('Сначала заполните адрес в поле');
           addressField.focus();
-          return;
+          return false;
         }
         
         var url = 'https://yandex.ru/maps/?text=' + encodeURIComponent(address);
         window.open(url, '_blank', 'noopener,noreferrer');
+        return false;
+      });
+      
+      // Предотвращаем submit формы при нажатии Enter на кнопке
+      btn.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          this.click();
+        }
       });
     }
 
-    // Настраиваем все кнопки
-    document.querySelectorAll('.yandex-map-btn').forEach(setupMapButton);
+    // Настраиваем все кнопки после загрузки DOM
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.yandex-map-btn').forEach(setupMapButton);
+      });
+    } else {
+      document.querySelectorAll('.yandex-map-btn').forEach(setupMapButton);
+    }
   })();
 </script>
 {% endblock %}
