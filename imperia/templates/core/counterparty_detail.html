@@ -336,7 +336,9 @@
     var searchVariants = createSearchVariants(address);
     console.log('Поиск адреса:', title, searchVariants);
     
-    // Пробуем варианты адреса
+    // Пробуем варианты адреса через HTTP геокодер
+    var apiKey = '692ebf62729afc22637e1678';
+    
     function tryGeocode(variantIndex) {
       if (variantIndex >= searchVariants.length) {
         console.warn('Все варианты адреса не найдены для:', title);
@@ -346,33 +348,47 @@
       var searchAddr = searchVariants[variantIndex];
       console.log('Попытка геокодинга вариант ' + (variantIndex + 1) + ':', searchAddr);
       
-      ymaps.geocode(searchAddr).then(function(res) {
-        var firstGeoObject = res.geoObjects.get(0);
-        
-        if (firstGeoObject) {
-          var coordinates = firstGeoObject.geometry.getCoordinates(); // [широта, долгота]
-          console.log('✓ Адрес найден! Координаты:', coordinates);
-          
-          map.setCenter(coordinates);
-          map.setZoom(15);
-          
-          var placemark = new ymaps.Placemark(coordinates, {
-            hintContent: title,
-            balloonContent: '<strong>' + title + '</strong><br/>' + address
-          }, {
-            preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-            iconColor: isLegal ? '#3b82f6' : '#10b981'
-          });
-          
-          map.geoObjects.add(placemark);
-          placemark.balloon.open();
-        } else {
+      // Используем HTTP геокодер
+      fetch('https://geocode-maps.yandex.ru/1.x/?apikey=' + apiKey + '&format=json&geocode=' + encodeURIComponent(searchAddr))
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('HTTP error: ' + response.status);
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          if (data && data.response && data.response.GeoObjectCollection && 
+              data.response.GeoObjectCollection.featureMember && 
+              data.response.GeoObjectCollection.featureMember.length > 0) {
+            
+            var geoObject = data.response.GeoObjectCollection.featureMember[0].GeoObject;
+            var pos = geoObject.Point.pos.split(' '); // формат: "долгота широта"
+            var coordinates = [parseFloat(pos[1]), parseFloat(pos[0])]; // [широта, долгота] для API 2.1
+            
+            console.log('✓ Адрес найден! Координаты:', coordinates);
+            
+            map.setCenter(coordinates);
+            map.setZoom(15);
+            
+            var placemark = new ymaps.Placemark(coordinates, {
+              hintContent: title,
+              balloonContent: '<div style="padding:8px"><strong style="display:block;margin-bottom:4px">' + title + '</strong><div style="font-size:13px;color:#666">' + address + '</div></div>'
+            }, {
+              preset: isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
+              iconColor: isLegal ? '#3b82f6' : '#10b981'
+            });
+            
+            map.geoObjects.add(placemark);
+            placemark.balloon.open();
+          } else {
+            console.warn('Вариант ' + (variantIndex + 1) + ' не найден');
+            tryGeocode(variantIndex + 1);
+          }
+        })
+        .catch(function(err) {
+          console.warn('Ошибка геокодинга вариант ' + (variantIndex + 1) + ':', err);
           tryGeocode(variantIndex + 1);
-        }
-      }, function(err) {
-        console.warn('Ошибка геокодинга вариант ' + (variantIndex + 1) + ':', err);
-        tryGeocode(variantIndex + 1);
-      });
+        });
     }
     
     tryGeocode(0);
