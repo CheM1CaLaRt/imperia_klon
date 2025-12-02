@@ -41,8 +41,8 @@ from .forms import (
 # Helpers (права)
 # ============================================================
 
-# Импортируем из общих утилит
-from .utils.roles import _in_groups, is_operator, is_director
+def _in_groups(user, names):
+    return user.is_authenticated and user.groups.filter(name__in=names).exists()
 
 def _is_operator_or_director(user):
     return _in_groups(user, ["operator", "director"])
@@ -50,9 +50,12 @@ def _is_operator_or_director(user):
 def _is_ops_mgr_dir(user):
     return _in_groups(user, ["operator", "manager", "director"])
 
+def _is_operator(user):
+    return _in_groups(user, ["operator"])
+
 def _is_director(user):
     # позволяем суперпользователю выполнять действия директора
-    return is_director(user) or user.is_superuser
+    return _in_groups(user, ["director"]) or user.is_superuser
 
 def _is_attached_manager(user, counterparty: Counterparty):
     """Пользователь — менеджер, прикреплённый к контрагенту?"""

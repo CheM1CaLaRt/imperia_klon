@@ -20,18 +20,19 @@ from django.urls import reverse
 from .forms import (
     UserUpdateForm, ProfileForm, WarehouseCreateForm, StorageBinForm
 )
-from .models import (
-    Profile, Warehouse, StorageBin, Inventory, Product, StockMovement,
-    ProductImage, ProductPrice
-)
+from .models import Profile, Warehouse, StorageBin, Inventory, Product, StockMovement
 from .permissions import warehouse_or_director_required
-from .utils.auth import group_required
-from .utils.roles import _in_groups
+from .utils.auth import group_required   # <-- единственный нужный импорт
 from .widgets import AvatarInput
 from django.views.decorators.http import require_http_methods
 from .forms import ProductInlineCreateForm
+from django.db import transaction, IntegrityError
 from django.forms.utils import ErrorList
 import json, time
+from django.views.decorators.http import require_http_methods
+from django.db import transaction, IntegrityError
+from django.shortcuts import render, get_object_or_404
+from .models import Product, ProductImage, ProductPrice  # Supplier можно получать через FK
 from typing import Iterable
 
 
@@ -325,6 +326,11 @@ def product_list(request):
 @login_required
 def home(request):
     return render(request, "home.html")
+
+
+def _in_groups(user, names):
+    return user.is_authenticated and user.groups.filter(name__in=names).exists()
+
 def product_detail_json(request, pk: int):
     try:
         p = Product.objects.annotate(min_price=Min("prices__value")).get(pk=pk)
@@ -872,7 +878,9 @@ def bin_delete(request, warehouse_pk: int, bin_pk: int):
 
 # --------------------- CRUD продуктов ---------------------
 def _can_see_prices(user) -> bool:
-    return _in_groups(user, ["operator", "director"])
+    return user.is_authenticated and user.groups.filter(
+        name__in=["operator", "director"]
+    ).exists()
 
 def product_card(request, pk: int):
     product = get_object_or_404(Product, pk=pk)
@@ -914,7 +922,10 @@ def product_card(request, pk: int):
             })
 
     # ---- ПРАВА НА ЦЕНЫ ----
-    can_prices = _in_groups(request.user, ["operator", "director"])
+    can_prices = (
+        request.user.is_authenticated
+        and request.user.groups.filter(name__in=["operator", "director"]).exists()
+    )
 
     # ---- ЦЕНЫ ----
     prices = []
