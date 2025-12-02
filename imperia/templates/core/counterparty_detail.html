@@ -28,8 +28,32 @@
       {% if obj.kpp %}<div><span style="color:var(--muted);font-size:13px">КПП:</span> <span style="font-weight:600">{{ obj.kpp }}</span></div>{% endif %}
       {% if obj.ogrn %}<div><span style="color:var(--muted);font-size:13px">ОГРН:</span> <span style="font-weight:600">{{ obj.ogrn }}</span></div>{% endif %}
       {% if obj.full_name %}<div><span style="color:var(--muted);font-size:13px">Полное наименование:</span> <div style="margin-top:4px">{{ obj.full_name }}</div></div>{% endif %}
-      {% if obj.address %}<div><span style="color:var(--muted);font-size:13px">Юридический адрес:</span> <div style="margin-top:4px">{{ obj.address }}</div></div>{% endif %}
-      {% if obj.actual_address %}<div><span style="color:var(--muted);font-size:13px">Фактический адрес:</span> <div style="margin-top:4px">{{ obj.actual_address }}</div></div>{% endif %}
+      {% if obj.address %}
+      <div>
+        <span style="color:var(--muted);font-size:13px">Юридический адрес:</span>
+        <div style="margin-top:4px">{{ obj.address }}</div>
+        <a href="#" 
+           class="btn btn-secondary yandex-map-link" 
+           data-address="{{ obj.address|escapejs }}"
+           style="margin-top:8px;font-size:13px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none">
+          <span>🗺️</span>
+          <span>Открыть на карте</span>
+        </a>
+      </div>
+      {% endif %}
+      {% if obj.actual_address %}
+      <div>
+        <span style="color:var(--muted);font-size:13px">Фактический адрес:</span>
+        <div style="margin-top:4px">{{ obj.actual_address }}</div>
+        <a href="#" 
+           class="btn btn-secondary yandex-map-link" 
+           data-address="{{ obj.actual_address|escapejs }}"
+           style="margin-top:8px;font-size:13px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none">
+          <span>🗺️</span>
+          <span>Открыть на карте</span>
+        </a>
+      </div>
+      {% endif %}
       {% if obj.website %}
         <div>
           <span style="color:var(--muted);font-size:13px">Сайт:</span>
@@ -74,61 +98,6 @@
   </div>
 </div>
 
-{# Яндекс карты для адресов #}
-{% if obj.address or obj.actual_address %}
-<div style="margin-top:16px">
-  {% if obj.address and obj.actual_address %}
-    {# Обе карты - показываем в две колонки #}
-    <div class="grid grid-2" style="gap:16px">
-      <div class="card" style="overflow:hidden;padding:0">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
-          <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
-            <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></span>
-            Юридический адрес
-          </h2>
-          <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.address }}</div>
-        </div>
-        <div id="map-legal" style="width:100%;height:420px"></div>
-      </div>
-      
-      <div class="card" style="overflow:hidden;padding:0">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
-          <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
-            <span style="width:8px;height:8px;border-radius:50%;background:#10b981"></span>
-            Фактический адрес
-          </h2>
-          <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.actual_address }}</div>
-        </div>
-        <div id="map-actual" style="width:100%;height:420px"></div>
-      </div>
-    </div>
-  {% elif obj.address %}
-    {# Только юридический #}
-    <div class="card" style="overflow:hidden;padding:0">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
-        <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
-          <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></span>
-          Юридический адрес
-        </h2>
-        <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.address }}</div>
-      </div>
-      <div id="map-legal" style="width:100%;height:420px"></div>
-    </div>
-  {% elif obj.actual_address %}
-    {# Только фактический #}
-    <div class="card" style="overflow:hidden;padding:0">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--card)">
-        <h2 style="font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
-          <span style="width:8px;height:8px;border-radius:50%;background:#10b981"></span>
-          Фактический адрес
-        </h2>
-        <div style="margin-top:8px;font-size:14px;color:var(--muted)">{{ obj.actual_address }}</div>
-      </div>
-      <div id="map-actual" style="width:100%;height:420px"></div>
-    </div>
-  {% endif %}
-</div>
-{% endif %}
 
 {# Платёжные реквизиты #}
 <div class="card">
@@ -239,90 +208,18 @@
   {% endif %}
 </div>
 
-{# Подключение и инициализация Яндекс.Карт (бесплатно, без API ключа) #}
-{% if obj.address or obj.actual_address %}
-<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
-<script type="text/javascript">
-  ymaps.ready(init);
-
-  function init() {
-    {% if obj.address %}
-    initMap('map-legal', '{{ obj.address|escapejs }}', 'Юридический адрес', true);
-    {% endif %}
-    
-    {% if obj.actual_address %}
-    initMap('map-actual', '{{ obj.actual_address|escapejs }}', 'Фактический адрес', false);
-    {% endif %}
-  }
-
-  function initMap(containerId, address, title, isLegal) {
-    // Нормализуем адрес для поиска
-    var normalizedAddr = address
-      .replace(/^\d{6},\s*/, '') // Убираем индекс
-      .replace(/Г\.МОСКВА/gi, 'Москва')
-      .replace(/Г\.САНКТ-ПЕТЕРБУРГ/gi, 'Санкт-Петербург')
-      .replace(/ПР-КТ/gi, 'проспект')
-      .replace(/УЛ\./gi, 'улица')
-      .replace(/Д\./gi, 'д.')
-      .replace(/К\./gi, 'корп.')
-      .trim();
-
-    // Создание карты
-    var myMap = new ymaps.Map(containerId, {
-      center: [55.76, 37.64],
-      zoom: 10,
-      controls: ['zoomControl', 'fullscreenControl', 'typeSelector']
+<script>
+// Обработка кнопок "Открыть на карте"
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.yandex-map-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      var address = this.getAttribute('data-address');
+      var url = 'https://yandex.ru/maps/?text=' + encodeURIComponent(address);
+      window.open(url, '_blank', 'noopener,noreferrer');
     });
-
-    // Ищем координаты указанного адреса
-    var geocoder = ymaps.geocode(normalizedAddr);
-
-    // После того, как поиск вернул результат, вызывается callback-функция
-    geocoder.then(
-      function (res) {
-        if (res.geoObjects.getLength() > 0) {
-          // Координаты объекта
-          var coordinates = res.geoObjects.get(0).geometry.getCoordinates();
-
-          // Перемещаем карту на найденное место
-          myMap.setCenter(coordinates);
-          myMap.setZoom(15);
-
-          // Добавление метки (Placemark) на карту
-          var placemark = new ymaps.Placemark(
-            coordinates,
-            {
-              'hintContent': title,
-              'balloonContent': '<strong>' + title + '</strong><br/>' + address
-            },
-            {
-              'preset': isLegal ? 'islands#blueCircleDotIcon' : 'islands#greenCircleDotIcon',
-              'iconColor': isLegal ? '#3b82f6' : '#10b981'
-            }
-          );
-
-          myMap.geoObjects.add(placemark);
-          placemark.balloon.open();
-        } else {
-          console.warn('Адрес не найден:', normalizedAddr);
-        }
-      },
-      function (err) {
-        console.warn('Ошибка геокодинга:', err);
-      }
-    );
-  }
+  });
+});
 </script>
-
-<style>
-@media (max-width:940px){
-  .grid-2[style*="gap:16px"]{grid-template-columns:1fr}
-  #map-legal,#map-actual{height:350px !important}
-}
-@media (max-width:640px){
-  #map-legal,#map-actual{height:300px !important}
-}
-</style>
-{% endif %}
 
 {% endblock %}
