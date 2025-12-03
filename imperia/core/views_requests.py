@@ -5,8 +5,10 @@ from mimetypes import guess_type
 from django.urls import reverse
 from django.contrib import messages
 from django.db.models import Q, ForeignKey, OneToOneField, ManyToManyField
-from django.http import HttpResponseBadRequest, FileResponse, Http404
+from django.http import HttpResponseBadRequest, FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET
+from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.apps import apps
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -19,7 +21,9 @@ from .forms_requests import (
     RequestItemForm,
     RequestItemEditForm,
     RequestQuoteForm,
+    OrderItemFormSet,
 )
+from .models import Counterparty, CounterpartyAddress, CounterpartyContact
 from .models_requests import (
     Request,
     RequestItem,
@@ -123,7 +127,9 @@ def _in_groups(user, names):
 def request_create(request):
     if request.method == "POST":
         form = RequestCreateForm(request.POST, user=request.user)
-        if form.is_valid():
+        order_formset = OrderItemFormSet(request.POST, prefix="order")
+        
+        if form.is_valid() and order_formset.is_valid():
             obj = form.save(commit=False)
             obj.initiator = request.user
             obj.status = (
@@ -133,26 +139,43 @@ def request_create(request):
             )
             obj.save()
 
-            # bulk-позиции
-            bulk = form.cleaned_data.get("items_bulk", "") or ""
-            for raw in bulk.splitlines():
-                line = raw.strip()
-                if not line:
-                    continue
-                parts = [p.strip() for p in re.split(r"[;|,]", line, maxsplit=2)]
-                title = parts[0] if parts else ""
-                qty = _parse_qty(parts[1] if len(parts) > 1 else "")
-                note = parts[2] if len(parts) > 2 else ""
-                if title:
-                    RequestItem.objects.create(
-                        request=obj, title=title, quantity=qty, note=note
-                    )
+            # Сохраняем позиции заказа из формсета
+            for item_form in order_formset:
+                if item_form.cleaned_data and not item_form.cleaned_data.get("DELETE"):
+                    product_id = item_form.cleaned_data.get("product_id")
+                    name = item_form.cleaned_data.get("name", "").strip()
+                    quantity = item_form.cleaned_data.get("quantity") or Decimal("1")
+                    note = item_form.cleaned_data.get("note", "").strip()
+                    
+                    if name or product_id:
+                        product = None
+                        if product_id:
+                            try:
+                                from .models import Product
+                                product = Product.objects.get(id=product_id)
+                                if not name:
+                                    name = product.name
+                            except Exception:
+                                pass
+                        
+                        RequestItem.objects.create(
+                            request=obj,
+                            product=product,
+                            title=name,
+                            quantity=quantity,
+                            note=note
+                        )
 
             messages.success(request, "Заявка создана")
             return redirect("core:request_detail", pk=obj.pk)
     else:
         form = RequestCreateForm(user=request.user)
-    return render(request, "requests/form.html", {"form": form})
+        order_formset = OrderItemFormSet(prefix="order")
+    
+    return render(request, "requests/form.html", {
+        "form": form,
+        "order_formset": order_formset,
+    })
 
 
 # ---------- Детали заявки ----------
@@ -446,3 +469,54 @@ def request_quote_delete(request, pk: int, qpk: int):
     except Exception as e:
         messages.error(request, f"Не удалось удалить файл: {e}")
     return redirect("core:request_detail", pk=obj.pk)
+
+
+# ---------- API: Загрузка адресов и контактов контрагента ----------
+@login_required
+@require_GET
+@require_groups("manager", "operator", "director")
+def counterparty_addresses_contacts(request):
+    """
+    API endpoint для загрузки адресов и контактов контрагента.
+    GET ?counterparty_id=123
+    """
+    try:
+        counterparty_id = int(request.GET.get("counterparty_id", 0))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "invalid_id"}, status=400)
+
+    try:
+        counterparty = Counterparty.objects.get(id=counterparty_id)
+    except Counterparty.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "not_found"}, status=404)
+
+    # Проверка прав: менеджер видит только своих клиентов
+    if request.user.groups.filter(name="manager").exists() and not request.user.is_superuser:
+        if hasattr(counterparty, "managers"):
+            if request.user not in counterparty.managers.all():
+                return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    addresses = CounterpartyAddress.objects.filter(counterparty=counterparty).order_by("-is_default", "created_at")
+    contacts = CounterpartyContact.objects.filter(counterparty=counterparty).order_by("full_name")
+
+    return JsonResponse({
+        "ok": True,
+        "addresses": [
+            {
+                "id": addr.id,
+                "address": addr.address,
+                "is_default": addr.is_default,
+            }
+            for addr in addresses
+        ],
+        "contacts": [
+            {
+                "id": contact.id,
+                "full_name": contact.full_name,
+                "position": contact.position or "",
+                "phone": contact.phone or "",
+                "email": contact.email or "",
+            }
+            for contact in contacts
+        ],
+    })

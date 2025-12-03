@@ -24,6 +24,7 @@ urlpatterns = [
     # ===== Заявки =====
     path("requests/", rq.request_list, name="request_list"),
     path("requests/new/", rq.request_create, name="request_create"),
+    path("api/counterparty/addresses-contacts/", rq.counterparty_addresses_contacts, name="counterparty_addresses_contacts"),
     path("requests/<int:pk>/", rq.request_detail, name="request_detail"),
     path("requests/<int:pk>/add-item/", rq.request_add_item, name="request_add_item"),
     path("requests/<int:pk>/item/<int:item_id>/update/", rq.request_update_item, name="request_update_item"),

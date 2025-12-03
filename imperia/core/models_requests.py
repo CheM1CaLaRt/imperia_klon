@@ -34,6 +34,17 @@ class Request(models.Model):
         "core.Counterparty", on_delete=models.SET_NULL,
         null=True, blank=True, verbose_name="Контрагент"
     )
+    delivery_date = models.DateField("Дата доставки", null=True, blank=True)
+    delivery_address = models.ForeignKey(
+        "core.CounterpartyAddress", on_delete=models.SET_NULL,
+        null=True, blank=True, verbose_name="Адрес доставки",
+        related_name="requests"
+    )
+    delivery_contact = models.ForeignKey(
+        "core.CounterpartyContact", on_delete=models.SET_NULL,
+        null=True, blank=True, verbose_name="Контактное лицо",
+        related_name="requests"
+    )
     status = models.CharField("Статус", max_length=20, choices=RequestStatus.choices, default=RequestStatus.DRAFT)
     comment_internal = models.TextField("Внутренний комментарий", blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)

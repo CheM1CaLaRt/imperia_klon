@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Новая заявка — IndigoFlow{% endblock %}
 {% block content %}
 
@@ -11,8 +12,9 @@
     <a href="{% url 'core:request_list' %}" class="btn btn-secondary">← Назад к заявкам</a>
   </div>
   
-  <form method="post" style="padding-top:20px;display:grid;gap:20px">
+  <form method="post" id="requestForm" style="padding-top:20px;display:grid;gap:24px">
     {% csrf_token %}
+    {{ order_formset.management_form }}
     
     {% if form.non_field_errors %}
       <div style="padding:14px 18px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
@@ -20,21 +22,102 @@
       </div>
     {% endif %}
 
-    <div class="grid grid-2">
-      <div class="field">
-        <label class="field label">{{ form.title.label }}</label>
-        {{ form.title }}
-        {% if form.title.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.title.errors }}</div>{% endif %}
-        <div style="margin-top:6px;font-size:13px;color:var(--muted)">Краткое описание заявки</div>
+    <!-- Основная информация -->
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Основная информация</h2>
+      
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.title.label }} <span style="color:#ef4444">*</span></label>
+          {{ form.title }}
+          {% if form.title.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.title.errors }}</div>{% endif %}
+          <div style="margin-top:6px;font-size:13px;color:var(--muted)">Краткое описание заявки</div>
+        </div>
+        <div class="field">
+          <label class="field label">{{ form.counterparty.label }}</label>
+          {{ form.counterparty }}
+          {% if form.counterparty.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.counterparty.errors }}</div>{% endif %}
+          <div style="margin-top:6px;font-size:13px;color:var(--muted)">Выберите контрагента</div>
+        </div>
       </div>
+
       <div class="field">
-        <label class="field label">{{ form.counterparty.label }}</label>
-        {{ form.counterparty }}
-        {% if form.counterparty.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.counterparty.errors }}</div>{% endif %}
-        <div style="margin-top:6px;font-size:13px;color:var(--muted)">Выберите контрагента (опционально)</div>
+        <label class="field label">{{ form.delivery_date.label }}</label>
+        {{ form.delivery_date }}
+        {% if form.delivery_date.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.delivery_date.errors }}</div>{% endif %}
+        <div style="margin-top:6px;font-size:13px;color:var(--muted)">Дата доставки заказа</div>
       </div>
     </div>
 
+    <!-- Адрес доставки и контактное лицо (показывается после выбора контрагента) -->
+    <div id="deliveryInfo" style="display:none;grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Доставка</h2>
+      
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.delivery_address.label }}</label>
+          {{ form.delivery_address }}
+          {% if form.delivery_address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.delivery_address.errors }}</div>{% endif %}
+          <div style="margin-top:6px;font-size:13px;color:var(--muted)">Адрес доставки</div>
+        </div>
+        <div class="field">
+          <label class="field label">{{ form.delivery_contact.label }}</label>
+          {{ form.delivery_contact }}
+          {% if form.delivery_contact.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.delivery_contact.errors }}</div>{% endif %}
+          <div style="margin-top:6px;font-size:13px;color:var(--muted)">Контактное лицо</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Форма заказа товаров -->
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Товары</h2>
+      
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Штрихкод</th>
+              <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Название</th>
+              <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Кол-во</th>
+              <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Примечание</th>
+              <th style="padding:12px;text-align:center;font-size:13px;font-weight:600;color:var(--muted)"></th>
+            </tr>
+          </thead>
+          <tbody id="orderItemsBody">
+            {% for item_form in order_formset %}
+            <tr class="order-item-row" data-form-row>
+              <td style="padding:8px">
+                {{ item_form.product_id }}
+                {{ item_form.barcode }}
+                {% if item_form.barcode.errors %}<div style="color:#ef4444;font-size:11px">{{ item_form.barcode.errors }}</div>{% endif %}
+              </td>
+              <td style="padding:8px;position:relative">
+                {{ item_form.name }}
+                {% if item_form.name.errors %}<div style="color:#ef4444;font-size:11px">{{ item_form.name.errors }}</div>{% endif %}
+              </td>
+              <td style="padding:8px">
+                {{ item_form.quantity }}
+                {% if item_form.quantity.errors %}<div style="color:#ef4444;font-size:11px">{{ item_form.quantity.errors }}</div>{% endif %}
+              </td>
+              <td style="padding:8px">
+                {{ item_form.note }}
+                {% if item_form.note.errors %}<div style="color:#ef4444;font-size:11px">{{ item_form.note.errors }}</div>{% endif %}
+              </td>
+              <td style="padding:8px;text-align:center">
+                {% if item_form.DELETE %}<span style="display:none">{{ item_form.DELETE }}</span>{% endif %}
+                <button type="button" class="order-remove-btn" data-remove style="color:#dc2626;font-size:18px;font-weight:bold;line-height:1;background:none;border:none;cursor:pointer">✖</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <button type="button" id="addOrderRowBtn" class="btn btn-ghost" style="justify-self:start">+ Добавить товар</button>
+    </div>
+
+    <!-- Комментарий -->
     <div class="field">
       <label class="field label">{{ form.comment_internal.label }}</label>
       {{ form.comment_internal }}
@@ -42,19 +125,7 @@
       <div style="margin-top:6px;font-size:13px;color:var(--muted)">Внутренние комментарии и примечания</div>
     </div>
 
-    {% if form.items_bulk %}
-    <div class="field">
-      <label class="field label">{{ form.items_bulk.label }}</label>
-      {{ form.items_bulk }}
-      {% if form.items_bulk.help_text %}
-        <div style="margin-top:8px;padding:12px 16px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--muted);line-height:1.6">
-          {{ form.items_bulk.help_text|safe }}
-        </div>
-      {% endif %}
-      {% if form.items_bulk.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.items_bulk.errors }}</div>{% endif %}
-    </div>
-    {% endif %}
-
+    <!-- Кнопки действий -->
     <div style="display:flex;gap:12px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap">
       <button name="draft" type="submit" class="btn btn-secondary" style="flex:1;min-width:140px">Сохранить черновик</button>
       <button name="submit" type="submit" class="btn btn-primary" style="flex:1;min-width:140px">Отправить заявку</button>
@@ -71,5 +142,329 @@
   form > div[style*="flex"]{flex-direction:column}
   form > div[style*="flex"] .btn{width:100%}
 }
+.order-remove-btn:hover{color:#b91c1c;transform:scale(1.2)}
+.order-item-row input{width:100%;min-width:120px}
+.order-item-row input[type="text"], .order-item-row input[type="number"]{
+  padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px
+}
+.autocomplete-list{position:fixed;z-index:10001;background:white;border:1px solid #ccc;border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:2px}
+.autocomplete-list div{padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;transition:background-color 0.15s}
+.autocomplete-list div:hover{background-color:#f5f5f5}
+.autocomplete-list div:last-child{border-bottom:none}
 </style>
+
+<script>
+(function() {
+  const form = document.getElementById('requestForm');
+  const counterpartySelect = form.querySelector('select[name="counterparty"]');
+  const deliveryInfo = document.getElementById('deliveryInfo');
+  const deliveryAddressSelect = form.querySelector('select[name="delivery_address"]');
+  const deliveryContactSelect = form.querySelector('select[name="delivery_contact"]');
+  const orderItemsBody = document.getElementById('orderItemsBody');
+  const addRowBtn = document.getElementById('addOrderRowBtn');
+  const totalFormsInput = form.querySelector('input[name="order-TOTAL_FORMS"]');
+  
+  let autocompleteTimeout = null;
+  let currentAutocompleteRow = null;
+  let autocompleteList = null;
+
+  // Загрузка адресов и контактов при выборе контрагента
+  if (counterpartySelect) {
+    counterpartySelect.addEventListener('change', async function() {
+      const counterpartyId = this.value;
+      
+      if (!counterpartyId) {
+        deliveryInfo.style.display = 'none';
+        deliveryAddressSelect.innerHTML = '<option value="">Выберите адрес</option>';
+        deliveryContactSelect.innerHTML = '<option value="">Выберите контакт</option>';
+        return;
+      }
+
+      try {
+        const response = await fetch(`{% url 'core:counterparty_addresses_contacts' %}?counterparty_id=${counterpartyId}`);
+        const data = await response.json();
+        
+        if (data.ok) {
+          // Заполняем адреса
+          deliveryAddressSelect.innerHTML = '<option value="">Выберите адрес</option>';
+          data.addresses.forEach(addr => {
+            const option = document.createElement('option');
+            option.value = addr.id;
+            option.textContent = addr.address + (addr.is_default ? ' (по умолчанию)' : '');
+            if (addr.is_default) option.selected = true;
+            deliveryAddressSelect.appendChild(option);
+          });
+
+          // Заполняем контакты
+          deliveryContactSelect.innerHTML = '<option value="">Выберите контакт</option>';
+          data.contacts.forEach(contact => {
+            const option = document.createElement('option');
+            option.value = contact.id;
+            option.textContent = contact.full_name + (contact.position ? ` - ${contact.position}` : '');
+            deliveryContactSelect.appendChild(option);
+          });
+
+          deliveryInfo.style.display = 'grid';
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки адресов и контактов:', error);
+      }
+    });
+
+    // Проверяем, есть ли уже выбранный контрагент при загрузке
+    if (counterpartySelect.value) {
+      counterpartySelect.dispatchEvent(new Event('change'));
+    }
+  }
+
+  // Управление формсетом товаров
+  function renumberForms() {
+    const rows = orderItemsBody.querySelectorAll('[data-form-row]');
+    rows.forEach((row, idx) => {
+      row.querySelectorAll('input, select, textarea').forEach(el => {
+        if (el.name) {
+          el.name = el.name.replace(/order-(\d+)-/g, `order-${idx}-`);
+        }
+        if (el.id) {
+          el.id = el.id.replace(/id_order-(\d+)-/g, `id_order-${idx}-`);
+        }
+      });
+    });
+    if (totalFormsInput) totalFormsInput.value = rows.length;
+  }
+
+  function cloneLastRow() {
+    const rows = orderItemsBody.querySelectorAll('[data-form-row]');
+    if (rows.length === 0) return;
+    
+    const lastRow = rows[rows.length - 1];
+    const clone = lastRow.cloneNode(true);
+    
+    clone.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.type === 'checkbox') el.checked = false;
+      else if (el.type === 'hidden' && el.name.includes('product_id')) el.value = '';
+      else el.value = '';
+      el.classList.remove('field-error');
+    });
+    
+    clone.removeAttribute('data-notfound');
+    lastRow.parentNode.insertBefore(clone, lastRow.nextSibling);
+    renumberForms();
+  }
+
+  if (addRowBtn) {
+    addRowBtn.addEventListener('click', cloneLastRow);
+  }
+
+  // Удаление строки
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-remove]');
+    if (!btn) return;
+    
+    const row = btn.closest('[data-form-row]');
+    if (!row) return;
+
+    const rows = orderItemsBody.querySelectorAll('[data-form-row]');
+    if (rows.length <= 1) {
+      // Если последняя строка, очищаем её
+      row.querySelectorAll('input, select, textarea').forEach(el => {
+        if (el.type !== 'hidden' && !el.name.includes('DELETE')) {
+          el.value = '';
+        }
+      });
+    } else {
+      row.remove();
+      renumberForms();
+    }
+  });
+
+  // Автодополнение по названию товара
+  function createAutocompleteList(row) {
+    if (autocompleteList) {
+      autocompleteList.remove();
+      autocompleteList = null;
+    }
+
+    const nameInput = row.querySelector('[name$="-name"]');
+    if (!nameInput) return null;
+
+    const list = document.createElement('div');
+    list.className = 'autocomplete-list';
+    list.style.cssText = 'position:fixed;z-index:10001;background:white;border:1px solid #ccc;border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:2px;';
+    
+    document.body.appendChild(list);
+    autocompleteList = list;
+    return list;
+  }
+
+  function hideAutocomplete() {
+    if (autocompleteList) {
+      autocompleteList.remove();
+      autocompleteList = null;
+    }
+    currentAutocompleteRow = null;
+  }
+
+  function updateAutocompletePosition() {
+    if (!autocompleteList || !currentAutocompleteRow) return;
+    
+    const nameInput = currentAutocompleteRow.querySelector('[name$="-name"]');
+    if (!nameInput) {
+      hideAutocomplete();
+      return;
+    }
+    
+    const inputRect = nameInput.getBoundingClientRect();
+    autocompleteList.style.top = inputRect.bottom + 'px';
+    autocompleteList.style.left = inputRect.left + 'px';
+    autocompleteList.style.width = inputRect.width + 'px';
+  }
+
+  async function selectProduct(row, product) {
+    hideAutocomplete();
+    
+    const set = (sel, v) => {
+      const el = row.querySelector(sel);
+      if (el) el.value = v || '';
+    };
+    
+    set('[name$="-name"]', product.name);
+    set('[name$="-barcode"]', product.barcode || '');
+    set('[name$="-product_id"]', product.id || '');
+    
+    const qtyEl = row.querySelector('[name$="-quantity"]');
+    if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+    
+    row.removeAttribute('data-notfound');
+  }
+
+  // Обработка ввода в поле названия
+  document.addEventListener('input', async function(e) {
+    const el = e.target;
+    if (!el || !el.closest('#orderItemsBody')) return;
+
+    const row = el.closest('[data-form-row]');
+    if (!row) return;
+
+    // Поиск по названию
+    if (el.name && el.name.endsWith('-name')) {
+      row.removeAttribute('data-notfound');
+      const query = el.value.trim();
+
+      if (autocompleteTimeout) {
+        clearTimeout(autocompleteTimeout);
+        autocompleteTimeout = null;
+      }
+
+      if (query.length < 3) {
+        hideAutocomplete();
+        return;
+      }
+
+      if (currentAutocompleteRow && currentAutocompleteRow !== row) {
+        hideAutocomplete();
+      }
+
+      autocompleteTimeout = setTimeout(async function() {
+        try {
+          const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            hideAutocomplete();
+            return;
+          }
+          const data = await resp.json();
+          if (!data.ok || !data.products || data.products.length === 0) {
+            hideAutocomplete();
+            return;
+          }
+
+          currentAutocompleteRow = row;
+          const list = createAutocompleteList(row);
+          if (!list) return;
+
+          list.innerHTML = '';
+          data.products.forEach(product => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;';
+            item.textContent = product.name;
+            item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
+            item.onmouseout = () => item.style.backgroundColor = '';
+            item.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              selectProduct(row, product);
+            };
+            list.appendChild(item);
+          });
+
+          updateAutocompletePosition();
+          
+          if (data.products.length === 1) {
+            selectProduct(row, data.products[0]);
+          }
+        } catch (err) {
+          console.error('Ошибка при поиске:', err);
+          hideAutocomplete();
+        }
+      }, 300);
+      return;
+    }
+
+    // Поиск по штрихкоду
+    if (el.name && el.name.endsWith('-barcode')) {
+      row.removeAttribute('data-notfound');
+      const bc = el.value.trim();
+      
+      if (bc.length < 6) return;
+
+      try {
+        const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
+        if (!resp.ok) {
+          row.setAttribute('data-notfound', '1');
+          return;
+        }
+        const data = await resp.json();
+        if (!data.ok) {
+          row.setAttribute('data-notfound', '1');
+          return;
+        }
+
+        const set = (sel, v) => {
+          const el = row.querySelector(sel);
+          if (el) el.value = v || '';
+        };
+        set('[name$="-name"]', data.name);
+        const qtyEl = row.querySelector('[name$="-quantity"]');
+        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+        row.removeAttribute('data-notfound');
+      } catch (_) {
+        row.setAttribute('data-notfound', '1');
+      }
+      return;
+    }
+  });
+
+  // Закрытие автодополнения
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#orderItemsBody') && !e.target.closest('.autocomplete-list')) {
+      hideAutocomplete();
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && autocompleteList) {
+      hideAutocomplete();
+    }
+  });
+
+  // Обновление позиции автодополнения при скролле
+  window.addEventListener('scroll', updateAutocompletePosition, { passive: true });
+  window.addEventListener('resize', updateAutocompletePosition);
+
+  // Инициализация
+  renumberForms();
+})();
+</script>
+
 {% endblock %}

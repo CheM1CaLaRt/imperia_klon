@@ -5,7 +5,8 @@ from django.conf import settings
 from django.db.models import ForeignKey
 
 from .models_requests import Request, RequestItem, RequestQuote
-from .models import Counterparty
+from .models import Counterparty, CounterpartyAddress, CounterpartyContact
+from django.forms import formset_factory
 
 
 def _counterparty_manager_is_user_fk() -> bool:
@@ -29,12 +30,19 @@ class RequestForm(forms.ModelForm):
     counterparty = forms.ModelChoiceField(
         queryset=Counterparty.objects.none(), required=False, label="Контрагент"
     )
+    delivery_address = forms.ModelChoiceField(
+        queryset=CounterpartyAddress.objects.none(), required=False, label="Адрес доставки"
+    )
+    delivery_contact = forms.ModelChoiceField(
+        queryset=CounterpartyContact.objects.none(), required=False, label="Контактное лицо"
+    )
 
     class Meta:
         model = Request
-        fields = ("title", "counterparty", "comment_internal")
+        fields = ("title", "counterparty", "delivery_date", "delivery_address", "delivery_contact", "comment_internal")
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Например: заказ канцтоваров"}),
+            "delivery_date": forms.DateInput(attrs={"type": "date", "class": "date-input"}),
             "comment_internal": forms.Textarea(
                 attrs={"rows": 6, "placeholder": "Доп. условия, сроки, контакты..."}
             ),
@@ -50,6 +58,19 @@ class RequestForm(forms.ModelForm):
                 qs = qs.filter(manager=user)
 
         self.fields["counterparty"].queryset = qs.order_by("name")
+        
+        # Если редактируем существующую заявку и у неё есть контрагент, загружаем адреса и контакты
+        if self.instance and self.instance.pk and self.instance.counterparty_id:
+            self.fields["delivery_address"].queryset = CounterpartyAddress.objects.filter(
+                counterparty_id=self.instance.counterparty_id
+            ).order_by("-is_default", "created_at")
+            self.fields["delivery_contact"].queryset = CounterpartyContact.objects.filter(
+                counterparty_id=self.instance.counterparty_id
+            ).order_by("full_name")
+        else:
+            # Для новой заявки - пустые queryset, заполнятся через AJAX
+            self.fields["delivery_address"].queryset = CounterpartyAddress.objects.none()
+            self.fields["delivery_contact"].queryset = CounterpartyContact.objects.none()
 
 
 class RequestCreateForm(RequestForm):
@@ -69,6 +90,55 @@ class RequestCreateForm(RequestForm):
         ),
         help_text="Каждая строка: Наименование ; Кол-во ; Примечание. Кол-во и примечание можно не заполнять.",
     )
+
+
+# Форма позиции заказа (для формсета, похожа на PickItemForm, но без цены)
+class OrderItemForm(forms.Form):
+    product_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    barcode = forms.CharField(
+        required=False,
+        label="Штрихкод",
+        widget=forms.TextInput(attrs={
+            "class": "order-barcode",
+            "placeholder": "Штрихкод",
+            "autocomplete": "off",
+            "inputmode": "numeric",
+        })
+    )
+    name = forms.CharField(
+        required=False,
+        label="Название",
+        widget=forms.TextInput(attrs={
+            "class": "order-name",
+            "placeholder": "Введите название (от 3 символов)",
+            "autocomplete": "off",
+        })
+    )
+    quantity = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=12,
+        decimal_places=3,
+        label="Кол-во",
+        widget=forms.NumberInput(attrs={
+            "class": "order-qty",
+            "placeholder": "1",
+            "step": "0.001",
+        })
+    )
+    note = forms.CharField(
+        required=False,
+        label="Примечание",
+        widget=forms.TextInput(attrs={
+            "class": "order-note",
+            "placeholder": "Примечание",
+            "autocomplete": "off",
+        })
+    )
+    DELETE = forms.BooleanField(required=False, label="Удалить")
+
+
+OrderItemFormSet = formset_factory(OrderItemForm, extra=1, can_delete=True)
 
 
 class RequestItemForm(forms.ModelForm):

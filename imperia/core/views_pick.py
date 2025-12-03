@@ -24,7 +24,7 @@ except Exception:
 #     Автозаполнение по ШК      #
 # ----------------------------- #
 @require_GET
-@require_groups("operator", "director", "warehouse")
+@require_groups("operator", "director", "warehouse", "manager")
 def stock_lookup(request):
     barcode = (request.GET.get("barcode") or "").strip()
     if not barcode:
@@ -48,13 +48,13 @@ def stock_lookup(request):
 
 
 @require_GET
-@require_groups("operator", "director", "warehouse")
+@require_groups("operator", "director", "warehouse", "manager")
 def stock_lookup_by_barcode(request):
     return stock_lookup(request)
 
 
 @require_GET
-@require_groups("operator", "director", "warehouse")
+@require_groups("operator", "director", "warehouse", "manager")
 def stock_lookup_by_name(request):
     """
     Поиск товаров по названию для автодополнения.
@@ -113,7 +113,7 @@ def stock_lookup_by_name(request):
 
 
 @require_GET
-@require_groups("operator", "director", "warehouse")
+@require_groups("operator", "director", "warehouse", "manager")
 def stock_lookup_by_name_selected(request):
     """
     Получение полной информации о товаре по ID (после выбора из автодополнения).
