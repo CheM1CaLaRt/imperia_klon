@@ -30,11 +30,11 @@ class RequestForm(forms.ModelForm):
     counterparty = forms.ModelChoiceField(
         queryset=Counterparty.objects.none(), required=False, label="Контрагент"
     )
-    delivery_address = forms.ModelChoiceField(
-        queryset=CounterpartyAddress.objects.none(), required=False, label="Адрес доставки"
+    delivery_address = forms.IntegerField(
+        required=False, label="Адрес доставки", widget=forms.HiddenInput()
     )
-    delivery_contact = forms.ModelChoiceField(
-        queryset=CounterpartyContact.objects.none(), required=False, label="Контактное лицо"
+    delivery_contact = forms.IntegerField(
+        required=False, label="Контактное лицо", widget=forms.HiddenInput()
     )
 
     class Meta:
@@ -59,18 +59,83 @@ class RequestForm(forms.ModelForm):
 
         self.fields["counterparty"].queryset = qs.order_by("name")
         
-        # Если редактируем существующую заявку и у неё есть контрагент, загружаем адреса и контакты
-        if self.instance and self.instance.pk and self.instance.counterparty_id:
-            self.fields["delivery_address"].queryset = CounterpartyAddress.objects.filter(
-                counterparty_id=self.instance.counterparty_id
-            ).order_by("-is_default", "created_at")
-            self.fields["delivery_contact"].queryset = CounterpartyContact.objects.filter(
-                counterparty_id=self.instance.counterparty_id
-            ).order_by("full_name")
+        # Инициализируем значения скрытых полей при редактировании
+        if self.instance and self.instance.pk:
+            if self.instance.delivery_address_id:
+                self.fields["delivery_address"].initial = self.instance.delivery_address_id
+            if self.instance.delivery_contact_id:
+                self.fields["delivery_contact"].initial = self.instance.delivery_contact_id
+    
+    def clean_delivery_address(self):
+        """Кастомная валидация адреса доставки - получаем объект по ID"""
+        address_id = self.cleaned_data.get("delivery_address")
+        if not address_id:
+            return None
+        
+        counterparty_id = None
+        if self.cleaned_data.get("counterparty"):
+            counterparty_id = self.cleaned_data["counterparty"].id
+        elif self.data and self.data.get("counterparty"):
+            try:
+                counterparty_id = int(self.data.get("counterparty"))
+            except (ValueError, TypeError):
+                pass
+        
+        try:
+            address = CounterpartyAddress.objects.get(id=address_id)
+            # Проверяем, что адрес принадлежит выбранному контрагенту
+            if counterparty_id and address.counterparty_id != counterparty_id:
+                raise forms.ValidationError("Выбранный адрес не принадлежит данному контрагенту.")
+            return address
+        except CounterpartyAddress.DoesNotExist:
+            raise forms.ValidationError("Выбранный адрес не найден.")
+    
+    def clean_delivery_contact(self):
+        """Кастомная валидация контакта - получаем объект по ID"""
+        contact_id = self.cleaned_data.get("delivery_contact")
+        if not contact_id:
+            return None
+        
+        counterparty_id = None
+        if self.cleaned_data.get("counterparty"):
+            counterparty_id = self.cleaned_data["counterparty"].id
+        elif self.data and self.data.get("counterparty"):
+            try:
+                counterparty_id = int(self.data.get("counterparty"))
+            except (ValueError, TypeError):
+                pass
+        
+        try:
+            contact = CounterpartyContact.objects.get(id=contact_id)
+            # Проверяем, что контакт принадлежит выбранному контрагенту
+            if counterparty_id and contact.counterparty_id != counterparty_id:
+                raise forms.ValidationError("Выбранный контакт не принадлежит данному контрагенту.")
+            return contact
+        except CounterpartyContact.DoesNotExist:
+            raise forms.ValidationError("Выбранный контакт не найден.")
+    
+    def save(self, commit=True):
+        """Сохраняем форму, правильно обрабатывая адрес и контакт"""
+        instance = super().save(commit=False)
+        
+        # Получаем объекты из cleaned_data (clean методы вернули объекты)
+        delivery_address = self.cleaned_data.get("delivery_address")
+        delivery_contact = self.cleaned_data.get("delivery_contact")
+        
+        # Устанавливаем объекты напрямую
+        if delivery_address:
+            instance.delivery_address = delivery_address
         else:
-            # Для новой заявки - пустые queryset, заполнятся через AJAX
-            self.fields["delivery_address"].queryset = CounterpartyAddress.objects.none()
-            self.fields["delivery_contact"].queryset = CounterpartyContact.objects.none()
+            instance.delivery_address = None
+            
+        if delivery_contact:
+            instance.delivery_contact = delivery_contact
+        else:
+            instance.delivery_contact = None
+        
+        if commit:
+            instance.save()
+        return instance
 
 
 class RequestCreateForm(RequestForm):

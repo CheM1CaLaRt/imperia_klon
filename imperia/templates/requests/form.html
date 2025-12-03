@@ -57,7 +57,12 @@
         <div class="field">
           <label class="field label">{{ form.delivery_address.label }}</label>
           <div style="display:flex;gap:8px;align-items:flex-start">
-            <div style="flex:1">{{ form.delivery_address }}</div>
+            <div style="flex:1">
+              {{ form.delivery_address }}
+              <select name="delivery_address_select" id="id_delivery_address_select" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+                <option value="">Выберите адрес</option>
+              </select>
+            </div>
             <button type="button" id="addAddressBtn" class="btn btn-ghost" style="white-space:nowrap;padding:10px 16px" title="Добавить адрес">+</button>
           </div>
           {% if form.delivery_address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.delivery_address.errors }}</div>{% endif %}
@@ -66,7 +71,12 @@
         <div class="field">
           <label class="field label">{{ form.delivery_contact.label }}</label>
           <div style="display:flex;gap:8px;align-items:flex-start">
-            <div style="flex:1">{{ form.delivery_contact }}</div>
+            <div style="flex:1">
+              {{ form.delivery_contact }}
+              <select name="delivery_contact_select" id="id_delivery_contact_select" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+                <option value="">Выберите контакт</option>
+              </select>
+            </div>
             <button type="button" id="addContactBtn" class="btn btn-ghost" style="white-space:nowrap;padding:10px 16px" title="Добавить контакт">+</button>
           </div>
           {% if form.delivery_contact.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.delivery_contact.errors }}</div>{% endif %}
@@ -231,8 +241,10 @@ body.modal-open{overflow:hidden}
   const form = document.getElementById('requestForm');
   const counterpartySelect = form.querySelector('select[name="counterparty"]');
   const deliveryInfo = document.getElementById('deliveryInfo');
-  const deliveryAddressSelect = form.querySelector('select[name="delivery_address"]');
-  const deliveryContactSelect = form.querySelector('select[name="delivery_contact"]');
+  const deliveryAddressSelect = document.getElementById('id_delivery_address_select');
+  const deliveryContactSelect = document.getElementById('id_delivery_contact_select');
+  const deliveryAddressHidden = form.querySelector('input[name="delivery_address"]');
+  const deliveryContactHidden = form.querySelector('input[name="delivery_contact"]');
   const orderItemsBody = document.getElementById('orderItemsBody');
   const addRowBtn = document.getElementById('addOrderRowBtn');
   const totalFormsInput = form.querySelector('input[name="order-TOTAL_FORMS"]');
@@ -248,8 +260,10 @@ body.modal-open{overflow:hidden}
       
       if (!counterpartyId) {
         deliveryInfo.style.display = 'none';
-        deliveryAddressSelect.innerHTML = '<option value="">Выберите адрес</option>';
-        deliveryContactSelect.innerHTML = '<option value="">Выберите контакт</option>';
+        if (deliveryAddressSelect) deliveryAddressSelect.innerHTML = '<option value="">Выберите адрес</option>';
+        if (deliveryContactSelect) deliveryContactSelect.innerHTML = '<option value="">Выберите контакт</option>';
+        if (deliveryAddressHidden) deliveryAddressHidden.value = '';
+        if (deliveryContactHidden) deliveryContactHidden.value = '';
         return;
       }
 
@@ -258,24 +272,50 @@ body.modal-open{overflow:hidden}
         const data = await response.json();
         
         if (data.ok) {
+          // Сохраняем текущие выбранные значения
+          const currentAddressId = deliveryAddressHidden ? deliveryAddressHidden.value : '';
+          const currentContactId = deliveryContactHidden ? deliveryContactHidden.value : '';
+          
           // Заполняем адреса
-          deliveryAddressSelect.innerHTML = '<option value="">Выберите адрес</option>';
-          data.addresses.forEach(addr => {
-            const option = document.createElement('option');
-            option.value = addr.id;
-            option.textContent = addr.address + (addr.is_default ? ' (по умолчанию)' : '');
-            if (addr.is_default) option.selected = true;
-            deliveryAddressSelect.appendChild(option);
-          });
+          if (deliveryAddressSelect) {
+            deliveryAddressSelect.innerHTML = '<option value="">Выберите адрес</option>';
+            data.addresses.forEach(addr => {
+              const option = document.createElement('option');
+              option.value = addr.id;
+              option.textContent = addr.address + (addr.is_default ? ' (по умолчанию)' : '');
+              // Выбираем текущее значение или адрес по умолчанию
+              if (currentAddressId && addr.id == currentAddressId) {
+                option.selected = true;
+              } else if (!currentAddressId && addr.is_default) {
+                option.selected = true;
+                if (deliveryAddressHidden) deliveryAddressHidden.value = addr.id;
+              }
+              deliveryAddressSelect.appendChild(option);
+            });
+            // Если было сохранено значение, устанавливаем его
+            if (currentAddressId && !deliveryAddressSelect.value && deliveryAddressHidden) {
+              deliveryAddressSelect.value = currentAddressId;
+            }
+          }
 
           // Заполняем контакты
-          deliveryContactSelect.innerHTML = '<option value="">Выберите контакт</option>';
-          data.contacts.forEach(contact => {
-            const option = document.createElement('option');
-            option.value = contact.id;
-            option.textContent = contact.full_name + (contact.position ? ` - ${contact.position}` : '');
-            deliveryContactSelect.appendChild(option);
-          });
+          if (deliveryContactSelect) {
+            deliveryContactSelect.innerHTML = '<option value="">Выберите контакт</option>';
+            data.contacts.forEach(contact => {
+              const option = document.createElement('option');
+              option.value = contact.id;
+              option.textContent = contact.full_name + (contact.position ? ` - ${contact.position}` : '');
+              // Выбираем текущее значение
+              if (currentContactId && contact.id == currentContactId) {
+                option.selected = true;
+              }
+              deliveryContactSelect.appendChild(option);
+            });
+            // Если было сохранено значение, устанавливаем его
+            if (currentContactId && !deliveryContactSelect.value && deliveryContactHidden) {
+              deliveryContactSelect.value = currentContactId;
+            }
+          }
 
           deliveryInfo.style.display = 'grid';
         }
@@ -288,6 +328,19 @@ body.modal-open{overflow:hidden}
     if (counterpartySelect.value) {
       counterpartySelect.dispatchEvent(new Event('change'));
     }
+  }
+
+  // Синхронизация select с скрытыми полями
+  if (deliveryAddressSelect && deliveryAddressHidden) {
+    deliveryAddressSelect.addEventListener('change', function() {
+      deliveryAddressHidden.value = this.value;
+    });
+  }
+
+  if (deliveryContactSelect && deliveryContactHidden) {
+    deliveryContactSelect.addEventListener('change', function() {
+      deliveryContactHidden.value = this.value;
+    });
   }
 
   // Управление формсетом товаров
@@ -640,10 +693,11 @@ body.modal-open{overflow:hidden}
           option.value = data.address.id;
           option.textContent = data.address.address + (data.address.is_default ? ' (по умолчанию)' : '');
           option.selected = true;
-          deliveryAddressSelect.appendChild(option);
+          if (deliveryAddressSelect) deliveryAddressSelect.appendChild(option);
+          if (deliveryAddressHidden) deliveryAddressHidden.value = data.address.id;
           
           // Если был установлен как адрес по умолчанию, обновляем остальные опции
-          if (data.address.is_default) {
+          if (data.address.is_default && deliveryAddressSelect) {
             Array.from(deliveryAddressSelect.options).forEach(opt => {
               if (opt.value && opt.value != data.address.id) {
                 opt.textContent = opt.textContent.replace(' (по умолчанию)', '');
@@ -713,7 +767,8 @@ body.modal-open{overflow:hidden}
           option.value = data.contact.id;
           option.textContent = data.contact.full_name + (data.contact.position ? ` - ${data.contact.position}` : '');
           option.selected = true;
-          deliveryContactSelect.appendChild(option);
+          if (deliveryContactSelect) deliveryContactSelect.appendChild(option);
+          if (deliveryContactHidden) deliveryContactHidden.value = data.contact.id;
           
           closeContactModal();
         } else {
