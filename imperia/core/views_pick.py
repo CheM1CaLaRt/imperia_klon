@@ -54,6 +54,88 @@ def stock_lookup_by_barcode(request):
 
 
 @require_GET
+@require_groups("operator", "director", "warehouse")
+def stock_lookup_by_name(request):
+    """
+    Поиск товаров по названию для автодополнения.
+    Возвращает список товаров, у которых есть остатки на складе.
+    """
+    query = (request.GET.get("name") or "").strip()
+    if len(query) < 3:
+        return JsonResponse({"ok": True, "products": []})
+
+    # Ищем товары по названию (case-insensitive)
+    products = (
+        Product.objects
+        .filter(name__icontains=query, is_active=True)
+        .select_related("supplier")
+        .order_by("name")[:20]  # Ограничиваем до 20 результатов
+    )
+
+    # Фильтруем только те товары, у которых есть остатки на складе
+    result = []
+    for product in products:
+        inv = (
+            Inventory.objects
+            .filter(product=product, quantity__gt=0)
+            .select_related("warehouse", "bin")
+            .order_by("-quantity")
+            .first()
+        )
+        if inv:
+            location = inv.bin.code if inv and inv.bin else ""
+            result.append({
+                "id": product.id,
+                "name": product.name,
+                "barcode": product.barcode or "",
+                "location": location,
+                "unit": "шт",
+                "qty_on_hand": float(inv.quantity),
+            })
+
+    return JsonResponse({"ok": True, "products": result})
+
+
+@require_GET
+@require_groups("operator", "director", "warehouse")
+def stock_lookup_by_name_selected(request):
+    """
+    Получение полной информации о товаре по ID (после выбора из автодополнения).
+    Проверяет наличие на складе.
+    """
+    try:
+        product_id = int(request.GET.get("product_id", 0))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "invalid_id"}, status=400)
+
+    try:
+        product = Product.objects.get(id=product_id, is_active=True)
+    except Product.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "not_found"}, status=404)
+
+    inv = (
+        Inventory.objects
+        .filter(product=product, quantity__gt=0)
+        .select_related("warehouse", "bin")
+        .order_by("-quantity")
+        .first()
+    )
+
+    if not inv:
+        return JsonResponse({"ok": False, "error": "out_of_stock"}, status=404)
+
+    location = inv.bin.code if inv and inv.bin else ""
+    return JsonResponse({
+        "ok": True,
+        "name": product.name,
+        "barcode": product.barcode or "",
+        "location": location,
+        "unit": "шт",
+        "qty_on_hand": float(inv.quantity),
+    })
+
+
+@require_GET
 @require_groups("operator", "director")
 def request_pick_section(request, pk: int):
     # запасной URL — возвращаем на карточку

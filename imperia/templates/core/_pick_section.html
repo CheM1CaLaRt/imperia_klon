@@ -199,6 +199,7 @@
   function closeModal() {
     // Если всё пусто — очищаем storage. Иначе сохраняем.
     if (rowsAreAllEmpty()) clearDraft(); else saveDraft();
+    hideAutocomplete(); // Закрываем автодополнение при закрытии модального окна
     modal.classList.add('hidden'); modal.classList.remove('flex');
     document.body.classList.remove('modal-open');
     renderPreview();
@@ -253,6 +254,84 @@
     if (rowsAreAllEmpty()) clearDraft(); else saveDraft();
   });
 
+  // ---------- автодополнение по названию ----------
+  let autocompleteTimeout = null;
+  let currentAutocompleteRow = null;
+  let autocompleteList = null;
+
+  function createAutocompleteList(row) {
+    // Удаляем существующий список, если есть
+    if (autocompleteList) {
+      autocompleteList.remove();
+      autocompleteList = null;
+    }
+
+    const nameInput = row.querySelector('[name$="-name"]');
+    if (!nameInput) return;
+
+    const list = document.createElement('div');
+    list.className = 'autocomplete-list';
+    list.style.cssText = 'position:absolute;z-index:1000;background:white;border:1px solid #ccc;border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);margin-top:2px;';
+    
+    // Позиционируем относительно input поля
+    const nameInputRect = nameInput.getBoundingClientRect();
+    const modal = document.getElementById('pickModal');
+    const modalRect = modal ? modal.getBoundingClientRect() : { top: 0, left: 0 };
+    
+    list.style.top = (nameInputRect.bottom - modalRect.top + modal.scrollTop) + 'px';
+    list.style.left = (nameInputRect.left - modalRect.left) + 'px';
+    list.style.width = nameInputRect.width + 'px';
+
+    modal.appendChild(list);
+    autocompleteList = list;
+    return list;
+  }
+
+  function hideAutocomplete() {
+    if (autocompleteList) {
+      autocompleteList.remove();
+      autocompleteList = null;
+    }
+    currentAutocompleteRow = null;
+  }
+
+  async function selectProduct(row, product) {
+    hideAutocomplete();
+    
+    // Дополнительная проверка наличия на складе при выборе
+    try {
+      const resp = await fetch(`{% url 'core:stock_lookup_by_name_selected' %}?product_id=${product.id}`);
+      if (!resp.ok) {
+        row.setAttribute('data-notfound', '1');
+        updateRowHints();
+        return;
+      }
+      const data = await resp.json();
+      if (!data.ok) {
+        row.setAttribute('data-notfound', '1');
+        updateRowHints();
+        return;
+      }
+
+      // Обновляем данные из ответа сервера (актуальное наличие)
+      const set = (sel, v) => { const el = row.querySelector(sel); if (el) el.value = v || ''; };
+      set('[name$="-name"]', data.name);
+      set('[name$="-barcode"]', data.barcode);
+      set('[name$="-location"]', data.location);
+      set('[name$="-unit"]', data.unit);
+      const qtyEl = row.querySelector('[name$="-qty"]'); 
+      if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+
+      row.removeAttribute('data-notfound');
+    } catch (_) {
+      row.setAttribute('data-notfound', '1');
+    }
+
+    updateRowHints();
+    renderPreview();
+    saveDraft();
+  }
+
   // ---------- async lookups + автосейв ----------
   document.addEventListener('input', async (e) => {
     const el = e.target;
@@ -261,33 +340,124 @@
     updateRowHints();
     saveDraft();
 
-    if (!el.name || !el.name.endsWith('-barcode')) { renderPreview(); return; }
-
     const row = el.closest('[data-form-row]');
-    if (row) row.removeAttribute('data-notfound');
+    if (!row) { renderPreview(); return; }
 
-    const bc = el.value.trim();
-    if (bc.length < 6) { renderPreview(); updateRowHints(); return; }
-
-    try {
-      const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
-      if (!resp.ok) { row?.setAttribute('data-notfound', '1'); updateRowHints(); saveDraft(); return; }
-      const data = await resp.json();
-      if (!data.ok) { row?.setAttribute('data-notfound', '1'); updateRowHints(); saveDraft(); return; }
-
-      if (!row) return;
-      const set = (sel, v) => { const el = row.querySelector(sel); if (el) el.value = v || ''; };
-      set('[name$="-name"]', data.name);
-      set('[name$="-location"]', data.location);
-      set('[name$="-unit"]', data.unit);
-      const qtyEl = row.querySelector('[name$="-qty"]'); if (qtyEl && !qtyEl.value) qtyEl.value = 1;
-
+    // Обработка поиска по названию
+    if (el.name && el.name.endsWith('-name')) {
       row.removeAttribute('data-notfound');
-    } catch (_) {
-      row?.setAttribute('data-notfound', '1');
+      const query = el.value.trim();
+
+      // Очищаем предыдущий таймаут
+      if (autocompleteTimeout) {
+        clearTimeout(autocompleteTimeout);
+      }
+
+      // Если меньше 3 символов - скрываем список
+      if (query.length < 3) {
+        hideAutocomplete();
+        renderPreview();
+        return;
+      }
+
+      // Задержка перед запросом (debounce)
+      autocompleteTimeout = setTimeout(async () => {
+        try {
+          const resp = await fetch(`{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`);
+          if (!resp.ok) return;
+          const data = await resp.json();
+          if (!data.ok || !data.products || data.products.length === 0) {
+            hideAutocomplete();
+            return;
+          }
+
+          currentAutocompleteRow = row;
+          const list = createAutocompleteList(row);
+          if (!list) return;
+
+          list.innerHTML = '';
+          data.products.forEach(product => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;';
+            item.textContent = product.name;
+            item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
+            item.onmouseout = () => item.style.backgroundColor = '';
+            item.onclick = () => selectProduct(row, product);
+            list.appendChild(item);
+          });
+
+          // Если только один результат - автоматически выбираем его
+          if (data.products.length === 1) {
+            selectProduct(row, data.products[0]);
+          }
+        } catch (_) {
+          hideAutocomplete();
+        }
+      }, 300);
+      return;
     }
 
-    renderPreview(); updateRowHints(); saveDraft();
+    // Обработка поиска по штрихкоду (как было раньше)
+    if (el.name && el.name.endsWith('-barcode')) {
+      row.removeAttribute('data-notfound');
+      const bc = el.value.trim();
+      
+      // Если меньше 6 символов - не ищем
+      if (bc.length < 6) { 
+        renderPreview(); 
+        updateRowHints(); 
+        return; 
+      }
+
+      try {
+        const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
+        if (!resp.ok) { 
+          row.setAttribute('data-notfound', '1'); 
+          updateRowHints(); 
+          saveDraft(); 
+          return; 
+        }
+        const data = await resp.json();
+        if (!data.ok) { 
+          row.setAttribute('data-notfound', '1'); 
+          updateRowHints(); 
+          saveDraft(); 
+          return; 
+        }
+
+        const set = (sel, v) => { const el = row.querySelector(sel); if (el) el.value = v || ''; };
+        set('[name$="-name"]', data.name);
+        set('[name$="-location"]', data.location);
+        set('[name$="-unit"]', data.unit);
+        const qtyEl = row.querySelector('[name$="-qty"]'); 
+        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+
+        row.removeAttribute('data-notfound');
+      } catch (_) {
+        row.setAttribute('data-notfound', '1');
+      }
+
+      renderPreview(); 
+      updateRowHints(); 
+      saveDraft();
+      return;
+    }
+
+    renderPreview();
+  });
+
+  // Закрываем автодополнение при клике вне формы
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#pickForm') && !e.target.closest('.autocomplete-list')) {
+      hideAutocomplete();
+    }
+  });
+
+  // Закрываем автодополнение при нажатии Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && autocompleteList) {
+      hideAutocomplete();
+    }
   });
 
   // ---------- preview ----------
@@ -318,10 +488,13 @@
     rows().forEach(row => {
       const hint = row.querySelector('.loc-hint');
       const loc  = row.querySelector('[name$="-location"]');
-      const bc   = row.querySelector('[name$="-barcode"]');
-      if (!loc || !bc) return;
+      const nameInput = row.querySelector('[name$="-name"]');
+      const bcInput = row.querySelector('[name$="-barcode"]');
+      if (!loc) return;
 
-      const show = !!bc.value.trim() && (!loc.value.trim() || row.hasAttribute('data-notfound'));
+      // Показываем подсказку если есть название или штрихкод, но нет ячейки или товар не найден
+      const hasInput = (nameInput && nameInput.value.trim()) || (bcInput && bcInput.value.trim());
+      const show = hasInput && (!loc.value.trim() || row.hasAttribute('data-notfound'));
       if (hint) hint.classList.toggle('hidden', !show);
       loc.classList.toggle('field-error', show);
     });

@@ -17,8 +17,8 @@ class PickItemForm(forms.Form):
         required=False,
         label="Название",
         widget=forms.TextInput(attrs={
-            "class": "w-full",
-            "placeholder": "Название",
+            "class": "w-full pick-name",
+            "placeholder": "Введите название (от 3 символов)",
             "autocomplete": "off",
         })
     )
