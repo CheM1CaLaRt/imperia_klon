@@ -491,7 +491,10 @@ def counterparty_addresses_contacts(request):
         return JsonResponse({"ok": False, "error": "not_found"}, status=404)
 
     # Проверка прав: менеджер видит только своих клиентов
-    if request.user.groups.filter(name="manager").exists() and not request.user.is_superuser:
+    is_manager = request.user.groups.filter(name="manager").exists()
+    is_operator_or_director = request.user.groups.filter(name__in=["operator", "director"]).exists()
+    
+    if is_manager and not request.user.is_superuser and not is_operator_or_director:
         if hasattr(counterparty, "managers"):
             if request.user not in counterparty.managers.all():
                 return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
@@ -519,4 +522,122 @@ def counterparty_addresses_contacts(request):
             }
             for contact in contacts
         ],
+    })
+
+
+# ---------- API: Добавление адреса контрагента ----------
+@login_required
+@require_POST
+@require_groups("manager", "operator", "director")
+def counterparty_add_address(request):
+    """
+    API endpoint для добавления адреса доставки контрагента.
+    POST: counterparty_id, address, is_default
+    """
+    try:
+        counterparty_id = int(request.POST.get("counterparty_id", 0))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "invalid_id"}, status=400)
+
+    try:
+        counterparty = Counterparty.objects.get(id=counterparty_id)
+    except Counterparty.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "not_found"}, status=404)
+
+    # Проверка прав: оператор/директор или прикрепленный менеджер
+    is_manager = request.user.groups.filter(name="manager").exists()
+    is_operator_or_director = request.user.groups.filter(name__in=["operator", "director"]).exists()
+    
+    if is_manager and not request.user.is_superuser and not is_operator_or_director:
+        if hasattr(counterparty, "managers"):
+            if request.user not in counterparty.managers.all():
+                return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    address = request.POST.get("address", "").strip()
+    if not address:
+        return JsonResponse({"ok": False, "error": "address_required"}, status=400)
+
+    is_default = request.POST.get("is_default") == "true"
+    
+    # Если устанавливаем как адрес по умолчанию, снимаем флаг с остальных
+    if is_default:
+        CounterpartyAddress.objects.filter(counterparty=counterparty).update(is_default=False)
+
+    addr = CounterpartyAddress.objects.create(
+        counterparty=counterparty,
+        address=address,
+        is_default=is_default
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "address": {
+            "id": addr.id,
+            "address": addr.address,
+            "is_default": addr.is_default,
+        }
+    })
+
+
+# ---------- API: Добавление контакта контрагента ----------
+@login_required
+@require_POST
+@require_groups("manager", "operator", "director")
+def counterparty_add_contact(request):
+    """
+    API endpoint для добавления контактного лица контрагента.
+    POST: counterparty_id, full_name, position, email, phone, mobile, note, birthday
+    """
+    try:
+        counterparty_id = int(request.POST.get("counterparty_id", 0))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "invalid_id"}, status=400)
+
+    try:
+        counterparty = Counterparty.objects.get(id=counterparty_id)
+    except Counterparty.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "not_found"}, status=404)
+
+    # Проверка прав: оператор/директор или прикрепленный менеджер
+    is_manager = request.user.groups.filter(name="manager").exists()
+    is_operator_or_director = request.user.groups.filter(name__in=["operator", "director"]).exists()
+    
+    if is_manager and not request.user.is_superuser and not is_operator_or_director:
+        if hasattr(counterparty, "managers"):
+            if request.user not in counterparty.managers.all():
+                return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    full_name = request.POST.get("full_name", "").strip()
+    if not full_name:
+        return JsonResponse({"ok": False, "error": "full_name_required"}, status=400)
+
+    from datetime import datetime
+    birthday_str = request.POST.get("birthday", "").strip()
+    birthday = None
+    if birthday_str:
+        try:
+            birthday = datetime.strptime(birthday_str, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            pass
+
+    contact = CounterpartyContact.objects.create(
+        counterparty=counterparty,
+        full_name=full_name,
+        position=request.POST.get("position", "").strip(),
+        email=request.POST.get("email", "").strip(),
+        phone=request.POST.get("phone", "").strip(),
+        mobile=request.POST.get("mobile", "").strip(),
+        note=request.POST.get("note", "").strip(),
+        birthday=birthday
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "contact": {
+            "id": contact.id,
+            "full_name": contact.full_name,
+            "position": contact.position or "",
+            "phone": contact.phone or "",
+            "email": contact.email or "",
+        }
     })
