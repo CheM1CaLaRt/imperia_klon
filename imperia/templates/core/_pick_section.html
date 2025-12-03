@@ -48,7 +48,7 @@
       {% for f in pick_formset %}
         <div class="grid grid-cols-12 gap-3 items-start mb-2" data-form-row>
           <div class="col-span-3">{{ f.barcode }}</div>
-          <div class="col-span-3">{{ f.name }}</div>
+          <div class="col-span-3" style="position:relative;">{{ f.name }}</div>
 
           <div class="col-span-2 space-y-1">
             {{ f.location }}
@@ -267,22 +267,20 @@
     }
 
     const nameInput = row.querySelector('[name$="-name"]');
-    if (!nameInput) return;
+    if (!nameInput) return null;
+
+    // Создаем контейнер для позиционирования
+    const nameInputContainer = nameInput.parentElement;
+    if (!nameInputContainer) return null;
 
     const list = document.createElement('div');
     list.className = 'autocomplete-list';
-    list.style.cssText = 'position:absolute;z-index:1000;background:white;border:1px solid #ccc;border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);margin-top:2px;';
+    list.style.cssText = 'position:absolute;z-index:10000;background:white;border:1px solid #ccc;border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);margin-top:2px;width:100%;';
     
-    // Позиционируем относительно input поля
-    const nameInputRect = nameInput.getBoundingClientRect();
-    const modal = document.getElementById('pickModal');
-    const modalRect = modal ? modal.getBoundingClientRect() : { top: 0, left: 0 };
+    // Позиционируем относительно контейнера input
+    nameInputContainer.style.position = 'relative';
+    nameInputContainer.appendChild(list);
     
-    list.style.top = (nameInputRect.bottom - modalRect.top + modal.scrollTop) + 'px';
-    list.style.left = (nameInputRect.left - modalRect.left) + 'px';
-    list.style.width = nameInputRect.width + 'px';
-
-    modal.appendChild(list);
     autocompleteList = list;
     return list;
   }
@@ -351,6 +349,7 @@
       // Очищаем предыдущий таймаут
       if (autocompleteTimeout) {
         clearTimeout(autocompleteTimeout);
+        autocompleteTimeout = null;
       }
 
       // Если меньше 3 символов - скрываем список
@@ -360,11 +359,20 @@
         return;
       }
 
+      // Скрываем автодополнение для других строк
+      if (currentAutocompleteRow && currentAutocompleteRow !== row) {
+        hideAutocomplete();
+      }
+
       // Задержка перед запросом (debounce)
       autocompleteTimeout = setTimeout(async () => {
         try {
-          const resp = await fetch(`{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`);
-          if (!resp.ok) return;
+          const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            hideAutocomplete();
+            return;
+          }
           const data = await resp.json();
           if (!data.ok || !data.products || data.products.length === 0) {
             hideAutocomplete();
@@ -373,7 +381,10 @@
 
           currentAutocompleteRow = row;
           const list = createAutocompleteList(row);
-          if (!list) return;
+          if (!list) {
+            console.warn('Не удалось создать список автодополнения');
+            return;
+          }
 
           list.innerHTML = '';
           data.products.forEach(product => {
@@ -382,7 +393,11 @@
             item.textContent = product.name;
             item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
             item.onmouseout = () => item.style.backgroundColor = '';
-            item.onclick = () => selectProduct(row, product);
+            item.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              selectProduct(row, product);
+            };
             list.appendChild(item);
           });
 
@@ -390,7 +405,8 @@
           if (data.products.length === 1) {
             selectProduct(row, data.products[0]);
           }
-        } catch (_) {
+        } catch (err) {
+          console.error('Ошибка при поиске по названию:', err);
           hideAutocomplete();
         }
       }, 300);
