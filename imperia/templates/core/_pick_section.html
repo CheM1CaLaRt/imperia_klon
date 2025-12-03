@@ -100,8 +100,14 @@
   const form    = document.getElementById('pickForm');
   const saveBtn = document.getElementById('savePickBtn');
   const addBtn  = document.getElementById('addRowBtn');
-  const totalInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
+  const totalInput = form ? form.querySelector('input[name$="-TOTAL_FORMS"]') : null;
   const preview = document.getElementById('pickPreview');
+  
+  // Проверяем, что необходимые элементы существуют
+  if (!form) {
+    console.warn('Форма pickForm не найдена');
+    return;
+  }
 
   // Кол-во строк сборки на сервере (рендерится из view)
   const serverPickCount = {{ pick_items|length|default:0 }};
@@ -180,7 +186,12 @@
 
   // ---------- modal ----------
   function openModal() {
-    modal.classList.remove('hidden'); modal.classList.add('flex');
+    if (!modal) {
+      console.error('Модальное окно не найдено');
+      return;
+    }
+    modal.classList.remove('hidden'); 
+    modal.classList.add('flex');
     document.body.classList.add('modal-open');
 
     // ВОССТАНОВЛЕНИЕ ЧЕРНОВИКА:
@@ -197,16 +208,31 @@
     const first = modal.querySelector('input,select,textarea,button'); if (first) first.focus();
   }
   function closeModal() {
+    if (!modal) return;
     // Если всё пусто — очищаем storage. Иначе сохраняем.
     if (rowsAreAllEmpty()) clearDraft(); else saveDraft();
     hideAutocomplete(); // Закрываем автодополнение при закрытии модального окна
-    modal.classList.add('hidden'); modal.classList.remove('flex');
+    modal.classList.add('hidden'); 
+    modal.classList.remove('flex');
     document.body.classList.remove('modal-open');
     renderPreview();
   }
-  if (openBtn) openBtn.addEventListener('click', openModal);
-  modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
-  document.addEventListener('keydown', (e) => { if (!modal.classList.contains('hidden') && e.key === 'Escape') closeModal(); });
+  if (openBtn) {
+    openBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openModal();
+    });
+  } else {
+    console.warn('Кнопка openPickModal не найдена');
+  }
+  
+  if (modal) {
+    modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (!modal.classList.contains('hidden') && e.key === 'Escape') closeModal(); });
+  } else {
+    console.warn('Модальное окно pickModal не найдено');
+  }
 
   // ---------- formset ----------
   function renumberForms() {
@@ -327,7 +353,6 @@
   }
 
   // Обновляем позицию при скролле модального окна или окна браузера
-  const modal = document.getElementById('pickModal');
   if (modal) {
     // Используем throttling для оптимизации
     let scrollTimeout = null;
