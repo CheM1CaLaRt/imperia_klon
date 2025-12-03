@@ -41,19 +41,54 @@
         </a>
       </div>
       {% endif %}
-      {% if obj.actual_address %}
-      <div>
-        <span style="color:var(--muted);font-size:13px">Фактический адрес:</span>
-        <div style="margin-top:4px">{{ obj.actual_address }}</div>
-        <a href="#" 
-           class="btn btn-secondary yandex-map-link" 
-           data-address="{{ obj.actual_address|escapejs }}"
-           style="margin-top:8px;font-size:13px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none">
-          <span>🗺️</span>
-          <span>Открыть на карте</span>
-        </a>
-      </div>
-      {% endif %}
+      {# Адреса доставки #}
+      {% with addresses=obj.addresses.all %}
+        {% if addresses %}
+          <div>
+            <span style="color:var(--muted);font-size:13px;font-weight:600;display:block;margin-bottom:12px">Фактические адреса / адреса доставки:</span>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              {% for addr in addresses %}
+                <div style="padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;position:relative">
+                  {% if addr.is_default %}
+                    <div style="position:absolute;top:12px;right:12px;background:#3b82f6;color:white;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;text-transform:uppercase">
+                      По умолчанию
+                    </div>
+                    <div style="padding-right:100px;margin-bottom:8px">
+                      <div style="font-weight:500;font-size:14px;color:#1f2937;line-height:1.5">{{ addr.address }}</div>
+                    </div>
+                  {% else %}
+                    <div style="margin-bottom:8px">
+                      <div style="font-weight:500;font-size:14px;color:#1f2937;line-height:1.5">{{ addr.address }}</div>
+                    </div>
+                  {% endif %}
+                  <a href="#" 
+                     class="btn btn-secondary yandex-map-link" 
+                     data-address="{{ addr.address|escapejs }}"
+                     style="font-size:13px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:#3b82f6;color:white;border:none;border-radius:8px;transition:all 0.2s"
+                     onmouseover="this.style.background='#2563eb'"
+                     onmouseout="this.style.background='#3b82f6'">
+                    <span>🗺️</span>
+                    <span>Открыть на карте</span>
+                  </a>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% elif obj.actual_address %}
+          {# Fallback для старых данных #}
+          <div>
+            <span style="color:var(--muted);font-size:13px">Фактический адрес:</span>
+            <div style="margin-top:4px">{{ obj.actual_address }}</div>
+            <a href="#" 
+               class="btn btn-secondary yandex-map-link" 
+               data-address="{{ obj.actual_address|escapejs }}"
+               style="margin-top:8px;font-size:13px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none">
+              <span>🗺️</span>
+              <span>Открыть на карте</span>
+            </a>
+          </div>
+        {% endif %}
+      {% endwith %}
       {% if obj.website %}
         <div>
           <span style="color:var(--muted);font-size:13px">Сайт:</span>

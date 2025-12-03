@@ -183,7 +183,7 @@ def counterparty_detail(request, pk: int):
     """
     obj = get_object_or_404(
         Counterparty.objects.select_related("finance")
-        .prefetch_related("contacts", "managers", "documents"),
+        .prefetch_related("contacts", "managers", "documents", "addresses"),
         pk=pk,
     )
 
