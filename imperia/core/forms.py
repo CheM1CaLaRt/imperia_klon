@@ -16,6 +16,7 @@ from .models import (
     Inventory,
     StorageBin,
     Counterparty,
+    CounterpartyAddress,
     CounterpartyContact,
     CounterpartyDocument,
     inn_validator,
@@ -336,12 +337,43 @@ class ProductInlineCreateForm(forms.Form):
 # =============================
 # Контрагенты
 # =============================
+class CounterpartyAddressForm(forms.ModelForm):
+    """Форма для адреса доставки контрагента"""
+    class Meta:
+        model = CounterpartyAddress
+        fields = ["address", "is_default"]
+        widgets = {
+            "address": forms.TextInput(attrs={
+                "class": "input",
+                "placeholder": "Фактический адрес / адрес доставки"
+            }),
+            "is_default": forms.CheckboxInput(attrs={
+                "class": "checkbox"
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["address"].required = False
+
+
+CounterpartyAddressFormSet = forms.inlineformset_factory(
+    Counterparty,
+    CounterpartyAddress,
+    form=CounterpartyAddressForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
+
+
 class CounterpartyCreateForm(forms.ModelForm):
     class Meta:
         model = Counterparty
         fields = [
             "inn", "name", "full_name", "kpp", "ogrn",
-            "registration_country", "address", "actual_address",
+            "registration_country", "address",
             "bank_name", "bank_bik", "bank_account",
             "website", "managers",
         ]
@@ -353,7 +385,6 @@ class CounterpartyCreateForm(forms.ModelForm):
             "ogrn": forms.TextInput(attrs={"class": "input"}),
             "registration_country": forms.TextInput(attrs={"class": "input"}),
             "address": forms.TextInput(attrs={"class": "input", "placeholder": "Юридический адрес"}),
-            "actual_address": forms.TextInput(attrs={"class": "input", "placeholder": "Фактический адрес / адрес доставки"}),
             "bank_name": forms.TextInput(attrs={"class": "input", "placeholder": "Наименование банка"}),
             "bank_bik": forms.TextInput(attrs={"class": "input", "placeholder": "9 цифр"}),
             "bank_account": forms.TextInput(attrs={"class": "input", "placeholder": "Номер счёта (20 цифр)"}),

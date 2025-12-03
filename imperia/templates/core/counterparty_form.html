@@ -104,20 +104,59 @@
         </button>
       </div>
 
-      {# Фактический/доставки #}
+      {# Адреса доставки #}
+      {% if address_formset %}
       <div class="field">
-        {{ form.actual_address.label_tag }}
-        {{ form.actual_address }}
-        {% if form.actual_address.errors %}<div style="color:#ef4444;font-size:13px;margin-top:4px">{{ form.actual_address.errors }}</div>{% endif %}
-        <button type="button" 
-                class="yandex-map-btn" 
-                data-address-field="id_actual_address"
-                style="margin-top:8px;background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
-                tabindex="0">
-          <span>🗺️</span>
-          <span>Открыть на карте</span>
+        <label class="field-label" style="font-weight:600;margin-bottom:12px;display:block">
+          Фактические адреса / адреса доставки
+        </label>
+        <div id="address-formset-container" style="display:flex;flex-direction:column;gap:12px">
+          {{ address_formset.management_form }}
+          {% for addr_form in address_formset %}
+            <div class="address-form-row" style="padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;position:relative">
+              {% if addr_form.DELETE %}
+                <div style="position:absolute;top:8px;right:8px">
+                  {{ addr_form.DELETE }}
+                  <label for="{{ addr_form.DELETE.id_for_label }}" style="cursor:pointer;color:#ef4444;font-size:14px;margin-left:4px">Удалить</label>
+                </div>
+              {% endif %}
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div>
+                  {{ addr_form.address }}
+                  {% if addr_form.address.errors %}
+                    <div style="color:#ef4444;font-size:13px;margin-top:4px">{{ addr_form.address.errors }}</div>
+                  {% endif %}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+                    {{ addr_form.is_default }}
+                    <span>Адрес по умолчанию</span>
+                  </label>
+                  <button type="button" 
+                          class="yandex-map-btn" 
+                          data-address-field="{{ addr_form.address.id_for_label }}"
+                          style="background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
+                          tabindex="0">
+                    <span>🗺️</span>
+                    <span>Открыть на карте</span>
+                  </button>
+                </div>
+              </div>
+              {% if addr_form.non_field_errors %}
+                <div style="color:#ef4444;font-size:13px;margin-top:8px">{{ addr_form.non_field_errors }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        {% if address_formset.non_form_errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:8px">{{ address_formset.non_form_errors }}</div>
+        {% endif %}
+        <button type="button" id="add-address-btn" style="margin-top:12px;background:var(--primary);color:white;border:none;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <span>+</span>
+          <span>Добавить адрес</span>
         </button>
       </div>
+      {% endif %}
 
       {# Банк: наименование / БИК / счёт #}
       <div class="grid grid-3">
@@ -545,6 +584,104 @@
     } else {
       document.querySelectorAll('.yandex-map-btn').forEach(setupMapButton);
     }
+  })();
+
+
+  // ==========================================
+  // 5) Formset для адресов доставки
+  // ==========================================
+  (function () {
+    const addBtn = document.getElementById('add-address-btn');
+    if (!addBtn) return;
+
+    const totalInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+    const container = document.getElementById('address-formset-container');
+    if (!totalInput || !container) return;
+
+    // Находим префикс formset
+    const prefix = totalInput.name.replace(/-TOTAL_FORMS$/, '');
+    
+    // Получаем шаблон из первой формы (если есть)
+    const firstRow = container.querySelector('.address-form-row');
+    if (!firstRow) return;
+
+    addBtn.addEventListener('click', function () {
+      const idx = parseInt(totalInput.value || '0', 10);
+      
+      // Создаем новую строку
+      const newRow = document.createElement('div');
+      newRow.className = 'address-form-row';
+      newRow.style.cssText = 'padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;position:relative';
+      
+      newRow.innerHTML = `
+        <div style="position:absolute;top:8px;right:8px">
+          <input type="checkbox" name="${prefix}-${idx}-DELETE" id="id_${prefix}-${idx}-DELETE">
+          <label for="id_${prefix}-${idx}-DELETE" style="cursor:pointer;color:#ef4444;font-size:14px;margin-left:4px">Удалить</label>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div>
+            <input type="text" name="${prefix}-${idx}-address" id="id_${prefix}-${idx}-address" class="input" placeholder="Фактический адрес / адрес доставки">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+              <input type="checkbox" name="${prefix}-${idx}-is_default" id="id_${prefix}-${idx}-is_default" class="checkbox">
+              <span>Адрес по умолчанию</span>
+            </label>
+            <button type="button" 
+                    class="yandex-map-btn" 
+                    data-address-field="id_${prefix}-${idx}-address"
+                    style="background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
+                    tabindex="0">
+              <span>🗺️</span>
+              <span>Открыть на карте</span>
+            </button>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(newRow);
+      totalInput.value = idx + 1;
+      
+      // Настраиваем кнопку карты для новой строки
+      const newMapBtn = newRow.querySelector('.yandex-map-btn');
+      if (newMapBtn && typeof setupMapButton === 'function') {
+        setupMapButton(newMapBtn);
+      }
+      
+      // Настраиваем обработчик для чекбокса удаления
+      const deleteCheckbox = newRow.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (deleteCheckbox) {
+        deleteCheckbox.addEventListener('change', function() {
+          if (this.checked) {
+            newRow.style.opacity = '0.5';
+            newRow.querySelector('input[name$="-address"]').disabled = true;
+            newRow.querySelector('input[name$="-is_default"]').disabled = true;
+          } else {
+            newRow.style.opacity = '1';
+            newRow.querySelector('input[name$="-address"]').disabled = false;
+            newRow.querySelector('input[name$="-is_default"]').disabled = false;
+          }
+        });
+      }
+    });
+
+    // Настраиваем обработчики для существующих чекбоксов удаления
+    container.querySelectorAll('input[type="checkbox"][name$="-DELETE"]').forEach(function(checkbox) {
+      checkbox.addEventListener('change', function() {
+        const row = this.closest('.address-form-row');
+        if (row) {
+          if (this.checked) {
+            row.style.opacity = '0.5';
+            row.querySelector('input[name$="-address"]').disabled = true;
+            row.querySelector('input[name$="-is_default"]').disabled = true;
+          } else {
+            row.style.opacity = '1';
+            row.querySelector('input[name$="-address"]').disabled = false;
+            row.querySelector('input[name$="-is_default"]').disabled = false;
+          }
+        }
+      });
+    });
   })();
 </script>
 {% endblock %}

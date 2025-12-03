@@ -324,6 +324,37 @@ class Counterparty(models.Model):
     def __str__(self):
         return f"{self.name} ({self.inn})"
 
+
+class CounterpartyAddress(models.Model):
+    """Фактический адрес / адрес доставки контрагента"""
+    counterparty = models.ForeignKey(
+        "Counterparty",
+        on_delete=models.CASCADE,
+        related_name="addresses",
+        verbose_name="Контрагент",
+    )
+    address = models.CharField(
+        "Фактический адрес / адрес доставки",
+        max_length=1024,
+        blank=False,
+    )
+    is_default = models.BooleanField(
+        "Адрес по умолчанию",
+        default=False,
+        help_text="Использовать как основной адрес доставки",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_default", "created_at"]
+        verbose_name = "Адрес доставки"
+        verbose_name_plural = "Адреса доставки"
+
+    def __str__(self):
+        return self.address[:50] + ("..." if len(self.address) > 50 else "")
+
+
 class CounterpartyDocument(models.Model):
     counterparty = models.ForeignKey(
         "Counterparty",

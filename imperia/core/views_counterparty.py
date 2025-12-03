@@ -30,6 +30,7 @@ from .models import (
 
 from .forms import (
     CounterpartyCreateForm,
+    CounterpartyAddressFormSet,
     ContactFormSet,
     CounterpartyContactForm,
     CounterpartyDocumentFormSet,
@@ -78,26 +79,35 @@ def counterparty_create(request):
         form = CounterpartyCreateForm(request.POST)
         if form.is_valid():
             obj = form.save()
+            address_formset = CounterpartyAddressFormSet(
+                data=request.POST, instance=obj
+            )
             doc_formset = CounterpartyDocumentFormSet(
                 data=request.POST, files=request.FILES, instance=obj
             )
-            if doc_formset.is_valid():
+            if address_formset.is_valid() and doc_formset.is_valid():
+                address_formset.save()
                 doc_formset.save()
                 messages.success(request, "Контрагент создан.")
                 return redirect("core:counterparty_detail", pk=obj.pk)
             else:
-                messages.error(request, "Проверьте блок «Сканы документов».")
+                if not address_formset.is_valid():
+                    messages.error(request, "Проверьте блок «Адреса доставки».")
+                if not doc_formset.is_valid():
+                    messages.error(request, "Проверьте блок «Сканы документов».")
         else:
             messages.error(request, "Проверьте корректность полей.")
+            address_formset = CounterpartyAddressFormSet(instance=Counterparty())
             doc_formset = CounterpartyDocumentFormSet(instance=Counterparty())
     else:
         form = CounterpartyCreateForm()
+        address_formset = CounterpartyAddressFormSet(instance=Counterparty())
         doc_formset = CounterpartyDocumentFormSet(instance=Counterparty())
 
     return render(
         request,
         "core/counterparty_form.html",
-        {"form": form, "doc_formset": doc_formset},
+        {"form": form, "address_formset": address_formset, "doc_formset": doc_formset},
     )
 
 
@@ -108,24 +118,34 @@ def counterparty_update(request, pk: int):
 
     if request.method == "POST":
         form = CounterpartyCreateForm(request.POST, instance=obj)
+        address_formset = CounterpartyAddressFormSet(
+            data=request.POST, instance=obj
+        )
         doc_formset = CounterpartyDocumentFormSet(
             data=request.POST, files=request.FILES, instance=obj
         )
-        if form.is_valid() and doc_formset.is_valid():
+        if form.is_valid() and address_formset.is_valid() and doc_formset.is_valid():
             form.save()
+            address_formset.save()
             doc_formset.save()
             messages.success(request, "Контрагент обновлён.")
             return redirect("core:counterparty_detail", pk=obj.pk)
         else:
-            messages.error(request, "Проверьте форму и сканы документов.")
+            if not form.is_valid():
+                messages.error(request, "Проверьте форму.")
+            if not address_formset.is_valid():
+                messages.error(request, "Проверьте блок «Адреса доставки».")
+            if not doc_formset.is_valid():
+                messages.error(request, "Проверьте блок «Сканы документов».")
     else:
         form = CounterpartyCreateForm(instance=obj)
+        address_formset = CounterpartyAddressFormSet(instance=obj)
         doc_formset = CounterpartyDocumentFormSet(instance=obj)
 
     return render(
         request,
         "core/counterparty_form.html",
-        {"form": form, "doc_formset": doc_formset, "edit_mode": True},
+        {"form": form, "address_formset": address_formset, "doc_formset": doc_formset, "edit_mode": True},
     )
 
 
