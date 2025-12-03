@@ -336,7 +336,7 @@
   // ---------- async lookups + автосейв ----------
   document.addEventListener('input', async (e) => {
     const el = e.target;
-    if (!el.closest('#pickForm')) return;
+    if (!el || !el.closest('#pickForm')) return;
 
     updateRowHints();
     saveDraft();
@@ -344,8 +344,18 @@
     const row = el.closest('[data-form-row]');
     if (!row) { renderPreview(); return; }
 
+    // Отладка: проверяем, что обработчик срабатывает
+    if (el.name) {
+      console.log('Обработка input события для поля:', el.name, 'значение:', el.value);
+    }
+
     // Обработка поиска по названию
-    if (el.name && el.name.endsWith('-name')) {
+    // Проверяем имя поля - может быть pick-0-name, pick-1-name и т.д.
+    // Также проверяем по классу pick-name для надежности
+    const isNameField = (el.name && el.name.endsWith('-name')) || 
+                        (el.classList && el.classList.contains('pick-name'));
+    
+    if (isNameField) {
       row.removeAttribute('data-notfound');
       const query = el.value.trim();
 
@@ -367,30 +377,32 @@
         hideAutocomplete();
       }
 
-      // Убеждаемся, что обработчик срабатывает
-      console.log('Поиск по названию:', query);
-
       // Задержка перед запросом (debounce)
       autocompleteTimeout = setTimeout(async () => {
         try {
           const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
+          console.log('Запрос к API:', url);
           const resp = await fetch(url);
+          console.log('Ответ API:', resp.status, resp.ok);
           if (!resp.ok) {
             console.warn('API ответил с ошибкой:', resp.status);
             hideAutocomplete();
             return;
           }
           const data = await resp.json();
+          console.log('Данные от API:', data);
           if (!data.ok) {
             console.warn('API вернул data.ok = false');
             hideAutocomplete();
             return;
           }
           if (!data.products || data.products.length === 0) {
+            console.log('Товары не найдены');
             hideAutocomplete();
             return;
           }
 
+          console.log('Найдено товаров:', data.products.length);
           currentAutocompleteRow = row;
           const list = createAutocompleteList(row);
           if (!list) {
@@ -398,6 +410,7 @@
             return;
           }
 
+          console.log('Список создан, добавляем товары');
           list.innerHTML = '';
           data.products.forEach(product => {
             const item = document.createElement('div');
@@ -412,6 +425,8 @@
             };
             list.appendChild(item);
           });
+
+          console.log('Список заполнен, товаров:', list.children.length);
 
           // Если только один результат - автоматически выбираем его
           if (data.products.length === 1) {
