@@ -33,11 +33,21 @@ urlpatterns = [
     path("requests/<int:pk>/item/<int:item_id>/delete/", rq.request_delete_item, name="request_delete_item"),
     path("requests/<int:pk>/status/", rq.request_change_status, name="request_change_status"),
 
-    # КП (файлы)
+    # КП (файлы и товары)
+    path("requests/<int:pk>/quote/create/", rq.request_quote_create_edit, name="request_quote_create"),
+    path("requests/<int:pk>/quote/<int:quote_id>/edit/", rq.request_quote_create_edit, name="request_quote_edit"),
     path("requests/<int:pk>/quote/upload/", rq.request_upload_quote, name="request_upload_quote"),
     path("requests/<int:pk>/quote/<int:quote_id>/delete/", rq.request_delete_quote, name="request_delete_quote"),
     path("requests/<int:pk>/quote/<int:quote_id>/preview/", rq.request_quote_preview, name="request_quote_preview"),
     path("requests/<int:pk>/quotes/<int:qpk>/delete/", rq.request_quote_delete, name="request_quote_delete"),
+
+    # Отгрузка
+    path("requests/<int:pk>/shipment/create/", rq.request_shipment_create, name="request_shipment_create"),
+
+    # Документы
+    path("requests/<int:pk>/route-sheet/", rq.request_route_sheet, name="request_route_sheet"),
+    path("requests/<int:pk>/upd/", rq.request_upd, name="request_upd"),
+    path("requests/<int:pk>/upd/<int:shipment_id>/", rq.request_upd, name="request_upd_shipment"),
 
     # Оплата
     path("requests/<int:pk>/toggle-payment/", rq.request_toggle_payment, name="request_toggle_payment"),

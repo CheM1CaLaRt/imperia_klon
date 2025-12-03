@@ -4,7 +4,7 @@ from django.apps import apps
 from django.conf import settings
 from django.db.models import ForeignKey
 
-from .models_requests import Request, RequestItem, RequestQuote, RequestQuoteItem
+from .models_requests import Request, RequestItem, RequestQuote, RequestQuoteItem, RequestShipment, RequestShipmentItem
 from .models import Counterparty, CounterpartyAddress, CounterpartyContact
 from django.forms import formset_factory
 
@@ -257,36 +257,49 @@ class RequestQuoteForm(forms.ModelForm):
         return f
 
 
-class RequestQuoteItemForm(forms.ModelForm):
+class RequestQuoteItemForm(forms.Form):
     """Форма для позиции в коммерческом предложении"""
-    class Meta:
-        model = RequestQuoteItem
-        fields = ("request_item", "product", "title", "quantity", "price", "note")
-        widgets = {
-            "request_item": forms.HiddenInput(),
-            "product": forms.HiddenInput(),
-            "title": forms.TextInput(attrs={
-                "class": "input",
-                "placeholder": "Наименование",
-                "readonly": True,
-            }),
-            "quantity": forms.NumberInput(attrs={
-                "class": "input",
-                "step": "0.001",
-                "min": "0",
-                "placeholder": "Количество",
-            }),
-            "price": forms.NumberInput(attrs={
-                "class": "input",
-                "step": "0.01",
-                "min": "0",
-                "placeholder": "Цена за единицу",
-            }),
-            "note": forms.TextInput(attrs={
-                "class": "input",
-                "placeholder": "Примечание",
-            }),
-        }
+    request_item_id = forms.IntegerField(widget=forms.HiddenInput())
+    product_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    title = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            "class": "input",
+            "placeholder": "Наименование",
+            "readonly": True,
+            "style": "background-color: #f5f5f5;",
+        })
+    )
+    quantity = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        widget=forms.NumberInput(attrs={
+            "class": "input",
+            "step": "0.001",
+            "min": "0",
+            "placeholder": "Количество",
+        })
+    )
+    price = forms.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=True,
+        widget=forms.NumberInput(attrs={
+            "class": "input",
+            "step": "0.01",
+            "min": "0",
+            "placeholder": "Цена за единицу",
+        })
+    )
+    note = forms.CharField(
+        required=False,
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            "class": "input",
+            "placeholder": "Примечание",
+        })
+    )
+    DELETE = forms.BooleanField(required=False, widget=forms.HiddenInput())
 
     def clean_price(self):
         price = self.cleaned_data.get("price")
@@ -302,3 +315,56 @@ class RequestQuoteItemForm(forms.ModelForm):
 
 
 RequestQuoteItemFormSet = formset_factory(RequestQuoteItemForm, extra=0, can_delete=True)
+
+
+class RequestShipmentItemForm(forms.Form):
+    """Форма для позиции в отгрузке"""
+    quote_item_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    product_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    title = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            "class": "input",
+            "placeholder": "Наименование",
+            "readonly": True,
+            "style": "background-color: #f5f5f5;",
+        })
+    )
+    quantity_available = forms.DecimalField(
+        required=False,
+        widget=forms.HiddenInput()
+    )
+    quantity = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        widget=forms.NumberInput(attrs={
+            "class": "input",
+            "step": "0.001",
+            "min": "0",
+            "placeholder": "Количество",
+        })
+    )
+    price = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            "class": "input",
+            "step": "0.01",
+            "min": "0",
+            "readonly": True,
+            "style": "background-color: #f5f5f5;",
+        })
+    )
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data.get("quantity")
+        available = self.cleaned_data.get("quantity_available")
+        if quantity and quantity <= 0:
+            raise forms.ValidationError("Количество должно быть больше нуля")
+        if quantity and available and quantity > available:
+            raise forms.ValidationError(f"Можно отгрузить не более {available}")
+        return quantity
+
+
+RequestShipmentItemFormSet = formset_factory(RequestShipmentItemForm, extra=0, can_delete=True)

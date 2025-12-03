@@ -29,47 +29,230 @@
 
   <!-- ===== Прогресс-этапы ===== -->
   {% with s=obj.status %}
-  <div class="card" style="padding:16px 20px;margin-bottom:16px">
-    <ol class="rq-steps" aria-label="Этапы заявки">
-      <li class="rq-step {% if s != 'draft' %}is-done{% endif %} {% if s == 'draft' %}is-current{% endif %}">
-        <span class="rq-step__number">1</span>
-        <span>Создана</span>
-      </li>
-      <li class="rq-step {% if s in 'submitted quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %} {% if s == 'submitted' %}is-current{% endif %}">
-        <span class="rq-step__number">2</span>
-        <span>На согласовании</span>
-      </li>
-      <li class="rq-step {% if s in 'quote approved to_pick in_progress ready_to_ship delivered done rejected canceled' %}is-done{% endif %} {% if s == 'quote' %}is-current{% endif %}">
-        <span class="rq-step__number">3</span>
-        <span>КП</span>
-      </li>
-      <li class="rq-step {% if s in 'approved to_pick in_progress ready_to_ship delivered done canceled' %}is-done{% endif %} {% if s == 'approved' %}is-current{% endif %}">
-        <span class="rq-step__number">4</span>
-        <span>Согласована</span>
-      </li>
-      {% if s == 'rejected' %}
-      <li class="rq-step rq-step--rejected is-done is-current">
-        <span class="rq-step__number">!</span>
-        <span>Не согласована</span>
-      </li>
-      {% endif %}
-      <li class="rq-step {% if s in 'in_progress ready_to_ship delivered done canceled' %}is-done{% endif %} {% if s == 'in_progress' %}is-current{% endif %}">
-        <span class="rq-step__number">5</span>
-        <span>Собирается</span>
-      </li>
-      <li class="rq-step {% if s in 'ready_to_ship delivered done canceled' %}is-done{% endif %} {% if s == 'ready_to_ship' %}is-current{% endif %}">
-        <span class="rq-step__number">6</span>
-        <span>К отгрузке</span>
-      </li>
-      <li class="rq-step {% if s in 'delivered done canceled' %}is-done{% endif %} {% if s == 'delivered' %}is-current{% endif %}">
-        <span class="rq-step__number">7</span>
-        <span>Доставлена</span>
-      </li>
-      <li class="rq-step {% if s in 'done canceled' %}is-done{% endif %} {% if s == 'done' %}is-current{% endif %}">
-        <span class="rq-step__number">8</span>
-        <span>Завершена</span>
-      </li>
-    </ol>
+  <div class="card" style="padding:24px;margin-bottom:20px;background:linear-gradient(to bottom, #f8fafc 0%, #fff 100%);border:1px solid var(--border);border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04)">
+    <h2 style="margin:0 0 20px 0;font-size:18px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+      <span style="display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;background:var(--primary);color:#fff;border-radius:8px;font-size:16px">📋</span>
+      Этапы обработки заявки
+    </h2>
+    <div class="modern-steps-container">
+      <div class="modern-steps-track">
+        <!-- Шаг 1: Создана -->
+        <div class="modern-step {% if s != 'draft' %}is-completed{% endif %} {% if s == 'draft' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s != 'draft' %}✓{% else %}1{% endif %}
+            </div>
+            {% if s != 'draft' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Создана</div>
+            {% if status_dates.draft %}
+              <div class="modern-step__date">{{ status_dates.draft.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.draft.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 2: Отправлена -->
+        <div class="modern-step {% if s in 'submitted quote pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}is-completed{% endif %} {% if s == 'submitted' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'submitted quote pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}✓{% else %}2{% endif %}
+            </div>
+            {% if s in 'submitted quote pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Отправлена</div>
+            {% if status_dates.submitted %}
+              <div class="modern-step__date">{{ status_dates.submitted.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.submitted.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 3: КП -->
+        <div class="modern-step {% if s in 'quote pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}is-completed{% endif %} {% if s == 'quote' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'quote pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}✓{% else %}3{% endif %}
+            </div>
+            {% if s in 'quote pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">КП</div>
+            {% if status_dates.quote %}
+              <div class="modern-step__date">{{ status_dates.quote.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.quote.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 4: На согласовании -->
+        <div class="modern-step {% if s in 'pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}is-completed{% endif %} {% if s == 'pending_approval' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}✓{% else %}4{% endif %}
+            </div>
+            {% if s in 'pending_approval approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">На согласовании</div>
+            {% if status_dates.pending_approval %}
+              <div class="modern-step__date">{{ status_dates.pending_approval.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.pending_approval.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 5: Согласована -->
+        <div class="modern-step {% if s in 'approved to_pick in_progress ready_to_ship partially_shipped shipped done canceled' %}is-completed{% endif %} {% if s == 'approved' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'approved to_pick in_progress ready_to_ship partially_shipped shipped done rejected canceled' %}✓{% else %}5{% endif %}
+            </div>
+            {% if s in 'approved to_pick in_progress ready_to_ship partially_shipped shipped done canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Согласована</div>
+            {% if status_dates.approved %}
+              <div class="modern-step__date">{{ status_dates.approved.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.approved.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Отклонение (альтернативный путь) -->
+        {% if s == 'rejected' %}
+        <div class="modern-step modern-step--error is-active">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">✗</div>
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Не согласована</div>
+            {% if status_dates.rejected %}
+              <div class="modern-step__date">{{ status_dates.rejected.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.rejected.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Шаг 6: На сборку -->
+        <div class="modern-step {% if s in 'to_pick in_progress ready_to_ship partially_shipped shipped done canceled' %}is-completed{% endif %} {% if s == 'to_pick' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'to_pick in_progress ready_to_ship partially_shipped shipped done canceled' %}✓{% else %}6{% endif %}
+            </div>
+            {% if s in 'to_pick in_progress ready_to_ship partially_shipped shipped done canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">На сборку</div>
+            {% if status_dates.to_pick %}
+              <div class="modern-step__date">{{ status_dates.to_pick.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.to_pick.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 7: Собирается -->
+        <div class="modern-step {% if s in 'in_progress ready_to_ship partially_shipped shipped done canceled' %}is-completed{% endif %} {% if s == 'in_progress' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'in_progress ready_to_ship partially_shipped shipped done canceled' %}✓{% else %}7{% endif %}
+            </div>
+            {% if s in 'in_progress ready_to_ship partially_shipped shipped done canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Собирается</div>
+            {% if status_dates.in_progress %}
+              <div class="modern-step__date">{{ status_dates.in_progress.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.in_progress.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 8: Готова к отгрузке -->
+        <div class="modern-step {% if s in 'ready_to_ship partially_shipped shipped done canceled' %}is-completed{% endif %} {% if s == 'ready_to_ship' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'ready_to_ship partially_shipped shipped done canceled' %}✓{% else %}8{% endif %}
+            </div>
+            {% if s in 'ready_to_ship partially_shipped shipped done canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Готова к отгрузке</div>
+            {% if status_dates.ready_to_ship %}
+              <div class="modern-step__date">{{ status_dates.ready_to_ship.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.ready_to_ship.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 9: Отгружена -->
+        <div class="modern-step {% if s in 'partially_shipped shipped done canceled' %}is-completed{% endif %} {% if s in 'partially_shipped shipped' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'partially_shipped shipped done canceled' %}✓{% else %}9{% endif %}
+            </div>
+            {% if s in 'partially_shipped shipped done canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Отгружена</div>
+            {% if status_dates.shipped or status_dates.partially_shipped %}
+              <div class="modern-step__date">
+                {% if status_dates.shipped %}{{ status_dates.shipped.date|date:"d.m.Y H:i" }}
+                {% elif status_dates.partially_shipped %}{{ status_dates.partially_shipped.date|date:"d.m.Y H:i" }}{% endif %}
+              </div>
+              <div class="modern-step__author">
+                {% if status_dates.shipped %}{{ status_dates.shipped.author }}
+                {% elif status_dates.partially_shipped %}{{ status_dates.partially_shipped.author }}{% endif %}
+              </div>
+            {% endif %}
+            {% if s == 'partially_shipped' %}
+              <div class="modern-step__badge" style="background:#fef3c7;color:#78350f;font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px">Частично</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 10: Доставлена -->
+        <div class="modern-step {% if s in 'delivered done canceled' %}is-completed{% endif %} {% if s == 'delivered' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'delivered done canceled' %}✓{% else %}10{% endif %}
+            </div>
+            {% if s in 'delivered done canceled' %}<div class="modern-step__connector"></div>{% endif %}
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Доставлена</div>
+            {% if status_dates.delivered %}
+              <div class="modern-step__date">{{ status_dates.delivered.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.delivered.author }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Шаг 11: Завершена -->
+        <div class="modern-step {% if s in 'done canceled' %}is-completed{% endif %} {% if s == 'done' %}is-active{% endif %}">
+          <div class="modern-step__icon">
+            <div class="modern-step__circle">
+              {% if s in 'done canceled' %}✓{% else %}11{% endif %}
+            </div>
+          </div>
+          <div class="modern-step__content">
+            <div class="modern-step__title">Завершена</div>
+            {% if status_dates.done %}
+              <div class="modern-step__date">{{ status_dates.done.date|date:"d.m.Y H:i" }}</div>
+              <div class="modern-step__author">{{ status_dates.done.author }}</div>
+            {% endif %}
+            {% if obj.status == 'done' and not obj.is_paid %}
+              <div class="modern-step__badge" style="background:#fee2e2;color:#7f1d1d;font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px">Не оплачена</div>
+            {% elif obj.status == 'done' and obj.is_paid %}
+              <div class="modern-step__badge" style="background:#dcfce7;color:#166534;font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px">Оплачена</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   {% endwith %}
 
@@ -84,17 +267,65 @@
         <div class="rq-card__head">
           <h2>Коммерческое предложение</h2>
 
-          {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
-          <form class="rq-upload" method="post" enctype="multipart/form-data"
-                action="{% url 'core:request_upload_quote' obj.pk %}">
-            {% csrf_token %}
-            <input id="quoteFile" type="file" name="file" class="rq-upload__input"
-                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.odt,.ods,.rtf,.png,.jpg,.jpeg"
-                   onchange="this.form.submit()">
-            <label for="quoteFile" class="rq-upload__label">Прикрепить файл</label>
-          </form>
-          {% endif %}
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            {% if can_edit_quote %}
+              {% if active_quote %}
+                <a href="{% url 'core:request_quote_edit' obj.pk active_quote.pk %}" class="btn btn-primary">
+                  Редактировать КП с ценами
+                </a>
+              {% else %}
+                <a href="{% url 'core:request_quote_create' obj.pk %}" class="btn btn-primary">
+                  Создать КП с ценами
+                </a>
+              {% endif %}
+            {% endif %}
+            
+            {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
+            <form class="rq-upload" method="post" enctype="multipart/form-data"
+                  action="{% url 'core:request_upload_quote' obj.pk %}"
+                  style="display: inline-block;">
+              {% csrf_token %}
+              <input id="quoteFile" type="file" name="file" class="rq-upload__input"
+                     accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.odt,.ods,.rtf,.png,.jpg,.jpeg"
+                     onchange="this.form.submit()">
+              <label for="quoteFile" class="rq-upload__label">Прикрепить файл</label>
+            </form>
+            {% endif %}
+          </div>
         </div>
+
+        {% if active_quote and quote_items %}
+          <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Товары в КП</h3>
+              <div style="font-size: 18px; font-weight: 700; color: var(--primary);">
+                Итого: {{ quote_total|floatformat:2 }} ₽
+              </div>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border);">
+                  <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">№</th>
+                  <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">Наименование</th>
+                  <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Количество</th>
+                  <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Цена</th>
+                  <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Итого</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in quote_items %}
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 10px 8px;">{{ forloop.counter }}</td>
+                    <td style="padding: 10px 8px;">{{ item.title }}</td>
+                    <td style="padding: 10px 8px; text-align: right;">{{ item.quantity }}</td>
+                    <td style="padding: 10px 8px; text-align: right;">{{ item.price|floatformat:2 }} ₽</td>
+                    <td style="padding: 10px 8px; text-align: right; font-weight: 600;">{{ item.total|floatformat:2 }} ₽</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
 
         {% if obj.quotes.all %}
           <ul class="rq-history" style="padding:12px 14px;">
@@ -126,6 +357,116 @@
         {% endif %}
       </section>
 
+      <!-- Отгрузки -->
+      {% if obj.status in 'ready_to_ship partially_shipped shipped' %}
+      <section class="rq-card">
+        <div class="rq-card__head">
+          <h2>Отгрузки</h2>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            {% if can_create_shipment %}
+              <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">
+                Создать отгрузку
+              </a>
+            {% endif %}
+            {% if obj.delivery_address or obj.delivery_contact %}
+              <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
+                📋 Маршрутный лист
+              </a>
+              <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
+                📄 УПД
+              </a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if shipments %}
+          {% for shipment in shipments %}
+            <div style="padding: 16px; border-bottom: 1px solid var(--border); {% if not forloop.last %}margin-bottom: 16px;{% endif %}">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+                    Отгрузка #{{ shipment.shipment_number|default:shipment.pk }}
+                  </h3>
+                  <div style="margin-top: 4px; font-size: 13px; color: var(--muted);">
+                    {{ shipment.shipped_at|date:"d.m.Y H:i" }} · {{ shipment.shipped_by }}
+                    {% if shipment.is_partial %}
+                      <span style="color: #f59e0b;">(Частичная)</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div style="font-size: 16px; font-weight: 700; color: var(--primary);">
+                  Итого: {{ shipment.get_total|floatformat:2 }} ₽
+                </div>
+              </div>
+              
+              {% if shipment.comment %}
+                <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: var(--muted);">
+                  {{ shipment.comment }}
+                </div>
+              {% endif %}
+              
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">№</th>
+                    <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">Наименование</th>
+                    <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Количество</th>
+                    <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Цена</th>
+                    <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Итого</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in shipment.items.all %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                      <td style="padding: 10px 8px;">{{ forloop.counter }}</td>
+                      <td style="padding: 10px 8px;">{{ item.title }}</td>
+                      <td style="padding: 10px 8px; text-align: right;">{{ item.quantity }}</td>
+                      <td style="padding: 10px 8px; text-align: right;">{{ item.price|floatformat:2|default:"—" }} {% if item.price %}₽{% endif %}</td>
+                      <td style="padding: 10px 8px; text-align: right; font-weight: 600;">
+                        {% if item.price %}
+                          {% widthratio item.quantity 1 item.price as item_total %}
+                          {{ item_total|floatformat:2 }} ₽
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              
+              <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <a href="{% url 'core:request_upd_shipment' obj.pk shipment.pk %}" target="_blank" class="btn btn-ghost" style="font-size: 13px;">
+                  📄 УПД для этой отгрузки
+                </a>
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="rq-empty">Отгрузок нет</div>
+        {% endif %}
+      </section>
+      {% endif %}
+      
+      <!-- Документы (если нет отгрузок, но есть данные для доставки) -->
+      {% if obj.status not in 'ready_to_ship partially_shipped shipped' and obj.delivery_address %}
+      <section class="rq-card">
+        <div class="rq-card__head">
+          <h2>Документы</h2>
+        </div>
+        <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+          <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
+            📋 Маршрутный лист
+          </a>
+          {% if active_quote %}
+            <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
+              📄 УПД
+            </a>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
       <!-- Внутренний комментарий -->
       <section class="rq-card">
         <div class="rq-card__head"><h2>Комментарий</h2></div>
@@ -142,7 +483,7 @@
       <section class="rq-card">
         <div class="rq-card__head">
           <h2>Позиции</h2>
-          {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
+          {% if can_add_items %}
             <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
               {% csrf_token %}
               <div class="rq-additem__field">{{ item_form.title }}</div>
@@ -344,7 +685,18 @@
     const ctLeft    = document.getElementById('ctLeft');
 
     let dirty = false;
-    const markDirty = () => { dirty = true; };
+    let saving = false;
+    let autoSaveTimer = null;
+    const markDirty = () => { 
+      dirty = true; 
+      // Автоматическое сохранение через 2 секунды после последнего изменения
+      if(autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        if(dirty && !saving) {
+          autoSave();
+        }
+      }, 2000);
+    };
 
     const focusInput = () => setTimeout(()=>input && input.focus(), 20);
 
@@ -449,28 +801,65 @@
       }));
     }
 
-    async function save(commit='save', reloadAfter=true){
+    async function save(commit='save', reloadAfter=true, showNotification=true){
+      if(saving) return false;
+      saving = true;
+      
+      if(showNotification && btnSave) {
+        const originalText = btnSave.textContent;
+        btnSave.disabled = true;
+        btnSave.textContent = 'Сохранение...';
+      }
+
       const lines = collectLines();
-      const resp = await fetch("{{ pick_confirm_url }}", {
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'X-Requested-With':'XMLHttpRequest',
-          'X-CSRFToken':'{{ csrf_token }}'
-        },
-        body: JSON.stringify({ commit, lines })
-      });
-      if(!resp.ok){
-        const t = await resp.text().catch(()=> '');
-        alert('Не удалось сохранить. ' + t);
+      try {
+        const resp = await fetch("{{ pick_confirm_url }}", {
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'X-Requested-With':'XMLHttpRequest',
+            'X-CSRFToken':'{{ csrf_token }}'
+          },
+          body: JSON.stringify({ commit, lines })
+        });
+        if(!resp.ok){
+          const t = await resp.text().catch(()=> '');
+          alert('Не удалось сохранить. ' + t);
+          if(showNotification && btnSave) {
+            btnSave.disabled = false;
+            btnSave.textContent = originalText;
+          }
+          saving = false;
+          return false;
+        }
+        dirty = false;
+        if(showNotification && btnSave) {
+          btnSave.disabled = false;
+          btnSave.textContent = '✓ Сохранено';
+          setTimeout(() => {
+            if(btnSave) btnSave.textContent = 'Сохранить';
+          }, 2000);
+        }
+        if(reloadAfter){ closeM(); location.reload(); }
+        saving = false;
+        return true;
+      } catch(error) {
+        alert('Ошибка при сохранении: ' + error.message);
+        if(showNotification && btnSave) {
+          btnSave.disabled = false;
+          btnSave.textContent = 'Сохранить';
+        }
+        saving = false;
         return false;
       }
-      dirty = false;
-      if(reloadAfter){ closeM(); location.reload(); }
-      return true;
     }
 
-    btnSave.addEventListener('click', ()=> save('save', true));   // только черновик
+    // Автоматическое сохранение без уведомлений
+    async function autoSave(){
+      await save('save', false, false);
+    }
+
+    btnSave.addEventListener('click', ()=> save('save', true, true));   // только черновик
   })();
   </script>
 {% endif %}
@@ -526,22 +915,23 @@
               <button class="btn" name="to" value="submitted">Отправить</button>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
             {% elif obj.status == "submitted" %}
-              <button class="btn" name="to" value="quote">КП</button>
+              <a href="{% url 'core:request_quote_create' obj.pk %}" class="btn btn-primary">Создать КП</a>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            {% elif obj.status == "pending_approval" %}
+              <button class="btn" name="to" value="approved">Одобрить</button>
+              <button class="btn btn-ghost" name="to" value="rejected">Отклонить</button>
             {% elif obj.status == "approved" %}
-              {% if latest_pick %}
-                <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
-              {% else %}
-                <button type="button" class="btn"
-        onclick="document.getElementById('openPickModal')?.click()">
-  Перейти к сборке на склад
-</button>
-              {% endif %}
+              <button class="btn btn-primary" name="to" value="to_pick">Передать на сборку</button>
             {% elif obj.status == "rejected" %}
-              <button class="btn" name="to" value="quote">КП</button>
+              <a href="{% url 'core:request_quote_create' obj.pk %}" class="btn btn-primary">Редактировать КП</a>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
             {% elif obj.status == "ready_to_ship" %}
-              <button class="btn" name="to" value="delivered">Доставлена</button>
+              <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">Создать отгрузку</a>
+            {% elif obj.status == "partially_shipped" %}
+              <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">Создать отгрузку</a>
+              {% if obj.is_fully_shipped %}
+                <button class="btn" name="to" value="shipped">Отгружена полностью</button>
+              {% endif %}
             {% endif %}
           {% endif %}
 
@@ -550,6 +940,9 @@
             {% if obj.status == "draft" %}
               <button class="btn" name="to" value="submitted">Отправить</button>
               <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            {% elif obj.status == "pending_approval" %}
+              <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
+              <button class="btn" name="to" value="rejected">Не согласовали</button>
             {% elif obj.status == "quote" %}
               <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
               <button class="btn" name="to" value="rejected">Не согласовали</button>
@@ -597,17 +990,31 @@
         </form>
       </section>
 
-      {# ОПЛАТА: только директор/оператор И статус НЕ done/canceled #}
+      {# ОПЛАТА: только директор/оператор #}
       {% if request.user|in_groups:"director,operator" %}
-        {% if obj.status != 'done' and obj.status != 'canceled' %}
+        {% if obj.status != 'canceled' %}
         <section class="rq-card rq-sticky">
-          <div class="rq-card__head"><h2>Оплата</h2></div>
+          <div class="rq-card__head">
+            <h2>Оплата</h2>
+            {% if obj.is_paid %}
+              <span class="rq-chip" style="background:#dcfce7;border-color:#86efac;color:#166534">Оплачено</span>
+            {% endif %}
+          </div>
           <form method="post" action="{% url 'core:request_toggle_payment' obj.pk %}">
             {% csrf_token %}
-            <label class="rq-pay">
-              <input type="checkbox" name="is_paid" value="1" {% if obj.is_paid %}checked{% endif %} onchange="this.form.submit()">
-              <span>Оплачено</span>
+            <label class="rq-pay" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer">
+              <input type="checkbox" name="is_paid" value="1" {% if obj.is_paid %}checked{% endif %} onchange="this.form.submit()" style="width:20px;height:20px;cursor:pointer">
+              <span style="font-weight:600;font-size:15px">Заявка оплачена</span>
             </label>
+            {% if obj.status == 'delivered' and not obj.is_paid %}
+              <div style="padding:8px 14px;margin:0 14px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#78350f">
+                💡 Отметьте оплату, чтобы автоматически завершить заявку
+              </div>
+            {% elif obj.status == 'done' and not obj.is_paid %}
+              <div style="padding:8px 14px;margin:0 14px 12px;background:#fee2e2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#7f1d1d">
+                ⚠️ Заявка завершена, но не оплачена. Снимите отметку, чтобы вернуть в статус «Доставлена»
+              </div>
+            {% endif %}
           </form>
         </section>
         {% endif %}
@@ -737,6 +1144,30 @@
 .rq-card__head h2{font-size:16px;font-weight:800}
 .rq-card__body{padding:12px 14px}
 
+/* Современный прогресс-бар */
+.modern-steps-container{position:relative;padding:20px 0}
+.modern-steps-track{display:flex;flex-direction:column;gap:24px;position:relative}
+
+.modern-step{display:flex;align-items:flex-start;gap:16px;position:relative;transition:all 0.3s ease}
+.modern-step__icon{display:flex;flex-direction:column;align-items:center;flex-shrink:0;position:relative;z-index:2}
+.modern-step__circle{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;border:3px solid #e5e7eb;background:#fff;color:#6b7280;transition:all 0.3s ease;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+.modern-step__connector{width:3px;height:32px;background:#e5e7eb;margin:4px 0;transition:all 0.3s ease;border-radius:2px}
+
+.modern-step.is-completed .modern-step__circle{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(10,132,255,0.3)}
+.modern-step.is-completed .modern-step__connector{background:var(--primary)}
+.modern-step.is-active .modern-step__circle{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 0 0 8px rgba(10,132,255,0.1),0 4px 16px rgba(10,132,255,0.3);transform:scale(1.1);animation:pulse 2s infinite}
+.modern-step.is-active .modern-step__title{color:var(--primary);font-weight:700}
+.modern-step--error .modern-step__circle{background:#ef4444;border-color:#ef4444;color:#fff;box-shadow:0 4px 12px rgba(239,68,68,0.3)}
+.modern-step--error .modern-step__title{color:#ef4444;font-weight:700}
+
+.modern-step__content{flex:1;padding-top:8px}
+.modern-step__title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px;transition:color 0.3s}
+.modern-step__date{font-size:12px;color:var(--muted);margin-bottom:2px}
+.modern-step__author{font-size:12px;color:var(--muted)}
+
+@keyframes pulse{0%,100%{box-shadow:0 0 0 8px rgba(10,132,255,0.1),0 4px 16px rgba(10,132,255,0.3)}50%{box-shadow:0 0 0 12px rgba(10,132,255,0.05),0 4px 16px rgba(10,132,255,0.4)}}
+
+/* Старые стили для совместимости */
 .rq-steps{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
 .rq-step{display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid var(--line);border-radius:12px;background:#fff;font-weight:600;font-size:13px;color:var(--text);transition:all 0.2s;position:relative}
 .rq-step__number{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--bg);color:var(--text);font-weight:700;font-size:12px;flex-shrink:0}
@@ -808,6 +1239,11 @@
 @media (max-width: 640px){
   .rq-title{font-size:20px}
   .rq-meta{flex-direction:column;align-items:flex-start;gap:6px}
+  .modern-step{flex-direction:row;gap:12px}
+  .modern-step__circle{width:40px;height:40px;font-size:14px}
+  .modern-step__connector{height:24px}
+  .modern-step__title{font-size:14px}
+  .modern-step__date,.modern-step__author{font-size:11px}
   .rq-steps{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .rq-steps::-webkit-scrollbar{display:none}
   .rq-step{flex-shrink:0;font-size:12px;padding:5px 10px}

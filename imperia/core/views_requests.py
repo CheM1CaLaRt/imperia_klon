@@ -5,7 +5,7 @@ from mimetypes import guess_type
 from django.urls import reverse
 from django.contrib import messages
 from django.db.models import Q, ForeignKey, OneToOneField, ManyToManyField
-from django.http import HttpResponseBadRequest, FileResponse, Http404, JsonResponse
+from django.http import HttpResponseBadRequest, FileResponse, Http404, JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET
 from django.contrib.auth.decorators import login_required
@@ -21,7 +21,9 @@ from .forms_requests import (
     RequestItemForm,
     RequestItemEditForm,
     RequestQuoteForm,
+    RequestQuoteItemFormSet,
     OrderItemFormSet,
+    RequestShipmentItemFormSet,
 )
 from .models import Counterparty, CounterpartyAddress, CounterpartyContact
 from .models_requests import (
@@ -30,9 +32,14 @@ from .models_requests import (
     RequestStatus,
     RequestHistory,
     RequestQuote,
+    RequestQuoteItem,
+    RequestShipment,
+    RequestShipmentItem,
 )
 from django.db.models import Prefetch
 from .models_pick import PickItem
+from .models import Product, Inventory
+from django.db import transaction
 
 # ✅ безопасный импорт формсета сборки (операторская секция)
 try:
@@ -167,6 +174,63 @@ def _in_groups(user, names):
     return user.is_authenticated and user.groups.filter(name__in=names).exists()
 
 
+@transaction.atomic
+def _create_pick_items_from_quote(request_obj, actor):
+    """
+    Автоматически создает PickItem из товаров активного КП.
+    Вызывается при переходе заявки в статус TO_PICK.
+    """
+    active_quote = request_obj.active_quote
+    if not active_quote:
+        return []
+    
+    # Удаляем старые PickItem для этой заявки
+    PickItem.objects.filter(request=request_obj).delete()
+    
+    created_items = []
+    quote_items = active_quote.items.select_related("product", "request_item").all()
+    
+    for quote_item in quote_items:
+        product = quote_item.product
+        
+        # Получаем информацию о местоположении товара на складе
+        location = ""
+        unit = "шт"
+        
+        if product:
+            # Ищем товар на складе для определения местоположения
+            inv = Inventory.objects.filter(
+                product=product, quantity__gt=0
+            ).select_related("bin", "warehouse").order_by("-quantity").first()
+            
+            if inv and inv.bin:
+                location = inv.bin.code
+            elif inv and inv.warehouse:
+                location = inv.warehouse.code
+        
+        # Преобразуем количество в целое число для qty (PositiveIntegerField)
+        try:
+            qty = int(float(quote_item.quantity)) if quote_item.quantity else 1
+            if qty <= 0:
+                qty = 1
+        except (ValueError, TypeError):
+            qty = 1
+        
+        pick_item = PickItem.objects.create(
+            request=request_obj,
+            barcode=product.barcode if product else "",
+            name=quote_item.title,
+            location=location,
+            unit=unit,
+            qty=qty,
+            price=quote_item.price or Decimal("0"),
+            note=quote_item.note or "",
+        )
+        created_items.append(pick_item)
+    
+    return created_items
+
+
 # ---------- Создание заявки ----------
 @require_groups("manager", "operator", "director")
 def request_create(request):
@@ -231,8 +295,9 @@ def request_detail(request, pk: int):
         Request.objects
         .select_related("initiator", "assignee", "counterparty")
         .prefetch_related(
-            "items", "history", "comments",
+            "items", "history", "comments", "quotes",
             Prefetch("pick_items", queryset=PickItem.objects.order_by("id")),
+            Prefetch("quotes__items", queryset=RequestQuoteItem.objects.select_related("product", "request_item").all()),
         ),
         pk=pk,
     )
@@ -313,6 +378,46 @@ def request_detail(request, pk: int):
 
     # URL приёма сохранения скан-сборки (без двоеточий в имени)
     pick_confirm_url = reverse("core:pick_confirm", args=[obj.pk])
+    
+    # Активное коммерческое предложение с товарами
+    active_quote = obj.quotes.filter(is_active=True).first()
+    quote_items = []
+    quote_total = Decimal("0")
+    if active_quote:
+        quote_items = list(active_quote.items.select_related("product", "request_item").all())
+        quote_total = sum(item.total for item in quote_items)
+    
+    # Проверяем, может ли оператор/директор создать/редактировать КП
+    can_edit_quote = has_full_access and obj.status in [
+        RequestStatus.SUBMITTED, RequestStatus.REJECTED, RequestStatus.QUOTE, RequestStatus.PENDING_APPROVAL
+    ]
+    
+    # Отгрузки заявки
+    shipments = obj.shipments.select_related("shipped_by").prefetch_related("items__quote_item").all()
+    can_create_shipment = has_full_access and obj.status in [
+        RequestStatus.READY_TO_SHIP, RequestStatus.PARTIALLY_SHIPPED
+    ]
+    
+    # Проверка возможности добавления товаров
+    is_manager_only = is_manager and not has_full_access
+    can_add_items = (is_manager_only and obj.is_editable) or (has_full_access and obj.can_add_items)
+    
+    # Получаем даты прохождения этапов из истории
+    status_dates = {}
+    for h in obj.history.all().order_by('created_at'):
+        if h.to_status:
+            if h.to_status not in status_dates:
+                status_dates[h.to_status] = {
+                    'date': h.created_at,
+                    'author': h.author,
+                }
+    
+    # Добавляем дату создания для статуса draft
+    if obj.created_at:
+        status_dates['draft'] = {
+            'date': obj.created_at,
+            'author': obj.initiator,
+        }
 
     return render(
         request,
@@ -331,6 +436,15 @@ def request_detail(request, pk: int):
             "pick_items": pick_items,
             "latest_pick": latest_pick,
             "pick_confirm_url": pick_confirm_url,
+            
+            "active_quote": active_quote,
+            "quote_items": quote_items,
+            "quote_total": quote_total,
+            "can_edit_quote": can_edit_quote,
+            "shipments": shipments,
+            "can_create_shipment": can_create_shipment,
+            "can_add_items": can_add_items,
+            "status_dates": status_dates,
         },
     )
 
@@ -340,14 +454,46 @@ def request_detail(request, pk: int):
 @require_groups("manager", "operator", "director")
 def request_add_item(request, pk: int):
     obj = get_object_or_404(Request, pk=pk)
-    if not obj.is_editable:
-        return HttpResponseBadRequest("Нельзя изменять в этом статусе")
+    u = request.user
+    
+    # Менеджер может добавлять только в редактируемых статусах
+    is_manager = u.groups.filter(name="manager").exists()
+    has_full_access = u.is_superuser or u.groups.filter(name__in=["operator", "director"]).exists()
+    
+    if is_manager and not has_full_access:
+        if not obj.is_editable:
+            return HttpResponseBadRequest("Нельзя изменять в этом статусе")
+    else:
+        # Оператор и директор могут добавлять товары в любой момент
+        if not obj.can_add_items:
+            return HttpResponseBadRequest("Нельзя добавлять товары в завершенной или отмененной заявке")
+    
     form = RequestItemForm(request.POST)
     if form.is_valid():
         it = form.save(commit=False)
         it.request = obj
         it.save()
+        
+        # Если есть активное КП, автоматически добавляем товар в КП
+        active_quote = obj.active_quote
+        if active_quote and has_full_access:
+            # Создаем позицию в КП с нулевой ценой (оператор сможет установить цену позже)
+            RequestQuoteItem.objects.get_or_create(
+                quote=active_quote,
+                request_item=it,
+                defaults={
+                    "product": it.product,
+                    "title": it.title,
+                    "quantity": it.quantity,
+                    "price": Decimal("0.00"),
+                    "total": Decimal("0.00"),
+                    "note": it.note,
+                }
+            )
+        
         messages.success(request, "Позиция добавлена")
+        if active_quote and has_full_access:
+            messages.info(request, "Товар добавлен в активное КП. Не забудьте установить цену при редактировании КП.")
     else:
         messages.error(request, "Проверьте корректность позиции")
     return redirect("core:request_detail", pk=pk)
@@ -408,6 +554,8 @@ def request_change_status(request, pk: int):
             RequestStatus.SUBMITTED,      # Может отправить заявку
             RequestStatus.QUOTE,          # Может создать КП
             RequestStatus.PENDING_APPROVAL,  # Может отправить на согласование
+            RequestStatus.APPROVED,       # Может одобрить (как директор)
+            RequestStatus.REJECTED,       # Может отклонить
             RequestStatus.TO_PICK,        # Может передать на сборку
             RequestStatus.READY_TO_SHIP,  # Может изменить статус (если нужно)
             RequestStatus.PARTIALLY_SHIPPED,  # Может частично отгрузить
@@ -443,25 +591,59 @@ def request_change_status(request, pk: int):
     ):
         return HttpResponseBadRequest("Заявка ещё не передана на склад")
 
-    # ✅ оператор/директор не могут отправить "в работу" без листа сборки
-    if to == RequestStatus.TO_PICK and PickList is not None:
-        has_items = PickList.objects.filter(request=obj).filter(items__isnull=False).exists()
-        if not has_items:
-            return HttpResponseBadRequest(
-                "Сначала заполните «Сборка со склада», затем отправляйте в работу."
-            )
-
     from_status = obj.status
-    obj.status = to
+    
+    # ✅ Автоматическое создание PickItem при переходе из APPROVED в TO_PICK
+    if to == RequestStatus.TO_PICK and from_status == RequestStatus.APPROVED:
+        # Проверяем, что есть активное КП
+        active_quote = obj.active_quote
+        if not active_quote:
+            return HttpResponseBadRequest("Нельзя передать на сборку без коммерческого предложения")
+        
+        # Проверяем, что в КП есть товары
+        if not active_quote.items.exists():
+            return HttpResponseBadRequest("Нельзя передать на сборку без товаров в КП")
+        
+        # Автоматически создаем PickItem из товаров КП
+        try:
+            created_items = _create_pick_items_from_quote(obj, u)
+            if not created_items:
+                return HttpResponseBadRequest("Не удалось создать позиции для сборки")
+        except Exception as e:
+            return HttpResponseBadRequest(f"Ошибка при создании позиций для сборки: {str(e)}")
 
-    # авто-завершение
+    # авто-завершение: если доставлена и оплачена - сразу завершаем
+    final_status = to
     if to == RequestStatus.DELIVERED and getattr(obj, "is_paid", False):
-        obj.status = RequestStatus.DONE
+        final_status = RequestStatus.DONE
 
+    obj.status = final_status
     obj.save(update_fields=["status", "updated_at"])
-    RequestHistory.objects.create(
-        request=obj, author=u, from_status=from_status, to_status=obj.status
-    )
+    
+    # Создаем запись в истории
+    history_note = ""
+    if to == RequestStatus.TO_PICK and from_status == RequestStatus.APPROVED:
+        active_quote = obj.active_quote
+        item_count = active_quote.items.count() if active_quote else 0
+        history_note = f"Созданы позиции для сборки из КП ({item_count} позиций)"
+    elif to == RequestStatus.DELIVERED and getattr(obj, "is_paid", False):
+        history_note = "Заявка доставлена и оплачена - автоматически завершена"
+    
+    # Если был переход через DELIVERED в DONE, создаем две записи в истории
+    if to == RequestStatus.DELIVERED and final_status == RequestStatus.DONE:
+        # Сначала запись о доставке
+        RequestHistory.objects.create(
+            request=obj, author=u, from_status=from_status, to_status=RequestStatus.DELIVERED, note="Заявка доставлена"
+        )
+        # Затем запись о завершении
+        RequestHistory.objects.create(
+            request=obj, author=u, from_status=RequestStatus.DELIVERED, to_status=RequestStatus.DONE,
+            note="Заявка оплачена - автоматически завершена"
+        )
+    else:
+        RequestHistory.objects.create(
+            request=obj, author=u, from_status=from_status, to_status=final_status, note=history_note
+        )
     messages.success(request, "Статус обновлён")
     return redirect("core:request_detail", pk=pk)
 
@@ -518,12 +700,291 @@ def request_quote_preview(request, pk: int, quote_id: int):
 @require_groups("operator", "director")
 def request_toggle_payment(request, pk: int):
     obj = get_object_or_404(Request, pk=pk)
+    was_paid = obj.is_paid
     obj.is_paid = "is_paid" in request.POST
+    
+    old_status = obj.status
+    
+    # Если заявка доставлена и оплачена - автоматически завершаем
     if obj.is_paid and obj.status == RequestStatus.DELIVERED:
         obj.status = RequestStatus.DONE
-    obj.save(update_fields=["is_paid", "status", "updated_at"])
-    messages.success(request, "Статус оплаты обновлён")
+        obj.save(update_fields=["is_paid", "status", "updated_at"])
+        RequestHistory.objects.create(
+            request=obj,
+            author=request.user,
+            from_status=old_status,
+            to_status=RequestStatus.DONE,
+            note="Заявка оплачена - автоматически завершена",
+        )
+        messages.success(request, "Заявка оплачена и автоматически завершена")
+    # Если снимаем оплату с завершенной заявки - возвращаем в доставленную
+    elif not obj.is_paid and obj.status == RequestStatus.DONE:
+        obj.status = RequestStatus.DELIVERED
+        obj.save(update_fields=["is_paid", "status", "updated_at"])
+        RequestHistory.objects.create(
+            request=obj,
+            author=request.user,
+            from_status=old_status,
+            to_status=RequestStatus.DELIVERED,
+            note="Снята отметка об оплате - заявка возвращена в статус «Доставлена»",
+        )
+        messages.info(request, "Снята отметка об оплате. Заявка возвращена в статус «Доставлена»")
+    else:
+        obj.save(update_fields=["is_paid", "updated_at"])
+        if obj.is_paid:
+            messages.success(request, "Заявка отмечена как оплаченная")
+        else:
+            messages.info(request, "Снята отметка об оплате")
+    
     return redirect("core:request_detail", pk=pk)
+
+
+# ---------- Создать/редактировать КП с товарами ----------
+@require_groups("operator", "director")
+def request_quote_create_edit(request, pk: int, quote_id: int = None):
+    """Создание или редактирование коммерческого предложения с товарами и ценами"""
+    obj = get_object_or_404(Request.objects.select_related("counterparty"), pk=pk)
+    
+    # Проверяем, что заявка в нужном статусе для создания КП
+    if obj.status not in [RequestStatus.SUBMITTED, RequestStatus.REJECTED, RequestStatus.QUOTE, RequestStatus.PENDING_APPROVAL]:
+        messages.error(request, "Нельзя создать КП для заявки в этом статусе")
+        return redirect("core:request_detail", pk=pk)
+    
+    quote = None
+    if quote_id:
+        quote = get_object_or_404(RequestQuote, pk=quote_id, request=obj)
+    
+    # Получаем товары из заявки, которые еще не добавлены в КП
+    if quote:
+        existing_item_ids = set(quote.items.values_list("request_item_id", flat=True))
+        request_items = obj.items.exclude(id__in=existing_item_ids)
+    else:
+        request_items = obj.items.all()
+    
+    if request.method == "POST":
+        # Создаем или обновляем КП
+        if not quote:
+            # Делаем все старые КП неактивными
+            RequestQuote.objects.filter(request=obj, is_active=True).update(is_active=False)
+            quote = RequestQuote.objects.create(
+                request=obj,
+                uploaded_by=request.user,
+                is_active=True
+            )
+        
+        # Обрабатываем формсет с товарами
+        formset = RequestQuoteItemFormSet(request.POST, prefix="quote_items")
+        
+        if formset.is_valid():
+            # Удаляем старые позиции, если редактируем
+            if quote_id:
+                quote.items.all().delete()
+            
+            # Сохраняем новые позиции
+            for form in formset:
+                if form.cleaned_data and not form.cleaned_data.get("DELETE"):
+                    request_item_id = form.cleaned_data.get("request_item_id")
+                    if request_item_id:
+                        try:
+                            request_item = RequestItem.objects.get(id=request_item_id, request=obj)
+                            RequestQuoteItem.objects.create(
+                                quote=quote,
+                                request_item=request_item,
+                                product=request_item.product,
+                                title=form.cleaned_data.get("title") or request_item.title,
+                                quantity=form.cleaned_data.get("quantity") or request_item.quantity,
+                                price=form.cleaned_data.get("price") or Decimal("0"),
+                                note=form.cleaned_data.get("note", ""),
+                            )
+                        except RequestItem.DoesNotExist:
+                            pass
+            
+            # Обновляем статус заявки
+            action = request.POST.get("action")
+            if action == "submit_for_approval":
+                obj.status = RequestStatus.PENDING_APPROVAL
+                obj.save(update_fields=["status", "updated_at"])
+                RequestHistory.objects.create(
+                    request=obj,
+                    author=request.user,
+                    from_status=RequestStatus.QUOTE,
+                    to_status=RequestStatus.PENDING_APPROVAL,
+                    note="КП отправлено на согласование"
+                )
+                messages.success(request, "Коммерческое предложение отправлено на согласование")
+            else:
+                obj.status = RequestStatus.QUOTE
+                obj.save(update_fields=["status", "updated_at"])
+                messages.success(request, "Коммерческое предложение сохранено")
+            
+            return redirect("core:request_detail", pk=pk)
+        else:
+            messages.error(request, "Проверьте корректность заполнения цен")
+    else:
+        # GET запрос - показываем форму
+        if quote:
+            # Загружаем существующие позиции
+            initial_data = []
+            for item in quote.items.select_related("request_item", "product").all():
+                initial_data.append({
+                    "request_item_id": item.request_item_id,
+                    "product_id": item.product_id,
+                    "title": item.title,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "note": item.note,
+                })
+            formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
+        else:
+            # Создаем пустой формсет
+            initial_data = []
+            for item in request_items.select_related("product").all():
+                initial_data.append({
+                    "request_item_id": item.id,
+                    "product_id": item.product_id if item.product else None,
+                    "title": item.title,
+                    "quantity": item.quantity,
+                    "price": Decimal("0"),
+                    "note": item.note,
+                })
+            formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
+    
+    return render(request, "requests/quote_form.html", {
+        "request": obj,
+        "quote": quote,
+        "formset": formset,
+        "request_items": request_items,
+    })
+
+
+# ---------- Создать/редактировать отгрузку ----------
+@require_groups("operator", "director")
+def request_shipment_create(request, pk: int):
+    """Создание отгрузки для заявки"""
+    obj = get_object_or_404(
+        Request.objects.select_related("counterparty"),
+        pk=pk
+    )
+    
+    # Проверяем статус заявки
+    if obj.status not in [RequestStatus.READY_TO_SHIP, RequestStatus.PARTIALLY_SHIPPED]:
+        messages.error(request, "Заявка должна быть готова к отгрузке для создания отгрузки")
+        return redirect("core:request_detail", pk=pk)
+    
+    active_quote = obj.active_quote
+    if not active_quote:
+        messages.error(request, "Нельзя создать отгрузку без активного коммерческого предложения")
+        return redirect("core:request_detail", pk=pk)
+    
+    if request.method == "POST":
+        formset = RequestShipmentItemFormSet(request.POST, prefix="shipment_items")
+        shipment_number = request.POST.get("shipment_number", "").strip()
+        comment = request.POST.get("comment", "").strip()
+        
+        if formset.is_valid():
+            shipment_items = []
+            has_items = False
+            
+            for item_form in formset:
+                if item_form.cleaned_data and not item_form.cleaned_data.get("DELETE"):
+                    quantity = item_form.cleaned_data.get("quantity")
+                    if quantity and quantity > 0:
+                        has_items = True
+                        shipment_items.append(item_form.cleaned_data)
+            
+            if not has_items:
+                messages.error(request, "Добавьте хотя бы одну позицию для отгрузки")
+            else:
+                with transaction.atomic():
+                    # Создаем отгрузку
+                    shipment = RequestShipment.objects.create(
+                        request=obj,
+                        shipment_number=shipment_number,
+                        shipped_by=request.user,
+                        comment=comment,
+                    )
+                    
+                    # Определяем, частичная ли отгрузка
+                    total_shipped_now = sum(item["quantity"] for item in shipment_items)
+                    is_partial = False
+                    
+                    # Создаем позиции отгрузки
+                    for item_data in shipment_items:
+                        quote_item_id = item_data.get("quote_item_id")
+                        quote_item = None
+                        if quote_item_id:
+                            try:
+                                quote_item = RequestQuoteItem.objects.get(id=quote_item_id, quote=active_quote)
+                            except RequestQuoteItem.DoesNotExist:
+                                pass
+                        
+                        if quote_item:
+                            # Проверяем, не превышаем ли доступное количество
+                            already_shipped = obj.get_shipped_quantity(quote_item)
+                            available = quote_item.quantity - already_shipped
+                            quantity_to_ship = min(item_data["quantity"], available)
+                            
+                            if already_shipped + quantity_to_ship < quote_item.quantity:
+                                is_partial = True
+                            
+                            RequestShipmentItem.objects.create(
+                                shipment=shipment,
+                                quote_item=quote_item,
+                                product=quote_item.product,
+                                title=quote_item.title,
+                                quantity=quantity_to_ship,
+                                price=quote_item.price,
+                            )
+                    
+                    shipment.is_partial = is_partial
+                    shipment.save(update_fields=["is_partial"])
+                    
+                    # Обновляем статус заявки
+                    if obj.is_fully_shipped():
+                        obj.status = RequestStatus.SHIPPED
+                    else:
+                        obj.status = RequestStatus.PARTIALLY_SHIPPED
+                    obj.save(update_fields=["status", "updated_at"])
+                    
+                    # Создаем запись в истории
+                    RequestHistory.objects.create(
+                        request=obj,
+                        author=request.user,
+                        from_status=RequestStatus.READY_TO_SHIP if obj.status == RequestStatus.PARTIALLY_SHIPPED else obj.status,
+                        to_status=obj.status,
+                        note=f"Создана отгрузка #{shipment.shipment_number or shipment.pk}",
+                    )
+                    
+                    messages.success(request, f"Отгрузка #{shipment.shipment_number or shipment.pk} успешно создана")
+                    return redirect("core:request_detail", pk=obj.pk)
+        else:
+            messages.error(request, "Проверьте ошибки в позициях отгрузки")
+    else:
+        # GET запрос - создаем начальные данные
+        initial_data = []
+        quote_items = active_quote.items.select_related("product", "request_item").all()
+        
+        for quote_item in quote_items:
+            already_shipped = obj.get_shipped_quantity(quote_item)
+            available = quote_item.quantity - already_shipped
+            
+            if available > 0:
+                initial_data.append({
+                    "quote_item_id": quote_item.id,
+                    "product_id": quote_item.product_id if quote_item.product else None,
+                    "title": quote_item.title,
+                    "quantity_available": available,
+                    "quantity": available,  # По умолчанию отгружаем все доступное
+                    "price": quote_item.price,
+                })
+        
+        formset = RequestShipmentItemFormSet(prefix="shipment_items", initial=initial_data)
+    
+    return render(request, "requests/shipment_form.html", {
+        "request_obj": obj,
+        "formset": formset,
+        "active_quote": active_quote,
+    })
 
 
 # ---------- Удалить файл КП (вариант 2) ----------
@@ -714,4 +1175,84 @@ def counterparty_add_contact(request):
             "phone": contact.phone or "",
             "email": contact.email or "",
         }
+    })
+
+
+# ---------- Маршрутный лист ----------
+@require_GET
+@require_groups("operator", "director", "warehouse")
+def request_route_sheet(request, pk: int):
+    """Генерация маршрутного листа для заявки"""
+    obj = get_object_or_404(
+        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact"),
+        pk=pk
+    )
+    
+    # Получаем товары из активного КП или из последней отгрузки
+    items = []
+    active_quote = obj.active_quote
+    if active_quote:
+        quote_items = active_quote.items.select_related("product").all()
+        for item in quote_items:
+            items.append({
+                "title": item.title,
+                "quantity": item.quantity,
+                "unit": "шт",
+            })
+    
+    return render(request, "requests/route_sheet.html", {
+        "obj": obj,
+        "items": items,
+    })
+
+
+# ---------- УПД (Универсальный передаточный документ) ----------
+@require_GET
+@require_groups("operator", "director")
+def request_upd(request, pk: int, shipment_id: int = None):
+    """Генерация УПД для заявки или конкретной отгрузки"""
+    obj = get_object_or_404(
+        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact"),
+        pk=pk
+    )
+    
+    shipment = None
+    items = []
+    total_amount = Decimal("0")
+    
+    if shipment_id:
+        # УПД для конкретной отгрузки
+        shipment = get_object_or_404(RequestShipment, pk=shipment_id, request=obj)
+        shipment_items = shipment.items.select_related("product", "quote_item").all()
+        for item in shipment_items:
+            item_total = item.quantity * (item.price or Decimal("0"))
+            total_amount += item_total
+            items.append({
+                "title": item.title,
+                "quantity": item.quantity,
+                "unit": "шт",
+                "price": item.price or Decimal("0"),
+                "total": item_total,
+            })
+    else:
+        # УПД для всей заявки (по активному КП)
+        active_quote = obj.active_quote
+        if active_quote:
+            quote_items = active_quote.items.select_related("product").all()
+            for item in quote_items:
+                item_total = item.total
+                total_amount += item_total
+                items.append({
+                    "title": item.title,
+                    "quantity": item.quantity,
+                    "unit": "шт",
+                    "price": item.price,
+                    "total": item_total,
+                })
+    
+    return render(request, "requests/upd.html", {
+        "obj": obj,
+        "shipment": shipment,
+        "items": items,
+        "total_amount": total_amount,
     })

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Маршрутный лист — Заявка #{{ obj.number }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#000;background:#fff}
+    .wrap{max-width:210mm;margin:0 auto;padding:15mm}
+    @media print{
+      .noprint{display:none}
+      .wrap{padding:10mm}
+      body{background:#fff}
+    }
+    h1{font-size:20px;font-weight:700;margin-bottom:20px;text-align:center;text-transform:uppercase}
+    .header-info{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;padding:15px;border:2px solid #000}
+    .info-block h3{font-size:14px;font-weight:600;margin-bottom:8px;text-transform:uppercase}
+    .info-block p{margin:4px 0;font-size:13px}
+    table{width:100%;border-collapse:collapse;margin-top:15px}
+    th,td{padding:8px;border:1px solid #000;text-align:left}
+    th{background:#f0f0f0;font-weight:600;text-align:center}
+    .right{text-align:right}
+    .center{text-align:center}
+    .footer{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:30px}
+    .signature-block{border-top:1px solid #000;padding-top:10px}
+    .signature-block p{margin:5px 0;font-size:12px}
+    .muted{color:#666}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="noprint" style="margin-bottom:15px">
+      <button onclick="window.print()" style="padding:10px 20px;background:#007bff;color:#fff;border:none;border-radius:5px;cursor:pointer">Печать</button>
+      <button onclick="window.close()" style="padding:10px 20px;background:#6c757d;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:10px">Закрыть</button>
+    </div>
+
+    <h1>Маршрутный лист</h1>
+    
+    <div class="header-info">
+      <div class="info-block">
+        <h3>Информация о заявке</h3>
+        <p><strong>Номер заявки:</strong> #{{ obj.number|default:obj.pk }}</p>
+        <p><strong>Тема:</strong> {{ obj.title }}</p>
+        <p><strong>Дата создания:</strong> {{ obj.created_at|date:"d.m.Y" }}</p>
+        {% if obj.delivery_date %}
+          <p><strong>Дата доставки:</strong> {{ obj.delivery_date|date:"d.m.Y" }}</p>
+        {% endif %}
+      </div>
+      
+      <div class="info-block">
+        <h3>Информация о доставке</h3>
+        {% if obj.counterparty %}
+          <p><strong>Контрагент:</strong> {{ obj.counterparty.name }}</p>
+          {% if obj.counterparty.inn %}
+            <p><strong>ИНН:</strong> {{ obj.counterparty.inn }}</p>
+          {% endif %}
+        {% endif %}
+        {% if obj.delivery_address %}
+          <p><strong>Адрес доставки:</strong> {{ obj.delivery_address.address }}</p>
+        {% elif obj.counterparty and obj.counterparty.actual_address %}
+          <p><strong>Адрес доставки:</strong> {{ obj.counterparty.actual_address }}</p>
+        {% endif %}
+        {% if obj.delivery_contact %}
+          <p><strong>Контактное лицо:</strong> {{ obj.delivery_contact.full_name }}</p>
+          {% if obj.delivery_contact.phone %}
+            <p><strong>Телефон:</strong> {{ obj.delivery_contact.phone }}</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <h3 style="margin-top:20px;margin-bottom:10px;font-size:16px;font-weight:600">Товары к доставке</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">№</th>
+          <th>Наименование</th>
+          <th style="width:15%" class="center">Количество</th>
+          <th style="width:10%" class="center">Ед.</th>
+          <th style="width:20%" class="center">Отметка о получении</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+          <tr>
+            <td class="center">{{ forloop.counter }}</td>
+            <td>{{ item.title }}</td>
+            <td class="center">{{ item.quantity }}</td>
+            <td class="center">{{ item.unit }}</td>
+            <td style="height:40px"></td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="center muted">Товары не указаны</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <div class="signature-block">
+        <p><strong>Водитель:</strong> ____________________</p>
+        <p class="muted" style="font-size:11px;margin-top:20px">Подпись</p>
+      </div>
+      <div class="signature-block">
+        <p><strong>Получил груз:</strong> ____________________</p>
+        <p class="muted" style="font-size:11px;margin-top:20px">Подпись, ФИО</p>
+      </div>
+    </div>
+
+    <div style="margin-top:30px;padding:15px;background:#f9f9f9;border:1px solid #ddd;font-size:12px">
+      <p><strong>Примечания:</strong></p>
+      {% if obj.comment_internal %}
+        <p>{{ obj.comment_internal|linebreaksbr }}</p>
+      {% else %}
+        <p class="muted">—</p>
+      {% endif %}
+    </div>
+  </div>
+  <script>window.addEventListener('load',()=>{ if(!window.opener) setTimeout(()=>window.print(),500); });</script>
+</body>
+</html>
+

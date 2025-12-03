@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load access %}
+{% load static %}
+{% block title %}{% if quote %}Редактирование КП{% else %}Создание КП{% endif %} — Заявка #{{ request.number }}{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <header style="margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text);">
+          {% if quote %}Редактирование коммерческого предложения{% else %}Создание коммерческого предложения{% endif %}
+        </h1>
+        <div style="margin-top: 8px; display: flex; align-items: center; gap: 16px; font-size: 14px; color: var(--muted);">
+          <span>Заявка <strong>#{{ request.number }}</strong></span>
+          <span>{{ request.title }}</span>
+          {% if request.counterparty %}
+            <span>Контрагент: <strong>{{ request.counterparty.name }}</strong></span>
+          {% endif %}
+        </div>
+      </div>
+      <a href="{% url 'core:request_detail' request.pk %}" class="btn" style="background: var(--bg); border: 1px solid var(--border);">
+        ← Назад к заявке
+      </a>
+    </div>
+  </header>
+
+  <form method="post" id="quoteForm" style="max-width: 1200px;">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+      <h2 style="margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">Товары и цены</h2>
+      
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border);">
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);">№</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);">Наименование</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 120px;">Количество</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена за единицу</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Итого</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 200px;">Примечание</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for form in formset %}
+            <tr class="quote-item-row" style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 16px 12px; font-size: 14px; color: var(--muted);">{{ forloop.counter }}</td>
+              <td style="padding: 16px 12px;">
+                {{ form.request_item_id }}
+                {{ form.product_id }}
+                {{ form.title }}
+                {% if form.title.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.title.errors }}</div>{% endif %}
+              </td>
+              <td style="padding: 16px 12px;">
+                {{ form.quantity }}
+                {% if form.quantity.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.quantity.errors }}</div>{% endif %}
+              </td>
+              <td style="padding: 16px 12px;">
+                <div style="position: relative;">
+                  {{ form.price }}
+                  <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px;">₽</span>
+                </div>
+                {% if form.price.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.price.errors }}</div>{% endif %}
+              </td>
+              <td style="padding: 16px 12px; text-align: right; font-size: 16px; font-weight: 600;">
+                <span class="item-total">0.00</span> ₽
+              </td>
+              <td style="padding: 16px 12px;">
+                {{ form.note }}
+                {% if form.note.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.note.errors }}</div>{% endif %}
+              </td>
+            </tr>
+            {% if form.non_field_errors %}
+              <tr>
+                <td colspan="6" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
+                  {{ form.non_field_errors }}
+                </td>
+              </tr>
+            {% endif %}
+          {% empty %}
+            <tr>
+              <td colspan="6" style="padding: 32px; text-align: center; color: var(--muted);">
+                Нет товаров для добавления в КП
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="border-top: 2px solid var(--border); background: var(--bg);">
+            <td colspan="4" style="padding: 20px 12px; text-align: right; font-size: 16px; font-weight: 600;">
+              Итого:
+            </td>
+            <td colspan="2" style="padding: 20px 12px; text-align: right; font-size: 20px; font-weight: 700; color: var(--primary);">
+              <span id="grandTotal">0.00</span> ₽
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    {% if formset.non_form_errors %}
+      <div class="card" style="padding: 16px; margin-bottom: 24px; background: #fef2f2; border: 1px solid #fecaca;">
+        <div style="color: #991b1b; font-size: 14px;">
+          {{ formset.non_form_errors }}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="card" style="padding: 20px; display: flex; gap: 12px; justify-content: flex-end;">
+      <button type="submit" name="action" value="save" class="btn" style="background: var(--bg); border: 1px solid var(--border);">
+        Сохранить как черновик
+      </button>
+      <button type="submit" name="action" value="submit_for_approval" class="btn btn-primary">
+        Отправить на согласование
+      </button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .quote-item-row:hover {
+    background: var(--bg);
+  }
+
+  .quote-item-row input[type="number"],
+  .quote-item-row input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .quote-item-row input[type="number"]:focus,
+  .quote-item-row input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px var(--ring);
+  }
+
+  .quote-item-row input[readonly] {
+    background: var(--bg);
+    cursor: not-allowed;
+  }
+
+  table {
+    font-size: 14px;
+  }
+
+  @media (max-width: 768px) {
+    table {
+      font-size: 12px;
+    }
+    
+    .quote-item-row td {
+      padding: 12px 8px !important;
+    }
+    
+    .card {
+      padding: 16px !important;
+    }
+  }
+</style>
+
+<script>
+(function() {
+  const form = document.getElementById('quoteForm');
+  const rows = form.querySelectorAll('.quote-item-row');
+  
+  function calculateTotal(row) {
+    const quantityInput = row.querySelector('input[name*="-quantity"]');
+    const priceInput = row.querySelector('input[name*="-price"]');
+    const totalSpan = row.querySelector('.item-total');
+    
+    if (!quantityInput || !priceInput || !totalSpan) return;
+    
+    const quantity = parseFloat(quantityInput.value) || 0;
+    const price = parseFloat(priceInput.value) || 0;
+    const total = (quantity * price).toFixed(2);
+    
+    totalSpan.textContent = total.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+  
+  function calculateGrandTotal() {
+    let grandTotal = 0;
+    rows.forEach(row => {
+      const quantityInput = row.querySelector('input[name*="-quantity"]');
+      const priceInput = row.querySelector('input[name*="-price"]');
+      
+      if (quantityInput && priceInput) {
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const price = parseFloat(priceInput.value) || 0;
+        grandTotal += quantity * price;
+      }
+    });
+    
+    const grandTotalSpan = document.getElementById('grandTotal');
+    if (grandTotalSpan) {
+      grandTotalSpan.textContent = grandTotal.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+  }
+  
+  // Обработчики для расчета
+  rows.forEach(row => {
+    const quantityInput = row.querySelector('input[name*="-quantity"]');
+    const priceInput = row.querySelector('input[name*="-price"]');
+    
+    if (quantityInput) {
+      quantityInput.addEventListener('input', () => {
+        calculateTotal(row);
+        calculateGrandTotal();
+      });
+    }
+    
+    if (priceInput) {
+      priceInput.addEventListener('input', () => {
+        calculateTotal(row);
+        calculateGrandTotal();
+      });
+    }
+  });
+  
+  // Первоначальный расчет
+  rows.forEach(row => calculateTotal(row));
+  calculateGrandTotal();
+})();
+</script>
+{% endblock %}
+

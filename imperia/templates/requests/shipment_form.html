@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load access %}
+{% load static %}
+{% block title %}Создание отгрузки — Заявка #{{ request_obj.number }}{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <header style="margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text);">
+          Создание отгрузки
+        </h1>
+        <div style="margin-top: 8px; display: flex; align-items: center; gap: 16px; font-size: 14px; color: var(--muted);">
+          <span>Заявка <strong>#{{ request_obj.number }}</strong></span>
+          <span>{{ request_obj.title }}</span>
+          {% if request_obj.counterparty %}
+            <span>Контрагент: <strong>{{ request_obj.counterparty.name }}</strong></span>
+          {% endif %}
+        </div>
+      </div>
+      <a href="{% url 'core:request_detail' request_obj.pk %}" class="btn" style="background: var(--bg); border: 1px solid var(--border);">
+        ← Назад к заявке
+      </a>
+    </div>
+  </header>
+
+  <form method="post" id="shipmentForm" style="max-width: 1200px;">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+      <h2 style="margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">Информация об отгрузке</h2>
+      
+      <div style="display: grid; gap: 16px; margin-bottom: 24px;">
+        <div>
+          <label for="shipment_number" style="display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500;">Номер отгрузки (необязательно)</label>
+          <input type="text" id="shipment_number" name="shipment_number" class="input" placeholder="Автоматически, если не указан" style="width: 100%; max-width: 300px;">
+        </div>
+        <div>
+          <label for="comment" style="display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500;">Комментарий к отгрузке</label>
+          <textarea id="comment" name="comment" class="input" rows="3" placeholder="Дополнительная информация об отгрузке" style="width: 100%; resize: vertical;"></textarea>
+        </div>
+      </div>
+
+      <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Позиции для отгрузки</h3>
+      
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border);">
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);">№</th>
+            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);">Наименование</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Доступно</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">К отгрузке</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена</th>
+            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Итого</th>
+          </tr>
+        </thead>
+        <tbody id="shipmentItemsBody">
+          {% for form in formset %}
+            <tr class="shipment-item-row" style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 16px 12px; font-size: 14px; color: var(--muted);">{{ forloop.counter }}</td>
+              <td style="padding: 16px 12px;">
+                {{ form.quote_item_id }}
+                {{ form.product_id }}
+                {{ form.title }}
+              </td>
+              <td style="padding: 16px 12px; text-align: right;">
+                <span class="available-qty" data-available="{{ form.quantity_available.value|default:0 }}">
+                  {{ form.quantity_available.value|default:0 }}
+                </span>
+                {{ form.quantity_available }}
+              </td>
+              <td style="padding: 16px 12px; text-align: right;">
+                {{ form.quantity }}
+                {% if form.quantity.errors %}
+                  <div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.quantity.errors }}</div>
+                {% endif %}
+              </td>
+              <td style="padding: 16px 12px; text-align: right;">
+                {{ form.price }}
+              </td>
+              <td style="padding: 16px 12px; text-align: right;">
+                <span class="item-total" style="font-weight: 600;">0.00</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" style="padding: 16px 12px; text-align: right; font-weight: 600;">Общая сумма:</td>
+            <td style="padding: 16px 12px; text-align: right;">
+              <span id="overallTotal" style="font-weight: 600; font-size: 16px;">0.00</span>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 12px;">
+      <a href="{% url 'core:request_detail' request_obj.pk %}" class="btn btn-secondary">Отмена</a>
+      <button type="submit" class="btn btn-primary">Создать отгрузку</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById('shipmentForm');
+  const shipmentItemsBody = document.getElementById('shipmentItemsBody');
+  const overallTotalSpan = document.getElementById('overallTotal');
+
+  function calculateRowTotal(row) {
+    const quantityInput = row.querySelector('[name$="-quantity"]');
+    const priceInput = row.querySelector('[name$="-price"]');
+    const totalSpan = row.querySelector('.item-total');
+    const availableQty = parseFloat(row.querySelector('[data-available]')?.textContent || 0);
+
+    const quantity = parseFloat(quantityInput.value) || 0;
+    const price = parseFloat(priceInput.value) || 0;
+    
+    // Проверяем, не превышаем ли доступное количество
+    if (quantity > availableQty) {
+      quantityInput.style.borderColor = '#ef4444';
+      quantityInput.value = availableQty;
+      const correctedQty = availableQty;
+      const total = correctedQty * price;
+      totalSpan.textContent = total.toFixed(2);
+    } else {
+      quantityInput.style.borderColor = '';
+      const total = quantity * price;
+      totalSpan.textContent = total.toFixed(2);
+    }
+  }
+
+  function calculateOverallTotal() {
+    let overallTotal = 0;
+    shipmentItemsBody.querySelectorAll('.shipment-item-row').forEach(row => {
+      const totalSpan = row.querySelector('.item-total');
+      overallTotal += parseFloat(totalSpan.textContent) || 0;
+    });
+    overallTotalSpan.textContent = overallTotal.toFixed(2);
+  }
+
+  shipmentItemsBody.addEventListener('input', function(e) {
+    const target = e.target;
+    if (target.matches('[name$="-quantity"]') || target.matches('[name$="-price"]')) {
+      const row = target.closest('.shipment-item-row');
+      if (row) {
+        calculateRowTotal(row);
+        calculateOverallTotal();
+      }
+    }
+  });
+
+  // Initial calculation on page load
+  shipmentItemsBody.querySelectorAll('.shipment-item-row').forEach(calculateRowTotal);
+  calculateOverallTotal();
+})();
+</script>
+{% endblock %}
+

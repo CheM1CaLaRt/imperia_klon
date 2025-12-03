@@ -219,6 +219,15 @@ class RequestShipment(models.Model):
 
     def __str__(self):
         return f"Отгрузка #{self.shipment_number or self.pk} заявки {self.request}"
+    
+    def get_total(self):
+        """Итоговая сумма отгрузки"""
+        from decimal import Decimal
+        total = Decimal("0")
+        for item in self.items.all():
+            if item.price:
+                total += Decimal(str(item.quantity)) * Decimal(str(item.price))
+        return total
 
 
 class RequestShipmentItem(models.Model):
