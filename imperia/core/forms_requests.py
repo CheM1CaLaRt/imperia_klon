@@ -4,7 +4,7 @@ from django.apps import apps
 from django.conf import settings
 from django.db.models import ForeignKey
 
-from .models_requests import Request, RequestItem, RequestQuote
+from .models_requests import Request, RequestItem, RequestQuote, RequestQuoteItem
 from .models import Counterparty, CounterpartyAddress, CounterpartyContact
 from django.forms import formset_factory
 
@@ -248,9 +248,57 @@ class RequestQuoteForm(forms.ModelForm):
         }
 
     def clean_file(self):
-        f = self.cleaned_data["file"]
-        # простейшая защита: до 20 МБ
-        max_mb = 20
-        if f.size > max_mb * 1024 * 1024:
-            raise forms.ValidationError(f"Файл слишком большой (>{max_mb} МБ)")
+        f = self.cleaned_data.get("file")
+        if f:
+            # простейшая защита: до 20 МБ
+            max_mb = 20
+            if f.size > max_mb * 1024 * 1024:
+                raise forms.ValidationError(f"Файл слишком большой (>{max_mb} МБ)")
         return f
+
+
+class RequestQuoteItemForm(forms.ModelForm):
+    """Форма для позиции в коммерческом предложении"""
+    class Meta:
+        model = RequestQuoteItem
+        fields = ("request_item", "product", "title", "quantity", "price", "note")
+        widgets = {
+            "request_item": forms.HiddenInput(),
+            "product": forms.HiddenInput(),
+            "title": forms.TextInput(attrs={
+                "class": "input",
+                "placeholder": "Наименование",
+                "readonly": True,
+            }),
+            "quantity": forms.NumberInput(attrs={
+                "class": "input",
+                "step": "0.001",
+                "min": "0",
+                "placeholder": "Количество",
+            }),
+            "price": forms.NumberInput(attrs={
+                "class": "input",
+                "step": "0.01",
+                "min": "0",
+                "placeholder": "Цена за единицу",
+            }),
+            "note": forms.TextInput(attrs={
+                "class": "input",
+                "placeholder": "Примечание",
+            }),
+        }
+
+    def clean_price(self):
+        price = self.cleaned_data.get("price")
+        if price is not None and price < 0:
+            raise forms.ValidationError("Цена не может быть отрицательной")
+        return price
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data.get("quantity")
+        if quantity is not None and quantity <= 0:
+            raise forms.ValidationError("Количество должно быть больше нуля")
+        return quantity
+
+
+RequestQuoteItemFormSet = formset_factory(RequestQuoteItemForm, extra=0, can_delete=True)

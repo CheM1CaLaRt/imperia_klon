@@ -47,6 +47,40 @@ except Exception:
     PickList = None
 
 
+def _can_manager_access_request(user, request_obj):
+    """
+    Проверяет, может ли менеджер получить доступ к заявке.
+    Менеджер может видеть заявку если:
+    1. Он является инициатором заявки
+    2. Он прикреплен к контрагенту заявки (через managers ManyToMany)
+    """
+    if not user.groups.filter(name="manager").exists():
+        return False
+    
+    # Если менеджер создал заявку - доступ есть
+    if request_obj.initiator == user:
+        return True
+    
+    # Если есть контрагент, проверяем привязку
+    if request_obj.counterparty:
+        # Проверяем ManyToMany поле managers
+        if request_obj.counterparty.managers.filter(pk=user.pk).exists():
+            return True
+        
+        # Проверяем ForeignKey поле manager (если есть)
+        Counterparty = apps.get_model("core", "Counterparty")
+        try:
+            fld = Counterparty._meta.get_field("manager")
+            if isinstance(fld, (ForeignKey, OneToOneField)):
+                manager_field = getattr(request_obj.counterparty, "manager", None)
+                if manager_field == user:
+                    return True
+        except FieldDoesNotExist:
+            pass
+    
+    return False
+
+
 # ---------- Список заявок ----------
 @require_groups("manager", "operator", "warehouse", "director")
 def request_list(request):
@@ -73,9 +107,14 @@ def request_list(request):
         qs = qs.select_related("counterparty__manager")
 
     # --- Ролевые фильтры ---
-    if u.groups.filter(name="warehouse").exists() and not (
-        u.is_superuser or u.groups.filter(name="director").exists()
-    ):
+    is_warehouse = u.groups.filter(name="warehouse").exists()
+    is_manager = u.groups.filter(name="manager").exists()
+    is_operator = u.groups.filter(name="operator").exists()
+    is_director = u.groups.filter(name="director").exists()
+    has_full_access = u.is_superuser or is_director or is_operator
+    
+    if is_warehouse and not has_full_access:
+        # Склад видит только заявки на сбор
         qs = qs.filter(
             status__in=[
                 RequestStatus.TO_PICK,
@@ -83,15 +122,21 @@ def request_list(request):
                 RequestStatus.READY_TO_SHIP,
             ]
         )
-    elif u.groups.filter(name="manager").exists() and not (
-        u.is_superuser or u.groups.filter(name="director").exists()
-    ):
-        cond = Q(initiator=u) | Q(assignee=u)
-        if has_cp_manager_fk:
-            cond |= Q(counterparty__manager=u)
+    elif is_manager and not has_full_access:
+        # Менеджер видит:
+        # 1. Заявки контрагентов, к которым он прикреплен
+        # 2. Заявки, которые он сам создал
+        cond = Q(initiator=u)
+        
+        # Проверяем привязку через ManyToMany поле managers
         if has_cp_managers_m2m:
             cond |= Q(counterparty__managers=u)
+        # Проверяем привязку через ForeignKey поле manager (если есть)
+        if has_cp_manager_fk:
+            cond |= Q(counterparty__manager=u)
+            
         qs = qs.filter(cond)
+    # Оператор и директор видят все заявки (без фильтрации)
 
     if status:
         qs = qs.filter(status=status)
@@ -191,6 +236,25 @@ def request_detail(request, pk: int):
         ),
         pk=pk,
     )
+    
+    # Проверка доступа для менеджера
+    u = request.user
+    is_manager = u.groups.filter(name="manager").exists()
+    has_full_access = u.is_superuser or u.groups.filter(name__in=["director", "operator"]).exists()
+    
+    if is_manager and not has_full_access:
+        # Менеджер может видеть только свои заявки или заявки контрагентов, к которым прикреплен
+        if not _can_manager_access_request(u, obj):
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("У вас нет доступа к этой заявке")
+    
+    # Проверка доступа для склада
+    is_warehouse = u.groups.filter(name="warehouse").exists()
+    if is_warehouse and not has_full_access:
+        # Склад может видеть только заявки на сбор
+        if obj.status not in [RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP]:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("У вас нет доступа к этой заявке")
 
     # Форма добавления позиции
     item_form = RequestItemForm()
@@ -335,30 +399,40 @@ def request_change_status(request, pk: int):
 
     allowed = {
         "manager": {
-            RequestStatus.SUBMITTED,
-            RequestStatus.CANCELED,
-            RequestStatus.APPROVED,
-            RequestStatus.REJECTED,
+            RequestStatus.SUBMITTED,  # Может отправить заявку
+            RequestStatus.CANCELED,   # Может отменить
+            RequestStatus.APPROVED,   # Может согласовать
+            RequestStatus.REJECTED,   # Может отклонить
         },
         "operator": {
-            RequestStatus.QUOTE,
-            RequestStatus.TO_PICK,
-            RequestStatus.IN_PROGRESS,
-            RequestStatus.READY_TO_SHIP,
-            RequestStatus.DELIVERED,
-            RequestStatus.CANCELED,
+            RequestStatus.SUBMITTED,      # Может отправить заявку
+            RequestStatus.QUOTE,          # Может создать КП
+            RequestStatus.PENDING_APPROVAL,  # Может отправить на согласование
+            RequestStatus.TO_PICK,        # Может передать на сборку
+            RequestStatus.READY_TO_SHIP,  # Может изменить статус (если нужно)
+            RequestStatus.PARTIALLY_SHIPPED,  # Может частично отгрузить
+            RequestStatus.SHIPPED,        # Может полностью отгрузить
+            RequestStatus.DELIVERED,      # Может отметить как доставленную
+            RequestStatus.CANCELED,       # Может отменить
         },
         "warehouse": {
-            RequestStatus.IN_PROGRESS,
-            RequestStatus.READY_TO_SHIP,
+            RequestStatus.IN_PROGRESS,    # Может начать сборку
+            RequestStatus.READY_TO_SHIP,  # Может завершить сборку
         },
-        "director": set(s for s, _ in RequestStatus.choices),
+        "director": set(s for s, _ in RequestStatus.choices),  # Полный доступ
     }
 
     user_groups = {g.name for g in u.groups.all()}
     can = u.is_superuser or any(to in allowed.get(g, set()) for g in user_groups)
     if not can:
         return HttpResponseBadRequest("Недостаточно прав для смены статуса")
+    
+    # Дополнительная проверка доступа для менеджера
+    is_manager = "manager" in user_groups
+    has_full_access = u.is_superuser or "director" in user_groups or "operator" in user_groups
+    if is_manager and not has_full_access:
+        if not _can_manager_access_request(u, obj):
+            return HttpResponseBadRequest("У вас нет доступа к этой заявке")
 
     # ✅ склад двигает только после передачи в сборку
     if (
