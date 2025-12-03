@@ -58,7 +58,7 @@ def stock_lookup_by_barcode(request):
 def stock_lookup_by_name(request):
     """
     Поиск товаров по названию для автодополнения.
-    Возвращает список товаров, у которых есть остатки на складе.
+    Возвращает список товаров (как в каталоге), проверка наличия делается при выборе.
     """
     query = (request.GET.get("name") or "").strip()
     if len(query) < 3:
@@ -80,9 +80,11 @@ def stock_lookup_by_name(request):
         .order_by("name")[:20]  # Ограничиваем до 20 результатов
     )
 
-    # Фильтруем только те товары, у которых есть остатки на складе
+    # Возвращаем все найденные товары (как в каталоге)
+    # Проверку наличия на складе делаем при выборе товара
     result = []
     for product in products:
+        # Проверяем наличие на складе, но не фильтруем - показываем все товары
         inv = (
             Inventory.objects
             .filter(product=product, quantity__gt=0)
@@ -90,16 +92,22 @@ def stock_lookup_by_name(request):
             .order_by("-quantity")
             .first()
         )
+        
+        location = ""
+        qty_on_hand = 0
         if inv:
             location = inv.bin.code if inv and inv.bin else ""
-            result.append({
-                "id": product.id,
-                "name": product.name,
-                "barcode": product.barcode or "",
-                "location": location,
-                "unit": "шт",
-                "qty_on_hand": float(inv.quantity),
-            })
+            qty_on_hand = float(inv.quantity)
+        
+        result.append({
+            "id": product.id,
+            "name": product.name,
+            "barcode": product.barcode or "",
+            "location": location,
+            "unit": "шт",
+            "qty_on_hand": qty_on_hand,
+            "has_stock": qty_on_hand > 0,  # Флаг наличия на складе
+        })
 
     return JsonResponse({"ok": True, "products": result})
 

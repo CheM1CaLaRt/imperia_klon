@@ -299,7 +299,30 @@
   async function selectProduct(row, product) {
     hideAutocomplete();
     
-    // Дополнительная проверка наличия на складе при выборе
+    // Если товар есть в данных из списка, используем их
+    if (product.location !== undefined || product.qty_on_hand !== undefined) {
+      const set = (sel, v) => { const el = row.querySelector(sel); if (el) el.value = v || ''; };
+      set('[name$="-name"]', product.name);
+      set('[name$="-barcode"]', product.barcode || '');
+      set('[name$="-location"]', product.location || '');
+      set('[name$="-unit"]', product.unit || 'шт');
+      const qtyEl = row.querySelector('[name$="-qty"]'); 
+      if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+
+      // Если нет остатков на складе, помечаем строку
+      if (!product.has_stock || product.qty_on_hand === 0) {
+        row.setAttribute('data-notfound', '1');
+      } else {
+        row.removeAttribute('data-notfound');
+      }
+      
+      updateRowHints();
+      renderPreview();
+      saveDraft();
+      return;
+    }
+    
+    // Если данных нет, делаем дополнительную проверку наличия на складе
     try {
       const resp = await fetch(`{% url 'core:stock_lookup_by_name_selected' %}?product_id=${product.id}`);
       if (!resp.ok) {
@@ -414,8 +437,10 @@
           list.innerHTML = '';
           data.products.forEach(product => {
             const item = document.createElement('div');
-            item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;';
-            item.textContent = product.name;
+            const hasStock = product.has_stock !== false && product.qty_on_hand > 0;
+            item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;' + 
+                                 (hasStock ? '' : ';opacity:0.7;color:#999;');
+            item.textContent = product.name + (hasStock ? '' : ' (нет на складе)');
             item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
             item.onmouseout = () => item.style.backgroundColor = '';
             item.onclick = (e) => {
