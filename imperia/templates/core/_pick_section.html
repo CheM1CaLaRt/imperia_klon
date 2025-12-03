@@ -269,17 +269,31 @@
     const nameInput = row.querySelector('[name$="-name"]');
     if (!nameInput) return null;
 
-    // Используем fixed позиционирование, чтобы список был виден поверх модального окна
-    const nameInputRect = nameInput.getBoundingClientRect();
+    // Находим контейнер поля (div с position:relative)
+    const nameInputContainer = nameInput.parentElement;
+    if (!nameInputContainer) return null;
+
+    // Убеждаемся, что контейнер имеет position:relative для правильного позиционирования
+    const containerStyle = window.getComputedStyle(nameInputContainer);
+    if (containerStyle.position === 'static') {
+      nameInputContainer.style.position = 'relative';
+    }
+    
+    // Получаем размеры input поля для правильного позиционирования
+    const inputRect = nameInput.getBoundingClientRect();
     
     const list = document.createElement('div');
     list.className = 'autocomplete-list';
+    
+    // Используем fixed позиционирование для правильного отображения в модальном окне
+    // но рассчитываем позицию относительно input поля
     list.style.cssText = 'position:fixed;z-index:10001;background:white;border:1px solid #ccc;border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);margin-top:2px;';
     
-    // Позиционируем относительно input поля
-    list.style.top = (nameInputRect.bottom + window.scrollY) + 'px';
-    list.style.left = nameInputRect.left + 'px';
-    list.style.width = nameInputRect.width + 'px';
+    // Позиционируем прямо под input полем
+    // Используем getBoundingClientRect() который уже учитывает скролл
+    list.style.top = inputRect.bottom + 'px';
+    list.style.left = inputRect.left + 'px';
+    list.style.width = inputRect.width + 'px';
     
     // Добавляем в body, чтобы не обрезался overflow модального окна
     document.body.appendChild(list);
@@ -294,6 +308,40 @@
       autocompleteList = null;
     }
     currentAutocompleteRow = null;
+  }
+
+  // Обновляем позицию списка при скролле
+  function updateAutocompletePosition() {
+    if (!autocompleteList || !currentAutocompleteRow) return;
+    
+    const nameInput = currentAutocompleteRow.querySelector('[name$="-name"]');
+    if (!nameInput) {
+      hideAutocomplete();
+      return;
+    }
+    
+    const inputRect = nameInput.getBoundingClientRect();
+    autocompleteList.style.top = inputRect.bottom + 'px';
+    autocompleteList.style.left = inputRect.left + 'px';
+    autocompleteList.style.width = inputRect.width + 'px';
+  }
+
+  // Обновляем позицию при скролле модального окна или окна браузера
+  const modal = document.getElementById('pickModal');
+  if (modal) {
+    // Используем throttling для оптимизации
+    let scrollTimeout = null;
+    const throttledUpdate = () => {
+      if (scrollTimeout) return;
+      scrollTimeout = setTimeout(() => {
+        updateAutocompletePosition();
+        scrollTimeout = null;
+      }, 10);
+    };
+    
+    modal.addEventListener('scroll', throttledUpdate, { passive: true });
+    window.addEventListener('scroll', throttledUpdate, { passive: true });
+    window.addEventListener('resize', throttledUpdate);
   }
 
   async function selectProduct(row, product) {
