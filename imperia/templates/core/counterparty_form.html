@@ -120,6 +120,10 @@
                   <label for="{{ addr_form.DELETE.id_for_label }}" style="cursor:pointer;color:#dc2626;font-size:13px;font-weight:500;user-select:none">Удалить</label>
                 </div>
               {% endif %}
+              {# Скрытое поле ID для существующих адресов #}
+              {% for hidden in addr_form.hidden_fields %}
+                {{ hidden }}
+              {% endfor %}
               <div style="display:flex;flex-direction:column;gap:12px;padding-right:100px">
                 <div>
                   {{ addr_form.address }}

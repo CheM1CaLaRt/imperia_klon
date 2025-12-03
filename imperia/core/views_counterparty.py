@@ -139,6 +139,7 @@ def counterparty_update(request, pk: int):
                 messages.error(request, "Проверьте блок «Сканы документов».")
     else:
         form = CounterpartyCreateForm(instance=obj)
+        # При GET запросе загружаем существующие адреса
         address_formset = CounterpartyAddressFormSet(instance=obj)
         doc_formset = CounterpartyDocumentFormSet(instance=obj)
 
