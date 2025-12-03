@@ -345,10 +345,12 @@ class CounterpartyAddressForm(forms.ModelForm):
         widgets = {
             "address": forms.TextInput(attrs={
                 "class": "input",
-                "placeholder": "Фактический адрес / адрес доставки"
+                "placeholder": "Введите адрес доставки",
+                "style": "width:100%;padding:10px 14px;font-size:14px"
             }),
             "is_default": forms.CheckboxInput(attrs={
-                "class": "checkbox"
+                "class": "checkbox",
+                "style": "width:18px;height:18px;cursor:pointer"
             }),
         }
 

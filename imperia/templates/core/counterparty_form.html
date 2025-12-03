@@ -107,52 +107,63 @@
       {# Адреса доставки #}
       {% if address_formset %}
       <div class="field">
-        <label class="field-label" style="font-weight:600;margin-bottom:12px;display:block">
+        <label class="field-label" style="font-weight:600;margin-bottom:16px;display:block;font-size:15px;color:#1f2937">
           Фактические адреса / адреса доставки
         </label>
-        <div id="address-formset-container" style="display:flex;flex-direction:column;gap:12px">
+        <div id="address-formset-container" style="display:flex;flex-direction:column;gap:16px">
           {{ address_formset.management_form }}
           {% for addr_form in address_formset %}
-            <div class="address-form-row" style="padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;position:relative">
+            <div class="address-form-row" style="padding:20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;position:relative;transition:all 0.2s">
               {% if addr_form.DELETE %}
-                <div style="position:absolute;top:8px;right:8px">
+                <div style="position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:6px">
                   {{ addr_form.DELETE }}
-                  <label for="{{ addr_form.DELETE.id_for_label }}" style="cursor:pointer;color:#ef4444;font-size:14px;margin-left:4px">Удалить</label>
+                  <label for="{{ addr_form.DELETE.id_for_label }}" style="cursor:pointer;color:#dc2626;font-size:13px;font-weight:500;user-select:none">Удалить</label>
                 </div>
               {% endif %}
-              <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;flex-direction:column;gap:12px;padding-right:100px">
                 <div>
                   {{ addr_form.address }}
                   {% if addr_form.address.errors %}
-                    <div style="color:#ef4444;font-size:13px;margin-top:4px">{{ addr_form.address.errors }}</div>
+                    <div style="color:#dc2626;font-size:12px;margin-top:6px;display:flex;align-items:center;gap:4px">
+                      <span>⚠</span>
+                      <span>{{ addr_form.address.errors }}</span>
+                    </div>
                   {% endif %}
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px">
+                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:#374151;user-select:none">
                     {{ addr_form.is_default }}
-                    <span>Адрес по умолчанию</span>
+                    <span style="font-weight:500">Адрес по умолчанию</span>
                   </label>
                   <button type="button" 
                           class="yandex-map-btn" 
                           data-address-field="{{ addr_form.address.id_for_label }}"
-                          style="background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
-                          tabindex="0">
-                    <span>🗺️</span>
+                          style="background:#3b82f6;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all 0.2s;outline:none;box-shadow:0 1px 2px rgba(0,0,0,0.05)"
+                          tabindex="0"
+                          onmouseover="this.style.background='#2563eb';this.style.transform='translateY(-1px)';this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'"
+                          onmouseout="this.style.background='#3b82f6';this.style.transform='';this.style.boxShadow='0 1px 2px rgba(0,0,0,0.05)'">
+                    <span style="font-size:14px">🗺️</span>
                     <span>Открыть на карте</span>
                   </button>
                 </div>
               </div>
               {% if addr_form.non_field_errors %}
-                <div style="color:#ef4444;font-size:13px;margin-top:8px">{{ addr_form.non_field_errors }}</div>
+                <div style="color:#dc2626;font-size:12px;margin-top:8px;padding:8px;background:#fef2f2;border-radius:6px;border-left:3px solid #dc2626">
+                  {{ addr_form.non_field_errors }}
+                </div>
               {% endif %}
             </div>
           {% endfor %}
         </div>
         {% if address_formset.non_form_errors %}
-          <div style="color:#ef4444;font-size:13px;margin-top:8px">{{ address_formset.non_form_errors }}</div>
+          <div style="color:#dc2626;font-size:13px;margin-top:12px;padding:12px;background:#fef2f2;border-radius:8px;border-left:3px solid #dc2626">
+            {{ address_formset.non_form_errors }}
+          </div>
         {% endif %}
-        <button type="button" id="add-address-btn" style="margin-top:12px;background:var(--primary);color:white;border:none;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-          <span>+</span>
+        <button type="button" id="add-address-btn" style="margin-top:16px;background:#3b82f6;color:white;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;box-shadow:0 2px 4px rgba(59,130,246,0.2)"
+                onmouseover="this.style.background='#2563eb';this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 6px rgba(59,130,246,0.3)'"
+                onmouseout="this.style.background='#3b82f6';this.style.transform='';this.style.boxShadow='0 2px 4px rgba(59,130,246,0.2)'">
+          <span style="font-size:18px;font-weight:bold">+</span>
           <span>Добавить адрес</span>
         </button>
       </div>
@@ -611,28 +622,28 @@
       // Создаем новую строку
       const newRow = document.createElement('div');
       newRow.className = 'address-form-row';
-      newRow.style.cssText = 'padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;position:relative';
+      newRow.style.cssText = 'padding:20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;position:relative;transition:all 0.2s';
       
       newRow.innerHTML = `
-        <div style="position:absolute;top:8px;right:8px">
+        <div style="position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:6px">
           <input type="checkbox" name="${prefix}-${idx}-DELETE" id="id_${prefix}-${idx}-DELETE">
-          <label for="id_${prefix}-${idx}-DELETE" style="cursor:pointer;color:#ef4444;font-size:14px;margin-left:4px">Удалить</label>
+          <label for="id_${prefix}-${idx}-DELETE" style="cursor:pointer;color:#dc2626;font-size:13px;font-weight:500;user-select:none">Удалить</label>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:12px;padding-right:100px">
           <div>
-            <input type="text" name="${prefix}-${idx}-address" id="id_${prefix}-${idx}-address" class="input" placeholder="Фактический адрес / адрес доставки">
+            <input type="text" name="${prefix}-${idx}-address" id="id_${prefix}-${idx}-address" class="input" placeholder="Введите адрес доставки" style="width:100%;padding:10px 14px;font-size:14px">
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
-              <input type="checkbox" name="${prefix}-${idx}-is_default" id="id_${prefix}-${idx}-is_default" class="checkbox">
-              <span>Адрес по умолчанию</span>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:#374151;user-select:none">
+              <input type="checkbox" name="${prefix}-${idx}-is_default" id="id_${prefix}-${idx}-is_default" class="checkbox" style="width:18px;height:18px;cursor:pointer">
+              <span style="font-weight:500">Адрес по умолчанию</span>
             </label>
             <button type="button" 
                     class="yandex-map-btn" 
                     data-address-field="id_${prefix}-${idx}-address"
-                    style="background:var(--primary);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:opacity 0.2s,background 0.2s;outline:none"
+                    style="background:#3b82f6;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all 0.2s;outline:none;box-shadow:0 1px 2px rgba(0,0,0,0.05)"
                     tabindex="0">
-              <span>🗺️</span>
+              <span style="font-size:14px">🗺️</span>
               <span>Открыть на карте</span>
             </button>
           </div>
@@ -654,12 +665,43 @@
         deleteCheckbox.addEventListener('change', function() {
           if (this.checked) {
             newRow.style.opacity = '0.5';
+            newRow.style.background = '#f3f4f6';
             newRow.querySelector('input[name$="-address"]').disabled = true;
             newRow.querySelector('input[name$="-is_default"]').disabled = true;
+            const mapBtn = newRow.querySelector('.yandex-map-btn');
+            if (mapBtn) {
+              mapBtn.style.opacity = '0.5';
+              mapBtn.style.pointerEvents = 'none';
+            }
           } else {
             newRow.style.opacity = '1';
+            newRow.style.background = '#f9fafb';
             newRow.querySelector('input[name$="-address"]').disabled = false;
             newRow.querySelector('input[name$="-is_default"]').disabled = false;
+            const mapBtn = newRow.querySelector('.yandex-map-btn');
+            if (mapBtn) {
+              mapBtn.style.opacity = '1';
+              mapBtn.style.pointerEvents = 'auto';
+            }
+          }
+        });
+      }
+      
+      // Добавляем hover эффекты для кнопки карты
+      const mapBtn = newRow.querySelector('.yandex-map-btn');
+      if (mapBtn) {
+        mapBtn.addEventListener('mouseenter', function() {
+          if (!deleteCheckbox || !deleteCheckbox.checked) {
+            this.style.background = '#2563eb';
+            this.style.transform = 'translateY(-1px)';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+          }
+        });
+        mapBtn.addEventListener('mouseleave', function() {
+          if (!deleteCheckbox || !deleteCheckbox.checked) {
+            this.style.background = '#3b82f6';
+            this.style.transform = '';
+            this.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
           }
         });
       }
@@ -672,12 +714,24 @@
         if (row) {
           if (this.checked) {
             row.style.opacity = '0.5';
+            row.style.background = '#f3f4f6';
             row.querySelector('input[name$="-address"]').disabled = true;
             row.querySelector('input[name$="-is_default"]').disabled = true;
+            const mapBtn = row.querySelector('.yandex-map-btn');
+            if (mapBtn) {
+              mapBtn.style.opacity = '0.5';
+              mapBtn.style.pointerEvents = 'none';
+            }
           } else {
             row.style.opacity = '1';
+            row.style.background = '#f9fafb';
             row.querySelector('input[name$="-address"]').disabled = false;
             row.querySelector('input[name$="-is_default"]').disabled = false;
+            const mapBtn = row.querySelector('.yandex-map-btn');
+            if (mapBtn) {
+              mapBtn.style.opacity = '1';
+              mapBtn.style.pointerEvents = 'auto';
+            }
           }
         }
       });
