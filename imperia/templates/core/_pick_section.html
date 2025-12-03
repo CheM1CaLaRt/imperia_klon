@@ -269,17 +269,20 @@
     const nameInput = row.querySelector('[name$="-name"]');
     if (!nameInput) return null;
 
-    // Создаем контейнер для позиционирования
-    const nameInputContainer = nameInput.parentElement;
-    if (!nameInputContainer) return null;
-
+    // Используем fixed позиционирование, чтобы список был виден поверх модального окна
+    const nameInputRect = nameInput.getBoundingClientRect();
+    
     const list = document.createElement('div');
     list.className = 'autocomplete-list';
-    list.style.cssText = 'position:absolute;z-index:10000;background:white;border:1px solid #ccc;border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);margin-top:2px;width:100%;';
+    list.style.cssText = 'position:fixed;z-index:10001;background:white;border:1px solid #ccc;border-radius:4px;max-height:200px;overflow-y:auto;box-shadow:0 2px 8px rgba(0,0,0,0.15);margin-top:2px;';
     
-    // Позиционируем относительно контейнера input
-    nameInputContainer.style.position = 'relative';
-    nameInputContainer.appendChild(list);
+    // Позиционируем относительно input поля
+    list.style.top = (nameInputRect.bottom + window.scrollY) + 'px';
+    list.style.left = nameInputRect.left + 'px';
+    list.style.width = nameInputRect.width + 'px';
+    
+    // Добавляем в body, чтобы не обрезался overflow модального окна
+    document.body.appendChild(list);
     
     autocompleteList = list;
     return list;
@@ -364,17 +367,26 @@
         hideAutocomplete();
       }
 
+      // Убеждаемся, что обработчик срабатывает
+      console.log('Поиск по названию:', query);
+
       // Задержка перед запросом (debounce)
       autocompleteTimeout = setTimeout(async () => {
         try {
           const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
           const resp = await fetch(url);
           if (!resp.ok) {
+            console.warn('API ответил с ошибкой:', resp.status);
             hideAutocomplete();
             return;
           }
           const data = await resp.json();
-          if (!data.ok || !data.products || data.products.length === 0) {
+          if (!data.ok) {
+            console.warn('API вернул data.ok = false');
+            hideAutocomplete();
+            return;
+          }
+          if (!data.products || data.products.length === 0) {
             hideAutocomplete();
             return;
           }

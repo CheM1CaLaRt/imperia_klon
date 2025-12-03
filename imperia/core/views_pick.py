@@ -64,10 +64,18 @@ def stock_lookup_by_name(request):
     if len(query) < 3:
         return JsonResponse({"ok": True, "products": []})
 
-    # Ищем товары по названию (case-insensitive)
+    # Ищем товары по названию (case-insensitive) - используем тот же подход, что и в каталоге
+    from django.db.models import Q
     products = (
         Product.objects
-        .filter(name__icontains=query, is_active=True)
+        .filter(
+            Q(name__icontains=query) |
+            Q(barcode__startswith=query) |
+            Q(sku__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(vendor_code__icontains=query),
+            is_active=True
+        )
         .select_related("supplier")
         .order_by("name")[:20]  # Ограничиваем до 20 результатов
     )
