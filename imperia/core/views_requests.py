@@ -558,19 +558,7 @@ def request_change_status(request, pk: int):
     allowed = {
         # Менеджеры больше не могут изменять статусы через UI
         # (блок действий скрыт для них в шаблоне)
-        "operator": {
-            RequestStatus.SUBMITTED,      # Может отправить заявку
-            RequestStatus.QUOTE,          # Может создать КП
-            RequestStatus.PENDING_APPROVAL,  # Может отправить на согласование
-            RequestStatus.APPROVED,       # Может одобрить (как директор)
-            RequestStatus.REJECTED,       # Может отклонить
-            RequestStatus.TO_PICK,        # Может передать на сборку
-            RequestStatus.READY_TO_SHIP,  # Может изменить статус (если нужно)
-            RequestStatus.PARTIALLY_SHIPPED,  # Может частично отгрузить
-            RequestStatus.SHIPPED,        # Может полностью отгрузить
-            RequestStatus.DELIVERED,      # Может отметить как доставленную
-            RequestStatus.CANCELED,       # Может отменить
-        },
+        "operator": set(s for s, _ in RequestStatus.choices),  # Полный доступ (как у директора)
         "warehouse": {
             RequestStatus.IN_PROGRESS,    # Может начать сборку
             RequestStatus.READY_TO_SHIP,  # Может завершить сборку
