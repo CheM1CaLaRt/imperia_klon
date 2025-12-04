@@ -317,17 +317,19 @@
               <li class="rq-file">
                 <div class="rq-file__meta">
                   <span class="rq-mono">{{ q.created_at|date:"d.m.Y H:i" }}</span>
-                  — {{ q.original_name }}
+                  — {{ q.original_name|default:"КП с ценами" }}
                   <span class="muted">, загрузил: {{ q.uploaded_by }}</span>
                 </div>
                 <div class="rq-file__actions">
-                  <button class="btn btn-ghost open-preview"
-                          data-url="{% url 'core:request_quote_preview' obj.pk q.pk %}"
-                          data-name="{{ q.original_name }}">Просмотр</button>
-                  <a class="btn" href="{{ q.file.url }}" download>Скачать</a>
+                  {% if q.file %}
+                    <button class="btn btn-ghost open-preview"
+                            data-url="{% url 'core:request_quote_preview' obj.pk q.pk %}"
+                            data-name="{{ q.original_name|default:'КП' }}">Просмотр</button>
+                    <a class="btn" href="{{ q.file.url }}" download>Скачать</a>
+                  {% endif %}
                   {% if obj.is_editable and request.user|in_groups:"manager,operator,director" %}
                   <form method="post" action="{% url 'core:request_quote_delete' obj.pk q.pk %}"
-                        onsubmit="return confirm('Удалить файл «{{ q.original_name }}»?');">
+                        onsubmit="return confirm('Удалить КП {% if q.original_name %}«{{ q.original_name }}»{% else %}с ценами{% endif %}?');">
                     {% csrf_token %}
                     <button class="btn btn-danger" type="submit">Удалить</button>
                   </form>

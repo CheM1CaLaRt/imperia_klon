@@ -384,8 +384,20 @@ def request_detail(request, pk: int):
     quote_items = []
     quote_total = Decimal("0")
     if active_quote:
-        quote_items = list(active_quote.items.select_related("product", "request_item").all())
-        quote_total = sum(item.total for item in quote_items)
+        try:
+            quote_items = list(active_quote.items.select_related("product", "request_item").all())
+            # Безопасно суммируем total, обрабатывая возможные None значения
+            quote_total = sum(
+                (item.total if item.total is not None else Decimal("0")) 
+                for item in quote_items
+            )
+        except Exception as e:
+            # Если есть ошибка при загрузке позиций КП, логируем и продолжаем
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Ошибка при загрузке позиций КП для заявки {obj.pk}: {e}")
+            quote_items = []
+            quote_total = Decimal("0")
     
     # Проверяем, может ли оператор/директор создать/редактировать КП
     can_edit_quote = has_full_access and obj.status in [
@@ -764,7 +776,8 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
             quote = RequestQuote.objects.create(
                 request=obj,
                 uploaded_by=request.user,
-                is_active=True
+                is_active=True,
+                original_name="КП с ценами"  # Дефолтное имя для КП, созданного через форму
             )
         
         # Обрабатываем формсет с товарами
@@ -782,16 +795,30 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     if request_item_id:
                         try:
                             request_item = RequestItem.objects.get(id=request_item_id, request=obj)
+                            # Получаем и валидируем данные
+                            title = form.cleaned_data.get("title") or request_item.title or ""
+                            quantity = form.cleaned_data.get("quantity")
+                            if quantity is None:
+                                quantity = request_item.quantity or Decimal("1")
+                            price = form.cleaned_data.get("price")
+                            if price is None:
+                                price = Decimal("0")
+                            
+                            # Создаем позицию КП (total будет автоматически рассчитан в save())
                             RequestQuoteItem.objects.create(
                                 quote=quote,
                                 request_item=request_item,
                                 product=request_item.product,
-                                title=form.cleaned_data.get("title") or request_item.title,
-                                quantity=form.cleaned_data.get("quantity") or request_item.quantity,
-                                price=form.cleaned_data.get("price") or Decimal("0"),
+                                title=title,
+                                quantity=quantity,
+                                price=price,
                                 note=form.cleaned_data.get("note", ""),
                             )
-                        except RequestItem.DoesNotExist:
+                        except (RequestItem.DoesNotExist, ValueError, InvalidOperation) as e:
+                            # Логируем ошибку, но продолжаем обработку остальных позиций
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.error(f"Ошибка при создании позиции КП: {e}")
                             pass
             
             # Обновляем статус заявки

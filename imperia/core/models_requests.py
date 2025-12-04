@@ -1,4 +1,5 @@
 # core/models_requests.py
+from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -199,7 +200,13 @@ class RequestQuoteItem(models.Model):
 
     def save(self, *args, **kwargs):
         # Автоматически рассчитываем итого
-        self.total = self.quantity * self.price
+        try:
+            if self.quantity is not None and self.price is not None:
+                self.total = self.quantity * self.price
+            else:
+                self.total = Decimal("0")
+        except (TypeError, ValueError):
+            self.total = Decimal("0")
         super().save(*args, **kwargs)
 
 
