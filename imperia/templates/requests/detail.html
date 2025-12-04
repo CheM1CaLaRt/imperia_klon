@@ -904,10 +904,11 @@
         <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="modern-actions-form" id="statusChangeForm">
           {% csrf_token %}
 
-          {# ОПЕРАТОР И ДИРЕКТОР - полные права на все статусы #}
+          {# ОПЕРАТОР И ДИРЕКТОР #}
           {% if request.user|in_groups:"operator,director" %}
             <div class="modern-actions-grid">
-              {% if obj.status != "draft" %}
+              {# Директор видит все статусы, оператор - только разрешенные #}
+              {% if request.user|in_groups:"director" and obj.status != "draft" %}
                 <button type="submit" class="modern-action-btn modern-action-btn--primary" name="to" value="draft">
                   <span class="modern-action-btn__icon">📝</span>
                   <span class="modern-action-btn__text">Черновик</span>
@@ -956,7 +957,8 @@
                 </button>
               {% endif %}
               
-              {% if obj.status != "in_progress" %}
+              {# in_progress доступен только директору #}
+              {% if request.user|in_groups:"director" and obj.status != "in_progress" %}
                 <button type="submit" class="modern-action-btn" name="to" value="in_progress">
                   <span class="modern-action-btn__icon">⚙️</span>
                   <span class="modern-action-btn__text">В работу</span>
@@ -991,7 +993,8 @@
                 </button>
               {% endif %}
               
-              {% if obj.status != "done" %}
+              {# done доступен только директору #}
+              {% if request.user|in_groups:"director" and obj.status != "done" %}
                 <button type="submit" class="modern-action-btn modern-action-btn--primary" name="to" value="done">
                   <span class="modern-action-btn__icon">🎉</span>
                   <span class="modern-action-btn__text">Завершить</span>

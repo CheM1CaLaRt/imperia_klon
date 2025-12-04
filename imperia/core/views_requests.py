@@ -544,12 +544,8 @@ def request_change_status(request, pk: int):
         return HttpResponseBadRequest("Неизвестный статус")
 
     allowed = {
-        "manager": {
-            RequestStatus.SUBMITTED,  # Может отправить заявку
-            RequestStatus.CANCELED,   # Может отменить
-            RequestStatus.APPROVED,   # Может согласовать
-            RequestStatus.REJECTED,   # Может отклонить
-        },
+        # Менеджеры больше не могут изменять статусы через UI
+        # (блок действий скрыт для них в шаблоне)
         "operator": {
             RequestStatus.SUBMITTED,      # Может отправить заявку
             RequestStatus.QUOTE,          # Может создать КП
@@ -575,12 +571,11 @@ def request_change_status(request, pk: int):
     if not can:
         return HttpResponseBadRequest("Недостаточно прав для смены статуса")
     
-    # Дополнительная проверка доступа для менеджера
+    # Менеджеры больше не могут изменять статусы
     is_manager = "manager" in user_groups
     has_full_access = u.is_superuser or "director" in user_groups or "operator" in user_groups
     if is_manager and not has_full_access:
-        if not _can_manager_access_request(u, obj):
-            return HttpResponseBadRequest("У вас нет доступа к этой заявке")
+        return HttpResponseBadRequest("Менеджеры не могут изменять статусы заявок")
 
     # ✅ склад двигает только после передачи в сборку
     if (
