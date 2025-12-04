@@ -16,19 +16,63 @@
 </div>
 
 <div class="card">
-  <nav class="rq-filters" aria-label="Фильтр по статусу">
-    <a href="{% url 'core:request_list' %}" class="rq-seg {% if not status %}is-active{% endif %}">Все</a>
-    <a href="?status=draft" class="rq-seg {% if status == 'draft' %}is-active{% endif %}">Черновики</a>
-    <a href="?status=submitted" class="rq-seg {% if status == 'submitted' %}is-active{% endif %}">На согласовании</a>
-    <a href="?status=quote" class="rq-seg {% if status == 'quote' %}is-active{% endif %}">КП</a>
-    <a href="?status=approved" class="rq-seg {% if status == 'approved' %}is-active{% endif %}">Согласованы</a>
-    <a href="?status=rejected" class="rq-seg {% if status == 'rejected' %}is-active{% endif %}">Не согласованы</a>
-    <a href="?status=to_pick" class="rq-seg {% if status == 'to_pick' %}is-active{% endif %}">В сборку</a>
-    <a href="?status=in_progress" class="rq-seg {% if status == 'in_progress' %}is-active{% endif %}">Собираются</a>
-    <a href="?status=ready_to_ship" class="rq-seg {% if status == 'ready_to_ship' %}is-active{% endif %}">К отгрузке</a>
-    <a href="?status={{ statuses.DELIVERED }}" class="rq-seg {% if status == statuses.DELIVERED %}is-active{% endif %}">Доставлены</a>
-    <a href="?status=done" class="rq-seg {% if status == 'done' %}is-active{% endif %}">Завершены</a>
-  </nav>
+  <div class="filter-wrapper">
+    <div class="filter-header">
+      <div class="filter-header__icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6.58579C21 6.851 20.8946 7.10536 20.7071 7.29289L14.2929 13.7071C14.1054 13.8946 14 14.149 14 14.4142V17L10 21V14.4142C10 14.149 9.89464 13.8946 9.70711 13.7071L3.29289 7.29289C3.10536 7.10536 3 6.851 3 6.58579V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3 class="filter-header__title">Фильтр по статусу</h3>
+    </div>
+    <form method="get" action="{% url 'core:request_list' %}" class="filter-form" id="statusFilterForm">
+      <div class="filter-controls">
+        <div class="filter-select-wrapper">
+          <label for="statusFilter" class="filter-select-label">Выберите статус</label>
+          <select id="statusFilter" name="status" class="filter-select">
+            <option value="">Все заявки</option>
+            <option value="draft" {% if status == 'draft' %}selected{% endif %}>Черновики</option>
+            <option value="submitted" {% if status == 'submitted' %}selected{% endif %}>На согласовании</option>
+            <option value="quote" {% if status == 'quote' %}selected{% endif %}>КП</option>
+            <option value="approved" {% if status == 'approved' %}selected{% endif %}>Согласованы</option>
+            <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Не согласованы</option>
+            <option value="to_pick" {% if status == 'to_pick' %}selected{% endif %}>В сборку</option>
+            <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>Собираются</option>
+            <option value="ready_to_ship" {% if status == 'ready_to_ship' %}selected{% endif %}>К отгрузке</option>
+            <option value="{{ statuses.DELIVERED }}" {% if status == statuses.DELIVERED %}selected{% endif %}>Доставлены</option>
+            <option value="done" {% if status == 'done' %}selected{% endif %}>Завершены</option>
+          </select>
+        </div>
+        <button type="submit" class="filter-apply-btn">
+          <span class="filter-apply-btn__icon">✓</span>
+          <span class="filter-apply-btn__text">Применить</span>
+        </button>
+        {% if status %}
+          <a href="{% url 'core:request_list' %}" class="filter-clear-btn" title="Сбросить фильтр">
+            <span class="filter-clear-btn__icon">✕</span>
+            <span class="filter-clear-btn__text">Сбросить</span>
+          </a>
+        {% endif %}
+      </div>
+      {% if status %}
+        <div class="filter-active-badge">
+          <span class="filter-active-badge__text">Активный фильтр: 
+            {% if status == 'draft' %}Черновики
+            {% elif status == 'submitted' %}На согласовании
+            {% elif status == 'quote' %}КП
+            {% elif status == 'approved' %}Согласованы
+            {% elif status == 'rejected' %}Не согласованы
+            {% elif status == 'to_pick' %}В сборку
+            {% elif status == 'in_progress' %}Собираются
+            {% elif status == 'ready_to_ship' %}К отгрузке
+            {% elif status == statuses.DELIVERED %}Доставлены
+            {% elif status == 'done' %}Завершены
+            {% else %}{{ status }}{% endif %}
+          </span>
+        </div>
+      {% endif %}
+    </form>
+  </div>
 </div>
 
 <section class="rq-list" aria-live="polite">
@@ -70,10 +114,171 @@
 </section>
 
 <style>
-.rq-filters{position:sticky;top:72px;z-index:10;background:var(--card);padding:16px 0;display:flex;flex-wrap:wrap;gap:8px;margin:-20px -20px 20px -20px;padding-left:20px;padding-right:20px;border-bottom:1px solid var(--border)}
-.rq-seg{white-space:nowrap;padding:8px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-weight:600;text-decoration:none;font-size:14px;transition:all 0.2s}
-.rq-seg:hover{background:var(--bg);border-color:var(--primary)}
-.rq-seg.is-active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* Профессиональный фильтр */
+.filter-wrapper{
+  padding:20px;
+  background:#fff;
+  border-radius:var(--radius);
+}
+.filter-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:16px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+.filter-header__icon{
+  width:36px;
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(107,114,128,0.08);
+  border-radius:10px;
+  color:var(--text);
+  border:1px solid rgba(0,0,0,0.06);
+}
+.filter-header__title{
+  font-size:16px;
+  font-weight:700;
+  color:var(--text);
+  margin:0;
+  letter-spacing:-0.01em;
+}
+
+.filter-form{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.filter-controls{
+  display:flex;
+  gap:12px;
+  align-items:flex-end;
+  flex-wrap:wrap;
+}
+.filter-select-wrapper{
+  flex:1;
+  min-width:200px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.filter-select-label{
+  font-size:13px;
+  font-weight:600;
+  color:var(--muted);
+}
+.filter-select{
+  width:100%;
+  padding:12px 16px;
+  border-radius:12px;
+  border:1.5px solid rgba(0,0,0,0.12);
+  background:#fff;
+  color:var(--text);
+  font-weight:500;
+  font-size:14px;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 14px center;
+  background-size:12px;
+  padding-right:40px;
+}
+.filter-select:hover{
+  border-color:rgba(0,0,0,0.2);
+  background-color:#fafafa;
+}
+.filter-select:focus{
+  outline:none;
+  border-color:rgba(10,132,255,0.4);
+  box-shadow:0 0 0 4px rgba(10,132,255,0.1);
+  background-color:#fff;
+}
+
+.filter-apply-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:12px 24px;
+  border-radius:12px;
+  border:1.5px solid rgba(0,0,0,0.12);
+  background:#fff;
+  color:var(--text);
+  font-weight:600;
+  font-size:14px;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  box-shadow:0 1px 3px rgba(0,0,0,0.08);
+  white-space:nowrap;
+}
+.filter-apply-btn:hover{
+  background:#f8f9fa;
+  border-color:rgba(0,0,0,0.18);
+  transform:translateY(-1px);
+  box-shadow:0 2px 6px rgba(0,0,0,0.12);
+}
+.filter-apply-btn:active{
+  transform:translateY(0);
+}
+.filter-apply-btn__icon{
+  font-size:16px;
+  line-height:1;
+}
+.filter-apply-btn__text{
+  letter-spacing:-0.01em;
+}
+
+.filter-clear-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:12px 20px;
+  border-radius:12px;
+  border:1.5px solid rgba(0,0,0,0.12);
+  background:#fff;
+  color:var(--muted);
+  font-weight:600;
+  font-size:14px;
+  text-decoration:none;
+  transition:all 0.2s ease;
+  box-shadow:0 1px 3px rgba(0,0,0,0.08);
+  white-space:nowrap;
+}
+.filter-clear-btn:hover{
+  background:#fee2e2;
+  border-color:rgba(239,68,68,0.3);
+  color:#dc2626;
+  transform:translateY(-1px);
+  box-shadow:0 2px 6px rgba(239,68,68,0.15);
+}
+.filter-clear-btn:active{
+  transform:translateY(0);
+}
+.filter-clear-btn__icon{
+  font-size:14px;
+  line-height:1;
+}
+
+.filter-active-badge{
+  padding:10px 14px;
+  background:rgba(10,132,255,0.08);
+  border:1px solid rgba(10,132,255,0.2);
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.filter-active-badge__text{
+  font-size:13px;
+  font-weight:600;
+  color:#075985;
+}
 
 .rq-list{display:grid;gap:12px}
 .rq-item{display:block;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;text-decoration:none;color:inherit;transition:all 0.2s;box-shadow:var(--shadow)}
@@ -100,7 +305,10 @@
 .rq-empty{display:grid;place-items:center;gap:12px;padding:48px 24px;text-align:center;color:var(--muted)}
 
 @media (max-width:940px){
-  .rq-filters{position:static;margin:-16px -16px 16px -16px;padding-left:16px;padding-right:16px;top:auto}
+  .filter-wrapper{padding:16px}
+  .filter-controls{flex-direction:column;align-items:stretch}
+  .filter-select-wrapper{min-width:100%}
+  .filter-apply-btn,.filter-clear-btn{width:100%;justify-content:center}
   .rq-item{padding:14px 16px}
   .rq-item__row{flex-direction:column;align-items:flex-start;gap:12px}
   .rq-item__meta{white-space:normal}
@@ -108,9 +316,12 @@
   .card-header .btn{font-size:14px;padding:8px 14px}
 }
 @media (max-width:640px){
-  .rq-filters{overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:8px;padding-top:12px;margin:-16px -16px 12px -16px}
-  .rq-filters::-webkit-scrollbar{display:none}
-  .rq-seg{font-size:12px;padding:6px 10px;flex-shrink:0}
+  .filter-wrapper{padding:14px}
+  .filter-header{padding-bottom:12px;margin-bottom:12px}
+  .filter-header__icon{width:32px;height:32px}
+  .filter-header__title{font-size:15px}
+  .filter-select{padding:14px 16px;font-size:15px;padding-right:44px}
+  .filter-apply-btn,.filter-clear-btn{padding:14px 20px;font-size:15px}
   .rq-item{padding:12px 14px}
   .rq-item__title{font-size:15px;line-height:1.4}
   .rq-item__meta{font-size:12px;line-height:1.5}
@@ -120,4 +331,44 @@
   .card-header .btn{width:100%;justify-content:center}
 }
 </style>
+
+<script>
+(function(){
+  const filterForm = document.getElementById('statusFilterForm');
+  const statusSelect = document.getElementById('statusFilter');
+  const applyBtn = document.querySelector('.filter-apply-btn');
+  
+  if (!filterForm || !statusSelect || !applyBtn) return;
+  
+  // Отслеживаем изменение выбора для визуальной обратной связи
+  let initialValue = statusSelect.value;
+  
+  statusSelect.addEventListener('change', function() {
+    const hasChanged = this.value !== initialValue;
+    if (hasChanged) {
+      // Подсвечиваем кнопку при изменении
+      applyBtn.style.background = '#0A84FF';
+      applyBtn.style.color = '#fff';
+      applyBtn.style.borderColor = '#0A84FF';
+      applyBtn.style.boxShadow = '0 2px 8px rgba(10,132,255,0.25)';
+    } else {
+      // Возвращаем обычный вид
+      applyBtn.style.background = '';
+      applyBtn.style.color = '';
+      applyBtn.style.borderColor = '';
+      applyBtn.style.boxShadow = '';
+    }
+  });
+  
+  // При отправке формы обновляем initialValue
+  filterForm.addEventListener('submit', function() {
+    initialValue = statusSelect.value;
+    // Показываем индикатор загрузки
+    applyBtn.disabled = true;
+    applyBtn.style.opacity = '0.6';
+    applyBtn.style.cursor = 'wait';
+    applyBtn.querySelector('.filter-apply-btn__text').textContent = 'Применяется...';
+  });
+})();
+</script>
 {% endblock %}
