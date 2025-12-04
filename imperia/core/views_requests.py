@@ -430,6 +430,82 @@ def request_detail(request, pk: int):
             'date': obj.created_at,
             'author': obj.initiator,
         }
+    
+    # Определяем порядок этапов и маппинг статусов
+    status_steps = [
+        ('draft', 'Черновик'),
+        ('submitted', 'Отправлена'),
+        ('quote', 'КП'),
+        ('pending_approval', 'На согласовании'),
+        ('approved', 'Согласована'),
+        ('rejected', 'Не согласована'),
+        ('to_pick', 'На сборку'),
+        ('in_progress', 'Собирается'),
+        ('ready_to_ship', 'Готова к отгрузке'),
+        ('partially_shipped', 'Частично отгружена'),
+        ('shipped', 'Отгружена'),
+        ('delivered', 'Доставлена'),
+        ('done', 'Завершена'),
+        ('canceled', 'Отменена'),
+    ]
+    
+    # Находим текущий этап и определяем предыдущий/следующий
+    current_status = obj.status
+    current_index = None
+    for i, (status, label) in enumerate(status_steps):
+        if status == current_status:
+            current_index = i
+            break
+    
+    # Определяем этапы для отображения (предыдущий, текущий, следующий)
+    display_steps = []
+    if current_index is not None:
+        # Предыдущий этап
+        if current_index > 0:
+            prev_status, prev_label = status_steps[current_index - 1]
+            prev_data = status_dates.get(prev_status, {})
+            display_steps.append({
+                'status': prev_status,
+                'label': prev_label,
+                'type': 'prev',
+                'date': prev_data.get('date'),
+                'author': prev_data.get('author'),
+                'is_completed': True,
+            })
+        
+        # Текущий этап
+        current_data = status_dates.get(current_status, {})
+        display_steps.append({
+            'status': current_status,
+            'label': status_steps[current_index][1],
+            'type': 'current',
+            'date': current_data.get('date') or obj.created_at,
+            'author': current_data.get('author') or obj.initiator,
+            'is_completed': False,
+        })
+        
+        # Следующий этап
+        if current_index < len(status_steps) - 1:
+            next_status, next_label = status_steps[current_index + 1]
+            next_data = status_dates.get(next_status, {})
+            display_steps.append({
+                'status': next_status,
+                'label': next_label,
+                'type': 'next',
+                'date': next_data.get('date'),
+                'author': next_data.get('author'),
+                'is_completed': False,
+            })
+    else:
+        # Если статус не найден в списке, показываем только текущий
+        display_steps.append({
+            'status': current_status,
+            'label': obj.get_status_display() or current_status,
+            'type': 'current',
+            'date': obj.created_at,
+            'author': obj.initiator,
+            'is_completed': False,
+        })
 
     return render(
         request,
@@ -457,6 +533,7 @@ def request_detail(request, pk: int):
             "can_create_shipment": can_create_shipment,
             "can_add_items": can_add_items,
             "status_dates": status_dates,
+            "display_steps": display_steps,
         },
     )
 
