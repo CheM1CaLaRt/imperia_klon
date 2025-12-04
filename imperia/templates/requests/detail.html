@@ -70,16 +70,24 @@
 
   <!-- ===== Информация о доставке ===== -->
   {% if obj.delivery_date or obj.delivery_contact or obj.delivery_address %}
-  <div class="delivery-info-card">
-    <div class="delivery-info-header">
-      <div class="delivery-info-header__icon">
+  <div class="collapsible-card">
+    <button type="button" class="collapsible-card__header" data-collapse-target="delivery-info">
+      <div class="collapsible-card__header-left">
+        <div class="collapsible-card__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" stroke="currentColor" stroke-width="2"/>
+            <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <h3 class="collapsible-card__title">Информация о доставке</h3>
+      </div>
+      <div class="collapsible-card__arrow">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M21 10C21 17 12 23 12 23C12 23 3 17 3 10C3 7.61305 3.94821 5.32387 5.63604 3.63604C7.32387 1.94821 9.61305 1 12 1C14.3869 1 16.6761 1.94821 18.364 3.63604C20.0518 5.32387 21 7.61305 21 10Z" stroke="currentColor" stroke-width="2"/>
-          <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
+          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h3 class="delivery-info-header__title">Информация о доставке</h3>
-    </div>
+    </button>
+    <div class="collapsible-card__content" id="delivery-info">
     <div class="delivery-info-content">
       {% if obj.delivery_date %}
         <div class="delivery-info-item">
@@ -171,31 +179,56 @@
         </div>
       {% endif %}
     </div>
+    </div>
   </div>
   {% endif %}
 
   <!-- Внутренний комментарий -->
-  <section class="rq-card">
-    <div class="rq-card__head"><h2>Комментарий</h2></div>
-    <div class="rq-card__body">
-      {% if obj.comment_internal %}
-        {{ obj.comment_internal|linebreaksbr }}
-      {% else %}
-        <span class="muted">—</span>
-      {% endif %}
-    </div>
-  </section>
-
-  <!-- ===== Прогресс-этапы ===== -->
-  <div class="steps-timeline-card">
-    <div class="steps-timeline-header">
-      <div class="steps-timeline-header__icon">
+  <div class="collapsible-card">
+    <button type="button" class="collapsible-card__header" data-collapse-target="comment">
+      <div class="collapsible-card__header-left">
+        <div class="collapsible-card__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3 class="collapsible-card__title">Комментарий</h3>
+      </div>
+      <div class="collapsible-card__arrow">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5M12 12H15M12 16H15M9 12H9.01M9 16H9.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h2 class="steps-timeline-header__title">Этапы обработки заявки</h2>
+    </button>
+    <div class="collapsible-card__content" id="comment">
+      <div class="collapsible-card__body">
+        {% if obj.comment_internal %}
+          {{ obj.comment_internal|linebreaksbr }}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </div>
     </div>
+  </div>
+
+  <!-- ===== Прогресс-этапы ===== -->
+  <div class="collapsible-card">
+    <button type="button" class="collapsible-card__header" data-collapse-target="steps-timeline">
+      <div class="collapsible-card__header-left">
+        <div class="collapsible-card__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5M12 12H15M12 16H15M9 12H9.01M9 16H9.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3 class="collapsible-card__title">Этапы обработки заявки</h3>
+      </div>
+      <div class="collapsible-card__arrow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </button>
+    <div class="collapsible-card__content" id="steps-timeline">
     
     <div class="steps-timeline-wrapper">
       <div class="steps-timeline">
@@ -1228,6 +1261,38 @@
 })();
 </script>
 
+{# Скрипт для сворачивания/разворачивания блоков #}
+<script>
+(function(){
+  const collapseButtons = document.querySelectorAll('[data-collapse-target]');
+  
+  collapseButtons.forEach(button => {
+    const targetId = button.getAttribute('data-collapse-target');
+    const content = document.getElementById(targetId);
+    
+    if (!content) return;
+    
+    // Инициализация: блоки открыты по умолчанию
+    button.setAttribute('aria-expanded', 'true');
+    content.setAttribute('aria-hidden', 'false');
+    
+    button.addEventListener('click', function() {
+      const isExpanded = button.getAttribute('aria-expanded') === 'true';
+      
+      if (isExpanded) {
+        // Сворачиваем
+        button.setAttribute('aria-expanded', 'false');
+        content.setAttribute('aria-hidden', 'true');
+      } else {
+        // Разворачиваем
+        button.setAttribute('aria-expanded', 'true');
+        content.setAttribute('aria-hidden', 'false');
+      }
+    });
+  });
+})();
+</script>
+
 <style>
 :root{ --bg:#f6f7f8; --card:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --accent:#111; --radius:14px; }
 .rq-container{max-width:1200px;margin:0 auto;padding:20px 16px 28px;}
@@ -1418,24 +1483,39 @@
   font-weight:600;
 }
 
-/* Блок информации о доставке */
-.delivery-info-card{
+/* Сворачиваемые карточки */
+.collapsible-card{
   background:#fff;
   border:1px solid var(--line);
   border-radius:16px;
-  padding:20px;
-  margin-bottom:20px;
+  margin-bottom:16px;
   box-shadow:0 2px 8px rgba(0,0,0,0.04);
+  overflow:hidden;
+  transition:all 0.2s ease;
 }
-.delivery-info-header{
+.collapsible-card__header{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:18px 20px;
+  background:#fafafa;
+  border:none;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  text-align:left;
+}
+.collapsible-card__header:hover{
+  background:#f5f5f5;
+}
+.collapsible-card__header-left{
   display:flex;
   align-items:center;
   gap:12px;
-  margin-bottom:16px;
-  padding-bottom:16px;
-  border-bottom:1px solid var(--line);
+  flex:1;
 }
-.delivery-info-header__icon{
+.collapsible-card__icon{
   width:36px;
   height:36px;
   display:flex;
@@ -1445,18 +1525,48 @@
   border-radius:10px;
   color:#0A84FF;
   border:1px solid rgba(10,132,255,0.2);
+  flex-shrink:0;
 }
-.delivery-info-header__title{
+.collapsible-card__title{
   font-size:17px;
   font-weight:700;
   color:var(--text);
   margin:0;
   letter-spacing:-0.01em;
 }
+.collapsible-card__arrow{
+  flex-shrink:0;
+  width:32px;
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  transition:transform 0.3s ease;
+}
+.collapsible-card__header[aria-expanded="true"] .collapsible-card__arrow{
+  transform:rotate(180deg);
+}
+.collapsible-card__content{
+  overflow:hidden;
+  transition:max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s ease, opacity 0.3s ease;
+  padding:20px;
+  max-height:5000px;
+  opacity:1;
+}
+.collapsible-card__content[aria-hidden="true"]{
+  max-height:0;
+  padding:0 20px;
+  opacity:0;
+}
+.collapsible-card__body{
+  padding:0;
+}
 .delivery-info-content{
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
   gap:20px;
+  padding:0;
 }
 .delivery-info-item{
   display:flex;
@@ -1577,39 +1687,6 @@
 
 /* Современный карусель этапов 2025 */
 /* Упрощенный дизайн этапов */
-.steps-timeline-card{
-  background:#fff;
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  padding:20px;
-  margin-bottom:20px;
-}
-.steps-timeline-header{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  margin-bottom:20px;
-  padding-bottom:16px;
-  border-bottom:1px solid var(--line);
-}
-.steps-timeline-header__icon{
-  width:36px;
-  height:36px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background:rgba(107,114,128,0.08);
-  border-radius:10px;
-  color:var(--text);
-  border:1px solid rgba(0,0,0,0.06);
-}
-.steps-timeline-header__title{
-  font-size:17px;
-  font-weight:700;
-  color:var(--text);
-  margin:0;
-  letter-spacing:-0.01em;
-}
 
 .steps-timeline-wrapper{
   overflow-x:auto;
@@ -2230,7 +2307,12 @@
   .payment-status{padding:14px 16px;gap:12px}
   .payment-status__icon{width:40px;height:40px}
   .payment-status__value{font-size:16px}
-  .delivery-info-card{padding:16px}
+  .collapsible-card__header{padding:14px 16px}
+  .collapsible-card__icon{width:32px;height:32px}
+  .collapsible-card__title{font-size:16px}
+  .collapsible-card__arrow{width:28px;height:28px}
+  .collapsible-card__content{padding:16px}
+  .collapsible-card__content[aria-hidden="true"]{padding:0 16px}
   .delivery-info-content{grid-template-columns:1fr}
   .delivery-info-item--address{grid-column:1}
   .delivery-contact-name{font-size:15px}
