@@ -118,9 +118,10 @@ def request_list(request):
     is_manager = u.groups.filter(name="manager").exists()
     is_operator = u.groups.filter(name="operator").exists()
     is_director = u.groups.filter(name="director").exists()
-    has_full_access = u.is_superuser or is_director or is_operator
+    has_full_access = u.is_superuser or is_director
+    has_operator_access = u.is_superuser or is_director or is_operator
     
-    if is_warehouse and not has_full_access:
+    if is_warehouse and not has_operator_access:
         # Склад видит только заявки на сбор
         qs = qs.filter(
             status__in=[
@@ -129,7 +130,7 @@ def request_list(request):
                 RequestStatus.READY_TO_SHIP,
             ]
         )
-    elif is_manager and not has_full_access:
+    elif is_manager and not has_operator_access:
         # Менеджер видит:
         # 1. Заявки контрагентов, к которым он прикреплен
         # 2. Заявки, которые он сам создал
@@ -143,10 +144,23 @@ def request_list(request):
             cond |= Q(counterparty__manager=u)
             
         qs = qs.filter(cond)
-    # Оператор и директор видят все заявки (без фильтрации)
+    # Оператор и директор видят все заявки (кроме чужих черновиков - см. ниже)
 
+    # Фильтрация по статусу
     if status:
         qs = qs.filter(status=status)
+    
+    # Специальная обработка для черновиков:
+    # - Директор видит все черновики
+    # - Инициатор видит свои черновики
+    # - Операторы НЕ видят чужие черновики (только свои, если они инициаторы)
+    if not has_full_access:  # Если не директор и не суперпользователь
+        if status == RequestStatus.DRAFT:
+            # Если фильтруем по черновикам, показываем только черновики инициатора
+            qs = qs.filter(initiator=u)
+        elif not status:
+            # Если не фильтруем по статусу, исключаем чужие черновики
+            qs = qs.exclude(Q(status=RequestStatus.DRAFT) & ~Q(initiator=u))
 
     return render(
         request,

@@ -18,6 +18,7 @@
 <div class="card">
   <nav class="rq-filters" aria-label="Фильтр по статусу">
     <a href="{% url 'core:request_list' %}" class="rq-seg {% if not status %}is-active{% endif %}">Все</a>
+    <a href="?status=draft" class="rq-seg {% if status == 'draft' %}is-active{% endif %}">Черновики</a>
     <a href="?status=submitted" class="rq-seg {% if status == 'submitted' %}is-active{% endif %}">На согласовании</a>
     <a href="?status=quote" class="rq-seg {% if status == 'quote' %}is-active{% endif %}">КП</a>
     <a href="?status=approved" class="rq-seg {% if status == 'approved' %}is-active{% endif %}">Согласованы</a>
@@ -86,6 +87,7 @@
 .rq-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--card);color:var(--text);white-space:nowrap}
 .rq-chip--done{background:var(--primary);border-color:var(--primary);color:#fff}
 .rq-chip--flag{background:var(--card);border:1px dashed var(--border);color:var(--text)}
+.rq-chip--draft{background:#f3f4f6;border-color:#d1d5db;color:#374151}
 .rq-chip--submitted{background:#eef2ff;border-color:#c7d2fe;color:#1f2937}
 .rq-chip--quote{background:#fef3c7;border-color:#fde68a;color:#78350f}
 .rq-chip--approved{background:#e0f2fe;border-color:#bae6fd;color:#075985}
