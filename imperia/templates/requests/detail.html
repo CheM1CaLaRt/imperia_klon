@@ -887,92 +887,163 @@
 
     <!-- ===== Правая колонка (Действия) ===== -->
     <aside class="rq-aside">
-      <section class="rq-card rq-sticky">
-        <div class="rq-card__head"><h2>Действия</h2></div>
+      {# Блок действий - только для операторов, директоров и склада (не для менеджеров) #}
+      {% if request.user|in_groups:"operator,director,warehouse" %}
+      <section class="modern-actions-card rq-sticky">
+        <div class="modern-actions-header">
+          <div class="modern-actions-header__icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h2 class="modern-actions-header__title">Действия</h2>
+        </div>
 
-        <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="rq-actions__col">
+        <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="modern-actions-form" id="statusChangeForm">
           {% csrf_token %}
 
-          {# ОПЕРАТОР #}
-          {% if request.user|in_groups:"operator" %}
-            {% if obj.status == "draft" %}
-              <button class="btn" name="to" value="submitted">Отправить</button>
-              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-            {% elif obj.status == "submitted" %}
-              <a href="{% url 'core:request_quote_create' obj.pk %}" class="btn btn-primary">Создать КП</a>
-              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-            {% elif obj.status == "pending_approval" %}
-              <button class="btn" name="to" value="approved">Одобрить</button>
-              <button class="btn btn-ghost" name="to" value="rejected">Отклонить</button>
-            {% elif obj.status == "approved" %}
-              <button class="btn btn-primary" name="to" value="to_pick">Передать на сборку</button>
-            {% elif obj.status == "rejected" %}
-              <a href="{% url 'core:request_quote_create' obj.pk %}" class="btn btn-primary">Редактировать КП</a>
-              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-            {% elif obj.status == "ready_to_ship" %}
-              <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">Создать отгрузку</a>
-            {% elif obj.status == "partially_shipped" %}
-              <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">Создать отгрузку</a>
-              {% if obj.is_fully_shipped %}
-                <button class="btn" name="to" value="shipped">Отгружена полностью</button>
+          {# ОПЕРАТОР И ДИРЕКТОР - полные права на все статусы #}
+          {% if request.user|in_groups:"operator,director" %}
+            <div class="modern-actions-grid">
+              {% if obj.status != "draft" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--primary" name="to" value="draft">
+                  <span class="modern-action-btn__icon">📝</span>
+                  <span class="modern-action-btn__text">Черновик</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "submitted" %}
+                <button type="submit" class="modern-action-btn" name="to" value="submitted">
+                  <span class="modern-action-btn__icon">📤</span>
+                  <span class="modern-action-btn__text">Отправить</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "quote" %}
+                <button type="submit" class="modern-action-btn" name="to" value="quote">
+                  <span class="modern-action-btn__icon">📄</span>
+                  <span class="modern-action-btn__text">КП</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "pending_approval" %}
+                <button type="submit" class="modern-action-btn" name="to" value="pending_approval">
+                  <span class="modern-action-btn__icon">⏳</span>
+                  <span class="modern-action-btn__text">На согласовании</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "approved" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--success" name="to" value="approved">
+                  <span class="modern-action-btn__icon">✓</span>
+                  <span class="modern-action-btn__text">Согласовано</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "rejected" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--danger" name="to" value="rejected">
+                  <span class="modern-action-btn__icon">✗</span>
+                  <span class="modern-action-btn__text">Не согласовали</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "to_pick" %}
+                <button type="submit" class="modern-action-btn" name="to" value="to_pick">
+                  <span class="modern-action-btn__icon">📦</span>
+                  <span class="modern-action-btn__text">На сборку</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "in_progress" %}
+                <button type="submit" class="modern-action-btn" name="to" value="in_progress">
+                  <span class="modern-action-btn__icon">⚙️</span>
+                  <span class="modern-action-btn__text">В работу</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "ready_to_ship" %}
+                <button type="submit" class="modern-action-btn" name="to" value="ready_to_ship">
+                  <span class="modern-action-btn__icon">🚚</span>
+                  <span class="modern-action-btn__text">Готова к отгрузке</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "partially_shipped" %}
+                <button type="submit" class="modern-action-btn" name="to" value="partially_shipped">
+                  <span class="modern-action-btn__icon">📦</span>
+                  <span class="modern-action-btn__text">Частично отгружена</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "shipped" %}
+                <button type="submit" class="modern-action-btn" name="to" value="shipped">
+                  <span class="modern-action-btn__icon">✅</span>
+                  <span class="modern-action-btn__text">Отгружена</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "delivered" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--success" name="to" value="delivered">
+                  <span class="modern-action-btn__icon">🏠</span>
+                  <span class="modern-action-btn__text">Доставлена</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "done" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--primary" name="to" value="done">
+                  <span class="modern-action-btn__icon">🎉</span>
+                  <span class="modern-action-btn__text">Завершить</span>
+                </button>
+              {% endif %}
+              
+              {% if obj.status != "canceled" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--danger modern-action-btn--ghost" name="to" value="canceled">
+                  <span class="modern-action-btn__icon">🗑️</span>
+                  <span class="modern-action-btn__text">Отменить</span>
+                </button>
+              {% endif %}
+            </div>
+            
+            {# Специальные действия для оператора #}
+            {% if request.user|in_groups:"operator" %}
+              {% if obj.status == "submitted" or obj.status == "rejected" %}
+                <div class="modern-actions-divider"></div>
+                <a href="{% url 'core:request_quote_create' obj.pk %}" class="modern-action-btn modern-action-btn--primary modern-action-btn--full">
+                  <span class="modern-action-btn__icon">➕</span>
+                  <span class="modern-action-btn__text">{% if obj.status == "rejected" %}Редактировать КП{% else %}Создать КП{% endif %}</span>
+                </a>
+              {% endif %}
+              {% if obj.status == "ready_to_ship" or obj.status == "partially_shipped" %}
+                <div class="modern-actions-divider"></div>
+                <a href="{% url 'core:request_shipment_create' obj.pk %}" class="modern-action-btn modern-action-btn--primary modern-action-btn--full">
+                  <span class="modern-action-btn__icon">➕</span>
+                  <span class="modern-action-btn__text">Создать отгрузку</span>
+                </a>
               {% endif %}
             {% endif %}
           {% endif %}
 
-          {# МЕНЕДЖЕР #}
-          {% if request.user|in_groups:"manager" %}
-            {% if obj.status == "draft" %}
-              <button class="btn" name="to" value="submitted">Отправить</button>
-              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-            {% elif obj.status == "pending_approval" %}
-              <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
-              <button class="btn" name="to" value="rejected">Не согласовали</button>
-            {% elif obj.status == "quote" %}
-              <button class="btn btn-primary" name="to" value="approved">Согласовано</button>
-              <button class="btn" name="to" value="rejected">Не согласовали</button>
-            {% endif %}
-          {% endif %}
-
-          {# СКЛАД — только после передачи в сборку #}
+          {# СКЛАД - только "В работу" и "Готова к отгрузке" #}
           {% if request.user|in_groups:"warehouse" %}
-            {% if obj.status == "to_pick" %}
-              <button class="btn" name="to" value="in_progress">В работу</button>
-            {% elif obj.status == "in_progress" %}
-              <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
-            {% endif %}
-          {% endif %}
-
-          {# ДИРЕКТОР #}
-          {% if request.user|in_groups:"director" %}
-            {% if obj.status in "draft submitted quote approved to_pick in_progress ready_to_ship delivered" %}
-              <button class="btn" name="to" value="quote">КП</button>
-              <button class="btn" name="to" value="approved">Согласовано</button>
-
-              {% if obj.status == "approved" %}
-                {% if latest_pick %}
-                  <button class="btn" name="to" value="to_pick">В сборку (склад)</button>
-                {% else %}
-                  <button type="button" class="btn"
-        onclick="document.getElementById('openPickModal')?.click()">
-  Перейти к сборке на склад
-</button>
-                {% endif %}
+            <div class="modern-actions-grid">
+              {% if obj.status == "to_pick" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--primary modern-action-btn--full" name="to" value="in_progress">
+                  <span class="modern-action-btn__icon">⚙️</span>
+                  <span class="modern-action-btn__text">В работу</span>
+                </button>
+              {% elif obj.status == "in_progress" %}
+                <button type="submit" class="modern-action-btn modern-action-btn--success modern-action-btn--full" name="to" value="ready_to_ship">
+                  <span class="modern-action-btn__icon">🚚</span>
+                  <span class="modern-action-btn__text">Готова к отгрузке</span>
+                </button>
               {% endif %}
-
-              <button class="btn" name="to" value="in_progress">В работу</button>
-              <button class="btn" name="to" value="ready_to_ship">Готова к отгрузке</button>
-              <button class="btn" name="to" value="delivered">Доставлена</button>
-            {% endif %}
-            {% if obj.status == "rejected" %}
-              <button class="btn" name="to" value="quote">КП</button>
-              <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
-            {% endif %}
-            <button class="btn" name="to" value="done">Завершить</button>
-            <button class="btn" name="to" value="rejected">Не согласовали</button>
-            <button class="btn btn-ghost" name="to" value="canceled">Отменить</button>
+            </div>
           {% endif %}
         </form>
       </section>
+      {% endif %}
 
       {# ОПЛАТА: только директор/оператор #}
       {% if request.user|in_groups:"director,operator" %}
@@ -1203,6 +1274,63 @@
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(updateCarousel, 150);
+  });
+})();
+</script>
+
+{# Скрипт для управления блоком действий #}
+<script>
+(function(){
+  const statusForm = document.getElementById('statusChangeForm');
+  if (!statusForm) return;
+  
+  const statusLabels = {
+    'draft': 'Черновик',
+    'submitted': 'Отправлена',
+    'quote': 'КП',
+    'pending_approval': 'На согласовании',
+    'approved': 'Согласована',
+    'rejected': 'Не согласована',
+    'to_pick': 'На сборку',
+    'in_progress': 'В работу',
+    'ready_to_ship': 'Готова к отгрузке',
+    'partially_shipped': 'Частично отгружена',
+    'shipped': 'Отгружена',
+    'delivered': 'Доставлена',
+    'done': 'Завершена',
+    'canceled': 'Отменена'
+  };
+  
+  const dangerStatuses = ['canceled', 'rejected'];
+  
+  statusForm.addEventListener('submit', function(e) {
+    const submitBtn = e.submitter;
+    if (!submitBtn || submitBtn.type !== 'submit') return;
+    
+    const newStatus = submitBtn.value;
+    const statusLabel = statusLabels[newStatus] || newStatus;
+    
+    // Для опасных действий показываем подтверждение
+    if (dangerStatuses.includes(newStatus)) {
+      if (!confirm(`Вы уверены, что хотите изменить статус на "${statusLabel}"?`)) {
+        e.preventDefault();
+        return false;
+      }
+    }
+    
+    // Показываем индикатор загрузки
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+    submitBtn.style.cursor = 'wait';
+    
+    const originalText = submitBtn.querySelector('.modern-action-btn__text')?.textContent || submitBtn.textContent;
+    if (submitBtn.querySelector('.modern-action-btn__text')) {
+      submitBtn.querySelector('.modern-action-btn__text').textContent = 'Обработка...';
+    } else {
+      submitBtn.textContent = 'Обработка...';
+    }
+    
+    // Форма отправится автоматически
   });
 })();
 </script>
@@ -1464,6 +1592,190 @@
   .modern-step-item__circle{width:56px;height:56px;font-size:18px}
   .modern-step-item__title{font-size:14px}
   .modern-steps-nav{width:40px;height:40px}
+}
+
+/* Современный блок действий 2025 */
+.modern-actions-card{
+  background:linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%);
+  backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,0.8);
+  border-radius:24px;
+  padding:24px;
+  margin-bottom:20px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9);
+  position:relative;
+  overflow:hidden;
+}
+.modern-actions-card::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:2px;
+  background:linear-gradient(90deg, #0A84FF 0%, #0077ED 50%, #0A84FF 100%);
+  background-size:200% 100%;
+  animation:shimmer 3s ease-in-out infinite;
+}
+
+.modern-actions-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:20px;
+}
+.modern-actions-header__icon{
+  width:40px;
+  height:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(135deg, #0A84FF 0%, #0077ED 100%);
+  border-radius:12px;
+  color:#fff;
+  box-shadow:0 4px 12px rgba(10,132,255,0.25);
+}
+.modern-actions-header__title{
+  font-size:18px;
+  font-weight:700;
+  color:var(--text);
+  margin:0;
+  letter-spacing:-0.02em;
+}
+
+.modern-actions-form{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.modern-actions-grid{
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:10px;
+}
+.modern-actions-divider{
+  height:1px;
+  background:linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.1) 50%, transparent 100%);
+  margin:8px 0;
+}
+
+.modern-action-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:12px 16px;
+  border-radius:14px;
+  border:1.5px solid rgba(10,132,255,0.2);
+  background:rgba(255,255,255,0.8);
+  backdrop-filter:blur(10px);
+  color:var(--text);
+  font-weight:600;
+  font-size:14px;
+  cursor:pointer;
+  transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position:relative;
+  overflow:hidden;
+  text-decoration:none;
+  box-shadow:0 2px 8px rgba(0,0,0,0.06);
+}
+.modern-action-btn::before{
+  content:'';
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:0;
+  height:0;
+  border-radius:50%;
+  background:rgba(10,132,255,0.1);
+  transform:translate(-50%, -50%);
+  transition:width 0.6s ease, height 0.6s ease;
+}
+.modern-action-btn:hover::before{
+  width:300%;
+  height:300%;
+}
+.modern-action-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(10,132,255,0.2);
+  border-color:rgba(10,132,255,0.4);
+  background:rgba(255,255,255,0.95);
+}
+.modern-action-btn:active{
+  transform:translateY(0);
+}
+.modern-action-btn__icon{
+  font-size:18px;
+  line-height:1;
+  position:relative;
+  z-index:1;
+}
+.modern-action-btn__text{
+  position:relative;
+  z-index:1;
+  letter-spacing:-0.01em;
+}
+
+.modern-action-btn--primary{
+  background:linear-gradient(135deg, #0A84FF 0%, #0077ED 100%);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 4px 16px rgba(10,132,255,0.3);
+}
+.modern-action-btn--primary:hover{
+  background:linear-gradient(135deg, #0077ED 0%, #0051A3 100%);
+  box-shadow:0 6px 24px rgba(10,132,255,0.4);
+  color:#fff;
+}
+
+.modern-action-btn--success{
+  background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 4px 16px rgba(16,185,129,0.3);
+}
+.modern-action-btn--success:hover{
+  background:linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow:0 6px 24px rgba(16,185,129,0.4);
+  color:#fff;
+}
+
+.modern-action-btn--danger{
+  background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 4px 16px rgba(239,68,68,0.3);
+}
+.modern-action-btn--danger:hover{
+  background:linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow:0 6px 24px rgba(239,68,68,0.4);
+  color:#fff;
+}
+
+.modern-action-btn--ghost{
+  background:rgba(255,255,255,0.6);
+  border-color:rgba(239,68,68,0.3);
+  color:#ef4444;
+}
+.modern-action-btn--ghost:hover{
+  background:rgba(239,68,68,0.1);
+  border-color:rgba(239,68,68,0.5);
+  color:#dc2626;
+}
+
+.modern-action-btn--full{
+  grid-column:1 / -1;
+}
+
+@media (max-width: 640px){
+  .modern-actions-grid{
+    grid-template-columns:1fr;
+  }
+  .modern-action-btn{
+    padding:14px 16px;
+    font-size:15px;
+  }
 }
 
 /* Старые стили для совместимости */
