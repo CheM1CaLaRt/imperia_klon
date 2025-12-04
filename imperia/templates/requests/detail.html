@@ -229,33 +229,33 @@
       </div>
     </button>
     <div class="collapsible-card__content" id="steps-timeline">
-    
-    <div class="steps-timeline-wrapper">
-      <div class="steps-timeline">
-        {% for step in display_steps %}
-          <div class="step-card step-card--{{ step.type }}{% if step.status == 'rejected' or step.status == 'canceled' %} step-card--error{% endif %}">
-            <div class="step-card__indicator">
-              {% if step.is_completed %}
-                <div class="step-card__icon step-card__icon--completed">✓</div>
-              {% elif step.type == 'current' %}
-                <div class="step-card__icon step-card__icon--current">
-                  {% if step.status == 'rejected' %}✗{% elif step.status == 'canceled' %}✗{% else %}●{% endif %}
-                </div>
-              {% else %}
-                <div class="step-card__icon step-card__icon--pending">○</div>
-              {% endif %}
+      <div class="steps-timeline-wrapper">
+        <div class="steps-timeline">
+          {% for step in display_steps %}
+            <div class="step-card step-card--{{ step.type }}{% if step.status == 'rejected' or step.status == 'canceled' %} step-card--error{% endif %}">
+              <div class="step-card__indicator">
+                {% if step.is_completed %}
+                  <div class="step-card__icon step-card__icon--completed">✓</div>
+                {% elif step.type == 'current' %}
+                  <div class="step-card__icon step-card__icon--current">
+                    {% if step.status == 'rejected' %}✗{% elif step.status == 'canceled' %}✗{% else %}●{% endif %}
+                  </div>
+                {% else %}
+                  <div class="step-card__icon step-card__icon--pending">○</div>
+                {% endif %}
+              </div>
+              <div class="step-card__content">
+                <div class="step-card__title">{{ step.label }}</div>
+                {% if step.date %}
+                  <div class="step-card__date">{{ step.date|date:"d.m.Y H:i" }}</div>
+                {% endif %}
+                {% if step.author %}
+                  <div class="step-card__author">{{ step.author }}</div>
+                {% endif %}
+              </div>
             </div>
-            <div class="step-card__content">
-              <div class="step-card__title">{{ step.label }}</div>
-              {% if step.date %}
-                <div class="step-card__date">{{ step.date|date:"d.m.Y H:i" }}</div>
-              {% endif %}
-              {% if step.author %}
-                <div class="step-card__author">{{ step.author }}</div>
-              {% endif %}
-            </div>
-          </div>
-        {% endfor %}
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
@@ -1493,6 +1493,9 @@
   overflow:hidden;
   transition:all 0.2s ease;
 }
+.collapsible-card:hover{
+  box-shadow:0 4px 12px rgba(0,0,0,0.06);
+}
 .collapsible-card__header{
   width:100%;
   display:flex;
@@ -1500,14 +1503,31 @@
   justify-content:space-between;
   gap:16px;
   padding:18px 20px;
-  background:#fafafa;
+  background:linear-gradient(135deg, #fafafa 0%, #f8f9fa 100%);
   border:none;
   cursor:pointer;
   transition:all 0.2s ease;
   text-align:left;
+  position:relative;
+}
+.collapsible-card__header::after{
+  content:'';
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  height:1px;
+  background:linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.08) 50%, transparent 100%);
+  transition:opacity 0.2s ease;
+}
+.collapsible-card__header[aria-expanded="true"]::after{
+  opacity:1;
+}
+.collapsible-card__header[aria-expanded="false"]::after{
+  opacity:0;
 }
 .collapsible-card__header:hover{
-  background:#f5f5f5;
+  background:linear-gradient(135deg, #f5f5f5 0%, #f0f0f0 100%);
 }
 .collapsible-card__header-left{
   display:flex;
@@ -1516,16 +1536,22 @@
   flex:1;
 }
 .collapsible-card__icon{
-  width:36px;
-  height:36px;
+  width:40px;
+  height:40px;
   display:flex;
   align-items:center;
   justify-content:center;
-  background:rgba(10,132,255,0.1);
-  border-radius:10px;
+  background:linear-gradient(135deg, rgba(10,132,255,0.12) 0%, rgba(10,132,255,0.08) 100%);
+  border-radius:12px;
   color:#0A84FF;
   border:1px solid rgba(10,132,255,0.2);
   flex-shrink:0;
+  box-shadow:0 2px 4px rgba(10,132,255,0.1);
+  transition:all 0.2s ease;
+}
+.collapsible-card__header:hover .collapsible-card__icon{
+  background:linear-gradient(135deg, rgba(10,132,255,0.18) 0%, rgba(10,132,255,0.12) 100%);
+  box-shadow:0 3px 6px rgba(10,132,255,0.15);
 }
 .collapsible-card__title{
   font-size:17px;
@@ -1533,19 +1559,28 @@
   color:var(--text);
   margin:0;
   letter-spacing:-0.01em;
+  line-height:1.3;
 }
 .collapsible-card__arrow{
   flex-shrink:0;
-  width:32px;
-  height:32px;
+  width:36px;
+  height:36px;
   display:flex;
   align-items:center;
   justify-content:center;
   color:var(--muted);
-  transition:transform 0.3s ease;
+  background:rgba(0,0,0,0.04);
+  border-radius:8px;
+  transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.collapsible-card__header:hover .collapsible-card__arrow{
+  background:rgba(0,0,0,0.06);
+  color:var(--text);
 }
 .collapsible-card__header[aria-expanded="true"] .collapsible-card__arrow{
   transform:rotate(180deg);
+  background:rgba(10,132,255,0.1);
+  color:#0A84FF;
 }
 .collapsible-card__content{
   overflow:hidden;
@@ -1692,23 +1727,27 @@
   overflow-x:auto;
   -webkit-overflow-scrolling:touch;
   scrollbar-width:thin;
+  padding:4px 0;
 }
 .steps-timeline-wrapper::-webkit-scrollbar{
-  height:4px;
+  height:6px;
 }
 .steps-timeline-wrapper::-webkit-scrollbar-track{
   background:rgba(0,0,0,0.04);
-  border-radius:2px;
+  border-radius:3px;
 }
 .steps-timeline-wrapper::-webkit-scrollbar-thumb{
   background:rgba(0,0,0,0.2);
-  border-radius:2px;
+  border-radius:3px;
+}
+.steps-timeline-wrapper::-webkit-scrollbar-thumb:hover{
+  background:rgba(0,0,0,0.3);
 }
 .steps-timeline{
   display:flex;
   gap:16px;
   min-width:max-content;
-  padding:8px 0;
+  padding:12px 0;
 }
 
 .step-card{
@@ -1719,28 +1758,35 @@
   background:#fafafa;
   border-radius:14px;
   border:1.5px solid rgba(0,0,0,0.08);
-  transition:all 0.2s ease;
+  transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:0 1px 3px rgba(0,0,0,0.05);
+}
+.step-card:hover{
+  box-shadow:0 2px 6px rgba(0,0,0,0.08);
+  transform:translateY(-1px);
 }
 .step-card--prev{
-  opacity:0.7;
+  opacity:0.65;
   background:#f8f9fa;
 }
 .step-card--current{
   background:#fff;
-  border-color:rgba(10,132,255,0.25);
-  box-shadow:0 4px 16px rgba(10,132,255,0.1);
+  border-color:rgba(10,132,255,0.3);
+  box-shadow:0 4px 16px rgba(10,132,255,0.15), 0 2px 8px rgba(10,132,255,0.1);
   transform:scale(1.02);
+  z-index:2;
+  position:relative;
 }
 .step-card--next{
   opacity:0.6;
   background:#f8f9fa;
 }
 .step-card--error{
-  border-color:rgba(239,68,68,0.25);
+  border-color:rgba(239,68,68,0.3);
   background:#fef2f2;
 }
 .step-card--error.step-card--current{
-  box-shadow:0 4px 16px rgba(239,68,68,0.1);
+  box-shadow:0 4px 16px rgba(239,68,68,0.15), 0 2px 8px rgba(239,68,68,0.1);
 }
 
 .step-card__indicator{
