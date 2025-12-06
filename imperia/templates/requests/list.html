@@ -31,18 +31,27 @@
           <label for="statusFilter" class="filter-select-label">Выберите статус</label>
           <select id="statusFilter" name="status" class="filter-select">
             <option value="">Все заявки</option>
-            <option value="draft" {% if status == 'draft' %}selected{% endif %}>Черновики</option>
-            <option value="submitted" {% if status == 'submitted' %}selected{% endif %}>На согласовании</option>
-            <option value="quote" {% if status == 'quote' %}selected{% endif %}>КП</option>
-            <option value="approved" {% if status == 'approved' %}selected{% endif %}>Согласованы</option>
-            <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Не согласованы</option>
-            <option value="to_pick" {% if status == 'to_pick' %}selected{% endif %}>В сборку</option>
-            <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>Собираются</option>
-            <option value="ready_to_ship" {% if status == 'ready_to_ship' %}selected{% endif %}>К отгрузке</option>
-            <option value="in_delivery" {% if status == 'in_delivery' %}selected{% endif %}>В доставке</option>
-            <option value="partially_shipped" {% if status == 'partially_shipped' %}selected{% endif %}>Частично отгружены</option>
-            <option value="{{ statuses.DELIVERED }}" {% if status == statuses.DELIVERED %}selected{% endif %}>Доставлены</option>
-            <option value="done" {% if status == 'done' %}selected{% endif %}>Завершены</option>
+            {% if is_warehouse_only %}
+              {# Кладовщик видит только статусы, связанные с его работой #}
+              <option value="to_pick" {% if status == 'to_pick' %}selected{% endif %}>В сборку</option>
+              <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>Собираются</option>
+              <option value="ready_to_ship" {% if status == 'ready_to_ship' %}selected{% endif %}>К отгрузке</option>
+              <option value="in_delivery" {% if status == 'in_delivery' %}selected{% endif %}>В доставке</option>
+            {% else %}
+              {# Полный список статусов для других ролей #}
+              <option value="draft" {% if status == 'draft' %}selected{% endif %}>Черновики</option>
+              <option value="submitted" {% if status == 'submitted' %}selected{% endif %}>На согласовании</option>
+              <option value="quote" {% if status == 'quote' %}selected{% endif %}>КП</option>
+              <option value="approved" {% if status == 'approved' %}selected{% endif %}>Согласованы</option>
+              <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Не согласованы</option>
+              <option value="to_pick" {% if status == 'to_pick' %}selected{% endif %}>В сборку</option>
+              <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>Собираются</option>
+              <option value="ready_to_ship" {% if status == 'ready_to_ship' %}selected{% endif %}>К отгрузке</option>
+              <option value="in_delivery" {% if status == 'in_delivery' %}selected{% endif %}>В доставке</option>
+              <option value="partially_shipped" {% if status == 'partially_shipped' %}selected{% endif %}>Частично отгружены</option>
+              <option value="{{ statuses.DELIVERED }}" {% if status == statuses.DELIVERED %}selected{% endif %}>Доставлены</option>
+              <option value="done" {% if status == 'done' %}selected{% endif %}>Завершены</option>
+            {% endif %}
           </select>
         </div>
         <button type="submit" class="filter-apply-btn">

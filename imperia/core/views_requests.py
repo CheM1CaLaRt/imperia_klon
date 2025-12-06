@@ -122,12 +122,13 @@ def request_list(request):
     has_operator_access = u.is_superuser or is_director or is_operator
     
     if is_warehouse and not has_operator_access:
-        # Склад видит только заявки на сбор
+        # Склад видит только заявки на сбор, готовые к отгрузке и в доставке
         qs = qs.filter(
             status__in=[
                 RequestStatus.TO_PICK,
                 RequestStatus.IN_PROGRESS,
                 RequestStatus.READY_TO_SHIP,
+                RequestStatus.IN_DELIVERY,
             ]
         )
     elif is_manager and not has_operator_access:
@@ -169,6 +170,7 @@ def request_list(request):
             "requests": qs.order_by("-created_at")[:500],
             "status": status,
             "statuses": RequestStatus,
+            "is_warehouse_only": is_warehouse and not has_operator_access,
         },
     )
 
