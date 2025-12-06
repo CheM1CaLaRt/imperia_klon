@@ -991,6 +991,8 @@
                   <option value="in_progress">В работу</option>
                 {% elif obj.status == "in_progress" %}
                   <option value="ready_to_ship">Готова к отгрузке</option>
+                {% elif obj.status == "ready_to_ship" %}
+                  <option value="in_delivery">В доставке</option>
                 {% endif %}
               </select>
               <button type="submit" class="status-submit-btn" id="statusSubmitBtnWarehouse" disabled>

@@ -656,6 +656,7 @@ def request_change_status(request, pk: int):
         "warehouse": {
             RequestStatus.IN_PROGRESS,    # Может начать сборку
             RequestStatus.READY_TO_SHIP,  # Может завершить сборку
+            RequestStatus.IN_DELIVERY,    # Может установить статус "В доставке"
         },
         "director": set(s for s, _ in RequestStatus.choices),  # Полный доступ
     }
@@ -674,8 +675,8 @@ def request_change_status(request, pk: int):
     # ✅ склад двигает только после передачи в сборку
     if (
         "warehouse" in user_groups
-        and to in {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.DELIVERED}
-        and obj.status not in {RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP}
+        and to in {RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.IN_DELIVERY, RequestStatus.DELIVERED}
+        and obj.status not in {RequestStatus.TO_PICK, RequestStatus.IN_PROGRESS, RequestStatus.READY_TO_SHIP, RequestStatus.IN_DELIVERY}
         and not (u.is_superuser or "director" in user_groups)
     ):
         return HttpResponseBadRequest("Заявка ещё не передана на склад")
