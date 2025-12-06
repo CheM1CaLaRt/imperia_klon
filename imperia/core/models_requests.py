@@ -17,6 +17,7 @@ class RequestStatus(models.TextChoices):
     TO_PICK          = "to_pick",          "Передана на сборку"
     IN_PROGRESS      = "in_progress",      "Собирается"
     READY_TO_SHIP    = "ready_to_ship",    "Готова к отгрузке"
+    IN_DELIVERY      = "in_delivery",      "В доставке"
     PARTIALLY_SHIPPED = "partially_shipped", "Частично отгружена"
     SHIPPED          = "shipped",          "Отгружена"
     DELIVERED        = "delivered",        "Доставлена"

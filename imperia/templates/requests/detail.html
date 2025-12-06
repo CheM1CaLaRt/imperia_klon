@@ -353,7 +353,7 @@
       </section>
 
       <!-- Отгрузки -->
-      {% if obj.status in 'ready_to_ship partially_shipped shipped' %}
+      {% if obj.status in 'ready_to_ship in_delivery partially_shipped shipped' %}
       <section class="rq-card">
         <div class="rq-card__head">
           <h2>Отгрузки</h2>
@@ -363,10 +363,14 @@
                 Создать отгрузку
               </a>
             {% endif %}
+            {% if obj.status == 'ready_to_ship' %}
+              {% if obj.delivery_address or obj.delivery_contact %}
+                <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
+                  📋 Маршрутный лист
+                </a>
+              {% endif %}
+            {% endif %}
             {% if obj.delivery_address or obj.delivery_contact %}
-              <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
-                📋 Маршрутный лист
-              </a>
               <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
                 📄 УПД
               </a>
@@ -444,15 +448,12 @@
       {% endif %}
       
       <!-- Документы (если нет отгрузок, но есть данные для доставки) -->
-      {% if obj.status not in 'ready_to_ship partially_shipped shipped' and obj.delivery_address %}
+      {% if obj.status not in 'ready_to_ship partially_shipped shipped in_delivery' and obj.delivery_address %}
       <section class="rq-card">
         <div class="rq-card__head">
           <h2>Документы</h2>
         </div>
         <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-          <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
-            📋 Маршрутный лист
-          </a>
           {% if active_quote %}
             <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
               📄 УПД
@@ -936,6 +937,9 @@
                 {% if obj.status != "ready_to_ship" %}
                   <option value="ready_to_ship">Готова к отгрузке</option>
               {% endif %}
+                {% if obj.status != "in_delivery" %}
+                  <option value="in_delivery">В доставке</option>
+                {% endif %}
                 {% if obj.status != "partially_shipped" %}
                   <option value="partially_shipped">Частично отгружена</option>
                 {% endif %}
@@ -1152,6 +1156,7 @@
     'to_pick': 'На сборку',
     'in_progress': 'В работу',
     'ready_to_ship': 'Готова к отгрузке',
+    'in_delivery': 'В доставке',
     'partially_shipped': 'Частично отгружена',
     'shipped': 'Отгружена',
     'delivered': 'Доставлена',
@@ -1360,6 +1365,7 @@
 .status-badge--to_pick{background:#f5f3ff;border-color:#ddd6fe;color:#3730a3}
 .status-badge--in_progress{background:#ecfeff;border-color:#a5f3fc;color:#155e75}
 .status-badge--ready_to_ship{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.status-badge--in_delivery{background:#e0e7ff;border-color:#c7d2fe;color:#3730a3}
 .status-badge--delivered{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
 .status-badge--done{background:#0A84FF;border-color:#0A84FF;color:#fff}
 .status-badge--rejected{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}

@@ -456,6 +456,7 @@ def request_detail(request, pk: int):
         ('to_pick', 'На сборку'),
         ('in_progress', 'Собирается'),
         ('ready_to_ship', 'Готова к отгрузке'),
+        ('in_delivery', 'В доставке'),
         ('partially_shipped', 'Частично отгружена'),
         ('shipped', 'Отгружена'),
         ('delivered', 'Доставлена'),
