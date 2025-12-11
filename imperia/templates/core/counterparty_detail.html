@@ -320,14 +320,16 @@ function simplifyAddress(address) {
   // Убираем детали: этаж, помещение, комната (более агрессивно)
   simplified = simplified
     .replace(/,\s*ЭТ\s*\d+/gi, '') // Убираем "ЭТ 5"
-    .replace(/,\s*ПОМ\s*[IVX\d]+/gi, '') // Убираем "ПОМ II"
+    .replace(/,\s*ПОМ\s*[IVX\dА-Яа-я]+/gi, '') // Убираем "ПОМ II" или "ПОМ 54Н"
     .replace(/,\s*КОМ\s*\d+/gi, '') // Убираем "КОМ 3"
-    .replace(/,\s*ПОМЕЩЕНИЕ\s*[IVX\d]+/gi, '') // Убираем "ПОМЕЩЕНИЕ II"
+    .replace(/,\s*ПОМЕЩ\.?\s*[IVX\dА-Яа-я]+/gi, '') // Убираем "ПОМЕЩ. 54Н"
+    .replace(/,\s*ПОМЕЩЕНИЕ\s*[IVX\dА-Яа-я]+/gi, '') // Убираем "ПОМЕЩЕНИЕ 54Н"
     .replace(/,\s*ОФИС\s*\d+/gi, '') // Убираем "ОФИС"
     .replace(/ПОМ\s*II/gi, '') // Убираем "ПОМ II" отдельно
     .replace(/КОМ\s*\d+/gi, '') // Убираем "КОМ 3" отдельно
-    .replace(/,\s*К\.\s*(\d+)/gi, ', корпус $1') // Заменяем "К. 20" на "корпус 20"
-    .replace(/,\s*К\s*(\d+)/gi, ', корпус $1') // Заменяем "К 20" на "корпус 20"
+    .replace(/ПОМЕЩ\.?\s*[IVX\dА-Яа-я]+/gi, '') // Убираем "ПОМЕЩ. 54Н" отдельно
+    .replace(/,\s*К\.\s*(\d+[А-Яа-я]?)/gi, ', корпус $1') // Заменяем "К. 2А" на "корпус 2А"
+    .replace(/,\s*К\s*(\d+[А-Яа-я]?)/gi, ', корпус $1') // Заменяем "К 2А" на "корпус 2А"
     .replace(/\s+/g, ' ') // Убираем лишние пробелы
     .replace(/,\s*,/g, ',') // Убираем двойные запятые
     .replace(/^,\s*/, '') // Убираем запятую в начале
@@ -339,6 +341,7 @@ function simplifyAddress(address) {
     .replace(/Г\./gi, 'г.') // "Г.МОСКВА" -> "г. Москва"
     .replace(/УЛ\./gi, 'ул.') // "УЛ." -> "ул."
     .replace(/Д\./gi, 'д.') // "Д." -> "д."
+    .replace(/ПР-КТ/gi, 'пр.') // "ПР-КТ" -> "пр."
     .replace(/ПР\./gi, 'пр.') // "ПР." -> "пр."
     .replace(/ПРОСПЕКТ/gi, 'пр.') // "ПРОСПЕКТ" -> "пр."
     .replace(/ПЕРЕУЛОК/gi, 'пер.') // "ПЕРЕУЛОК" -> "пер."
@@ -359,18 +362,24 @@ function extractMainAddress(address) {
   const simplified = simplifyAddress(address);
   
   // Пытаемся извлечь улицу и дом
-  // Паттерн: "ул. НИЖНЯЯ КРАСНОСЕЛЬСКАЯ, д. 40/12"
+  // Паттерн: "ул. НИЖНЯЯ КРАСНОСЕЛЬСКАЯ, д. 40/12" или "пр. ДОБРОЛЮБОВА, д. 16"
   const streetMatch = simplified.match(/(?:ул\.|улица|пр\.|проспект|пер\.|переулок|пл\.|площадь|б-р|бульвар)\s+([^,]+)/i);
   const houseMatch = simplified.match(/д\.\s*([^,]+)/i);
   
   if (streetMatch && houseMatch) {
     const street = streetMatch[1].trim();
-    const house = houseMatch[1].trim();
+    let house = houseMatch[1].trim();
+    
+    // Убираем корпус из номера дома, если он там есть
+    house = house.replace(/\s*корпус\s*\d+[А-Яа-я]?/gi, '').trim();
     
     // Варианты с городом
     if (simplified.match(/Москва/i)) {
       variants.push(`Москва, ${street}, ${house}`);
       variants.push(`${street}, ${house}, Москва`);
+    } else if (simplified.match(/Санкт-Петербург/i)) {
+      variants.push(`Санкт-Петербург, ${street}, ${house}`);
+      variants.push(`${street}, ${house}, Санкт-Петербург`);
     }
     
     // Варианты без города
@@ -417,6 +426,13 @@ function createAddressVariants(address) {
     const withoutCity = simplified.replace(/г\.?\s*Санкт-Петербург,?\s*/i, '').trim();
     variants.push(`Санкт-Петербург, ${withoutCity}`);
     variants.push(withoutCity);
+    
+    // Пробуем без индекса
+    const withoutIndex = withoutCity.replace(/^\d{6},?\s*/, '').trim();
+    if (withoutIndex !== withoutCity) {
+      variants.push(`Санкт-Петербург, ${withoutIndex}`);
+      variants.push(withoutIndex);
+    }
   }
   
   // Если адрес начинается с "Пр.", добавляем город

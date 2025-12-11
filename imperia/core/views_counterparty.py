@@ -573,15 +573,17 @@ def geocode_address(request):
         # Убираем детали: этаж, помещение, комната (более агрессивно)
         import re
         simplified = re.sub(r',\s*ЭТ\s*\d+', '', simplified, flags=re.IGNORECASE)
-        simplified = re.sub(r',\s*ПОМ\s*[IVX\d]+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ПОМ\s*[IVX\dА-Яа-я]+', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r',\s*КОМ\s*\d+', '', simplified, flags=re.IGNORECASE)
-        simplified = re.sub(r',\s*ПОМЕЩЕНИЕ\s*[IVX\d]+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ПОМЕЩ\.?\s*[IVX\dА-Яа-я]+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ПОМЕЩЕНИЕ\s*[IVX\dА-Яа-я]+', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r',\s*ОФИС\s*\d+', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r'ПОМ\s*II', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r'КОМ\s*\d+', '', simplified, flags=re.IGNORECASE)
-        # Заменяем "К. 20" на "корпус 20"
-        simplified = re.sub(r',\s*К\.\s*(\d+)', r', корпус \1', simplified, flags=re.IGNORECASE)
-        simplified = re.sub(r',\s*К\s*(\d+)', r', корпус \1', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r'ПОМЕЩ\.?\s*[IVX\dА-Яа-я]+', '', simplified, flags=re.IGNORECASE)
+        # Заменяем "К. 2А" на "корпус 2А" (с поддержкой букв)
+        simplified = re.sub(r',\s*К\.\s*(\d+[А-Яа-я]?)', r', корпус \1', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*К\s*(\d+[А-Яа-я]?)', r', корпус \1', simplified, flags=re.IGNORECASE)
         # Нормализуем пробелы
         simplified = re.sub(r'\s+', ' ', simplified)
         simplified = re.sub(r',\s*,', ',', simplified)
@@ -604,10 +606,16 @@ def geocode_address(request):
             street = street_match.group(1).strip()
             house = house_match.group(1).strip()
             
+            # Убираем корпус из номера дома, если он там есть
+            house = re.sub(r'\s*корпус\s*\d+[А-Яа-я]?', '', house, flags=re.IGNORECASE).strip()
+            
             # Варианты с городом
             if re.search(r'Москва', simplified, re.IGNORECASE):
                 variants.append(f"Москва, {street}, {house}")
                 variants.append(f"{street}, {house}, Москва")
+            elif re.search(r'Санкт-Петербург', simplified, re.IGNORECASE):
+                variants.append(f"Санкт-Петербург, {street}, {house}")
+                variants.append(f"{street}, {house}, Санкт-Петербург")
             
             # Варианты без города
             variants.append(f"{street}, {house}")
@@ -649,6 +657,24 @@ def geocode_address(request):
             if without_index != without_city:
                 search_queries.extend([
                     f"Москва, {without_index}",
+                    without_index
+                ])
+    
+    # Если адрес содержит "Санкт-Петербург", пробуем разные варианты
+    if "Санкт-Петербург" in simplified or "САНКТ-ПЕТЕРБУРГ" in simplified:
+        without_city = re.sub(r'г\.?\s*Санкт-Петербург,?\s*', '', simplified, flags=re.IGNORECASE)
+        without_city = re.sub(r'г\.?\s*САНКТ-ПЕТЕРБУРГ,?\s*', '', without_city, flags=re.IGNORECASE)
+        if without_city != simplified:
+            search_queries.extend([
+                f"Санкт-Петербург, {without_city}",
+                without_city
+            ])
+            
+            # Пробуем без индекса
+            without_index = re.sub(r'^\d{6},?\s*', '', without_city).strip()
+            if without_index != without_city:
+                search_queries.extend([
+                    f"Санкт-Петербург, {without_index}",
                     without_index
                 ])
     
