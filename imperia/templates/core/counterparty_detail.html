@@ -611,17 +611,49 @@ async function initAddressMap() {
     console.warn('Некоторые адреса не найдены:', failedAddresses);
   }
 
+  // Убираем класс загрузки перед инициализацией карты
+  mapContainer.className = '';
+  mapContainer.innerHTML = ''; // Очищаем содержимое
+  
+  // Небольшая задержка для гарантии, что контейнер готов
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
   // Инициализируем карту
-  const map = L.map('address-map').setView(
-    [geocodedAddresses[0].lat, geocodedAddresses[0].lon],
-    geocodedAddresses.length > 1 ? 12 : 15
-  );
+  const map = L.map('address-map', {
+    zoomControl: true,
+    attributionControl: true,
+    preferCanvas: false
+  });
+  
+  // Устанавливаем вид после небольшой задержки
+  setTimeout(() => {
+    map.setView(
+      [geocodedAddresses[0].lat, geocodedAddresses[0].lon],
+      geocodedAddresses.length > 1 ? 12 : 15
+    );
+    map.invalidateSize();
+  }, 200);
 
   // Добавляем тайлы OpenStreetMap
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
-  }).addTo(map);
+    maxZoom: 19,
+    subdomains: ['a', 'b', 'c'],
+    crossOrigin: true
+  });
+  
+  osmLayer.addTo(map);
+  
+  // Убеждаемся, что карта обновится после загрузки
+  map.whenReady(function() {
+    console.log('Карта готова, обновляем размер');
+    map.invalidateSize();
+    
+    // Дополнительное обновление через небольшую задержку
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+  });
 
   // Добавляем метки
   const markers = [];
@@ -660,11 +692,15 @@ async function initAddressMap() {
   // Если несколько меток, подгоняем зум чтобы показать все
   if (markers.length > 1) {
     const group = new L.featureGroup(markers);
-    map.fitBounds(group.getBounds().pad(0.1));
+    setTimeout(() => {
+      map.fitBounds(group.getBounds().pad(0.1));
+    }, 500);
+  } else {
+    // Для одной метки тоже обновляем размер
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 500);
   }
-
-  // Убираем класс загрузки
-  mapContainer.className = '';
 }
 </script>
 
