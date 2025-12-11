@@ -69,6 +69,7 @@ urlpatterns = [
 
     # Подсказки адресов (OSM)
     path("address/suggest/", vc.address_suggest_osm, name="address_suggest_osm"),
+    path("address/geocode/", vc.geocode_address, name="geocode_address"),
 
     # Дашборды директора / заявки на удаление контрагента
     path("director/", vc.director_dashboard, name="director_dashboard"),

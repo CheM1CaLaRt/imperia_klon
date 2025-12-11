@@ -551,3 +551,101 @@ def address_suggest_osm(request):
             suggestions = []
 
     return JsonResponse({"suggestions": suggestions})
+
+
+@require_GET
+@login_required
+def geocode_address(request):
+    """
+    Геокодирование адреса через Nominatim API (прокси на бэкенде для избежания CORS).
+    Возвращает координаты и полное название адреса.
+    """
+    address = (request.GET.get("address") or "").strip()
+    country = request.GET.get("country", "Россия").strip()
+    
+    if not address:
+        return JsonResponse({"error": "Адрес не указан"}, status=400)
+    
+    # Стратегии поиска
+    search_queries = [
+        f"{address}, {country}",
+        address,
+    ]
+    
+    # Если адрес начинается с "Пр." или "пр.", добавляем Санкт-Петербург
+    if address.startswith(("Пр.", "пр.", "Пр ", "пр ")):
+        search_queries.insert(1, f"{address}, Санкт-Петербург, {country}")
+    
+    headers = {
+        "User-Agent": "ImperiaApp/1.0 (admin@example.com)",
+        "Accept-Language": "ru-RU,ru;q=0.9"
+    }
+    
+    try:
+        import requests
+        use_requests = True
+    except ImportError:
+        use_requests = False
+        from urllib.parse import urlencode
+        from urllib.request import Request, urlopen
+    
+    for i, search_query in enumerate(search_queries):
+        try:
+            # Задержка между попытками (кроме первой)
+            if i > 0:
+                import time
+                time.sleep(0.5)
+            
+            params = {
+                "q": search_query,
+                "format": "json",
+                "limit": 3,
+                "addressdetails": 1,
+            }
+            
+            # Для первых попыток ограничиваем по России
+            if i < len(search_queries) - 1:
+                params["countrycodes"] = "ru"
+            
+            if use_requests:
+                r = requests.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params=params,
+                    headers=headers,
+                    timeout=5,
+                )
+                r.raise_for_status()
+                data = r.json()
+            else:
+                url = "https://nominatim.openstreetmap.org/search?" + urlencode(params)
+                req = Request(url, headers=headers)
+                with urlopen(req, timeout=5) as resp:
+                    raw = resp.read().decode("utf-8", "ignore")
+                    data = json.loads(raw)
+            
+            if data and len(data) > 0:
+                # Ищем результат в России (если возможно)
+                result = data[0]
+                if i < len(search_queries) - 1:
+                    russian_result = next(
+                        (r for r in data if r.get("address", {}).get("country_code") == "ru"),
+                        None
+                    )
+                    if russian_result:
+                        result = russian_result
+                
+                return JsonResponse({
+                    "success": True,
+                    "lat": float(result["lat"]),
+                    "lon": float(result["lon"]),
+                    "display_name": result.get("display_name", search_query)
+                })
+                
+        except Exception as e:
+            # Продолжаем со следующей стратегией
+            continue
+    
+    return JsonResponse({
+        "success": False,
+        "error": "Адрес не найден"
+    })
