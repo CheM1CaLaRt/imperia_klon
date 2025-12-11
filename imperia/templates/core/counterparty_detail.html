@@ -311,57 +311,94 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Функция геокодирования через Nominatim API
-async function geocodeAddress(address) {
+// Функция геокодирования через Nominatim API с несколькими попытками
+async function geocodeAddress(address, country = 'Россия') {
   if (!address || address.trim() === '') {
     console.warn('Пустой адрес для геокодирования');
     return null;
   }
 
-  try {
-    // Пробуем сначала точный поиск с ограничением по России
-    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=ru&addressdetails=1`;
+  const cleanAddress = address.trim();
+  
+  // Стратегии поиска (от более точных к более широким)
+  const searchStrategies = [
+    // 1. Точный поиск с ограничением по России
+    `${cleanAddress}, ${country}`,
+    // 2. Только адрес с ограничением по России
+    cleanAddress,
+    // 3. Если адрес начинается с "Пр." или "пр.", пробуем добавить "Санкт-Петербург"
+    cleanAddress.match(/^[Пп]р\./) ? `${cleanAddress}, Санкт-Петербург, ${country}` : null,
+    // 4. Если адрес начинается с "ул." или "улица", пробуем добавить город
+    cleanAddress.match(/^[Уу]л\.|^[Уу]лица/) ? `${cleanAddress}, ${country}` : null,
+    // 5. Без ограничения по стране
+    `${cleanAddress}, ${country}`,
+    cleanAddress
+  ].filter(Boolean); // Убираем null значения
+
+  const headers = {
+    'User-Agent': 'Imperia/1.0 (Contact: support@example.com)',
+    'Accept-Language': 'ru-RU,ru;q=0.9'
+  };
+
+  for (let i = 0; i < searchStrategies.length; i++) {
+    const searchQuery = searchStrategies[i];
     
-    let response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Imperia/1.0 (Contact: support@example.com)',
-        'Accept-Language': 'ru-RU,ru;q=0.9'
+    try {
+      // Пробуем с ограничением по России (кроме последних попыток)
+      const useCountryCode = i < searchStrategies.length - 2;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=3&addressdetails=1${useCountryCode ? '&countrycodes=ru' : ''}`;
+      
+      console.log(`Попытка ${i + 1}/${searchStrategies.length}:`, searchQuery);
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        console.warn(`HTTP ${response.status} для запроса:`, searchQuery);
+        continue; // Пробуем следующую стратегию
       }
-    });
-    
-    if (!response.ok) {
-      console.warn(`Nominatim вернул статус ${response.status}, пробуем без ограничения по стране`);
-      // Пробуем без ограничения по стране
-      url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1`;
-      response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Imperia/1.0 (Contact: support@example.com)',
-          'Accept-Language': 'ru-RU,ru;q=0.9'
+      
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        // Выбираем первый результат, который находится в России (если возможно)
+        let bestResult = data[0];
+        
+        if (useCountryCode) {
+          // Ищем результат в России
+          const russianResult = data.find(r => 
+            r.address && (
+              r.address.country === 'Россия' || 
+              r.address.country === 'Russia' ||
+              r.address.country_code === 'ru'
+            )
+          );
+          if (russianResult) {
+            bestResult = russianResult;
+          }
         }
-      });
+        
+        console.log(`✓ Адрес найден (попытка ${i + 1}):`, searchQuery, '→', bestResult.display_name);
+        
+        return {
+          lat: parseFloat(bestResult.lat),
+          lon: parseFloat(bestResult.lon),
+          display_name: bestResult.display_name
+        };
+      }
+      
+      // Небольшая задержка между попытками
+      if (i < searchStrategies.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } catch (error) {
+      console.warn(`Ошибка при попытке ${i + 1}:`, error);
+      // Продолжаем со следующей стратегией
+      continue;
     }
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    console.log('Результат геокодирования для:', address, data);
-    
-    if (data && data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-        display_name: data[0].display_name
-      };
-    }
-    
-    console.warn('Адрес не найден:', address);
-    return null;
-  } catch (error) {
-    console.error('Ошибка геокодирования для адреса:', address, error);
-    return null;
   }
+  
+  console.warn('Все попытки геокодирования не удались для адреса:', address);
+  return null;
 }
 
 // Инициализация карты
@@ -444,6 +481,9 @@ async function initAddressMap() {
   const geocodedAddresses = [];
   const failedAddresses = [];
   
+  // Получаем страну из данных контрагента
+  const country = '{{ obj.registration_country|default:"Россия"|escapejs }}' || 'Россия';
+  
   for (let i = 0; i < uniqueAddresses.length; i++) {
     const addr = uniqueAddresses[i];
     
@@ -453,7 +493,7 @@ async function initAddressMap() {
     }
     
     console.log(`Геокодируем адрес ${i + 1}/${uniqueAddresses.length}:`, addr.address);
-    const coords = await geocodeAddress(addr.address);
+    const coords = await geocodeAddress(addr.address, country);
     
     if (coords) {
       geocodedAddresses.push({
@@ -468,7 +508,7 @@ async function initAddressMap() {
       console.warn('✗ Адрес не найден:', addr.address);
     }
     
-    // Задержка между запросами (избегаем rate limiting Nominatim)
+    // Задержка между запросами разных адресов (избегаем rate limiting Nominatim)
     // Nominatim требует минимум 1 запрос в секунду
     if (i < uniqueAddresses.length - 1) {
       await new Promise(resolve => setTimeout(resolve, 1100));
