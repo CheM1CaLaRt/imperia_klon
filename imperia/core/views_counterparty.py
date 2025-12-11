@@ -505,75 +505,118 @@ def address_suggest_osm(request):
     suggestions = []
     
     # Попытка 1: Dadata API (если есть ключ) - лучший для российских адресов
+    # Бесплатный тариф: до 10,000 запросов в день
+    # Регистрация: https://dadata.ru/api/
     import os
     dadata_token = os.getenv("DADATA_API_TOKEN")
     dadata_secret = os.getenv("DADATA_API_SECRET")
     
-    if dadata_token and dadata_secret:
+    if dadata_token:
         try:
             import requests
             dadata_url = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address"
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Token {dadata_token}",
-                "X-Secret": dadata_secret
             }
+            # Добавляем Secret только если он указан (для некоторых тарифов не требуется)
+            if dadata_secret:
+                headers["X-Secret"] = dadata_secret
+            
             payload = {
                 "query": q,
                 "count": 5,
-                "language": "ru"
+                "language": "ru",
+                "locations": [{"country": "*"}],  # Ищем по всему миру, но приоритет России
             }
+            
             r = requests.post(dadata_url, json=payload, headers=headers, timeout=3)
             r.raise_for_status()
             data = r.json()
+            
             suggestions = [
                 {"value": item.get("value", "")}
                 for item in data.get("suggestions", [])
                 if item.get("value")
             ]
+            
             if suggestions:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Dadata API: найдено {len(suggestions)} подсказок для '{q}'")
                 return JsonResponse({"suggestions": suggestions})
         except Exception as e:
             # Продолжаем к другим источникам
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Dadata API error: {e}")
             pass
     
     # Попытка 2: Photon API (бесплатный, без ключа, хорошо работает с адресами)
     try:
         import requests
         # Photon API - бесплатный геокодер от Komoot
-        url = f"https://photon.komoot.io/api/?q={requests.utils.quote(q)}&limit=5&lang=ru"
-        r = requests.get(url, timeout=3)
-        if r.ok:
-            data = r.json()
-            if data.get("features"):
-                suggestions = []
-                for feature in data["features"][:5]:
-                    props = feature.get("properties", {})
-                    # Формируем читаемый адрес
-                    parts = []
-                    if props.get("name"):
-                        parts.append(props["name"])
-                    if props.get("housenumber"):
-                        parts.append(props["housenumber"])
-                    if props.get("street"):
-                        if not parts:
-                            parts.append(props["street"])
-                        elif props.get("housenumber"):
-                            parts.insert(-1, props["street"])
-                    if props.get("city"):
-                        parts.append(f", {props['city']}")
-                    elif props.get("state"):
-                        parts.append(f", {props['state']}")
+        # Пробуем несколько вариантов запроса для лучших результатов
+        search_variants = [q]
+        # Добавляем вариант с "Россия" для приоритета российских адресов
+        if "россия" not in q.lower() and "russia" not in q.lower():
+            search_variants.append(f"{q}, Россия")
+        
+        for search_q in search_variants:
+            url = f"https://photon.komoot.io/api/?q={requests.utils.quote(search_q)}&limit=10"
+            r = requests.get(url, timeout=3)
+            if r.ok:
+                data = r.json()
+                if data.get("features"):
+                    suggestions = []
+                    seen = set()  # Для избежания дубликатов
                     
-                    if parts:
-                        formatted = " ".join(parts)
-                        suggestions.append({"value": formatted})
-                    elif props.get("name"):
-                        suggestions.append({"value": props["name"]})
-                
-                if suggestions:
-                    return JsonResponse({"suggestions": suggestions})
-    except Exception:
+                    for feature in data["features"]:
+                        props = feature.get("properties", {})
+                        
+                        # Приоритет российским адресам
+                        country = props.get("country", "").lower()
+                        countrycode = props.get("countrycode", "").lower()
+                        if country not in ("россия", "russia") and countrycode not in ("ru", "ru"):
+                            continue
+                        
+                        # Формируем читаемый адрес
+                        parts = []
+                        
+                        # Улица
+                        street = props.get("street") or props.get("name")
+                        if street:
+                            parts.append(street)
+                        
+                        # Номер дома
+                        if props.get("housenumber"):
+                            parts.append(props["housenumber"])
+                        
+                        # Город
+                        city = props.get("city") or props.get("state")
+                        if city:
+                            parts.append(f", {city}")
+                        
+                        if parts:
+                            formatted = " ".join(parts)
+                            # Убираем дубликаты
+                            if formatted not in seen:
+                                seen.add(formatted)
+                                suggestions.append({"value": formatted})
+                        
+                        if len(suggestions) >= 5:
+                            break
+                    
+                    if suggestions:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info(f"Photon API: найдено {len(suggestions)} подсказок для '{q}'")
+                        return JsonResponse({"suggestions": suggestions})
+                    break  # Если нашли результаты, не пробуем другие варианты
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Photon API error: {e}")
         pass
     
     # Попытка 3: Nominatim с улучшенными параметрами и разными вариантами запроса
