@@ -629,15 +629,23 @@
       if (!box) {
         box = document.createElement('div');
         box.id = boxId;
-        box.style.cssText = 'display:none;position:absolute;z-index:50;margin-top:4px;width:100%;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow);max-height:300px;overflow-y:auto';
+        box.style.cssText = 'display:none;position:absolute;z-index:9999;margin-top:4px;width:100%;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow);max-height:300px;overflow-y:auto';
         wrapper.appendChild(box);
+        console.log('Создан бокс подсказок для:', input.id || input.name);
       }
 
       let timer = null;
       let lastQuery = '';
 
-      function hideBox() { box.style.display = 'none'; box.innerHTML = ''; }
-      function showBox() { box.style.display = 'block'; }
+      function hideBox() { 
+        box.style.display = 'none'; 
+        box.innerHTML = ''; 
+        console.log('Бокс скрыт');
+      }
+      function showBox() { 
+        box.style.display = 'block'; 
+        console.log('Бокс показан, позиция:', box.style.position, 'z-index:', box.style.zIndex);
+      }
       function esc(s) {
         return (s || '').replace(/&/g, '&amp;')
                         .replace(/</g, '&lt;')
@@ -645,7 +653,12 @@
                         .replace(/"/g, '&quot;');
       }
       function render(items) {
-        if (!items || !items.length) { hideBox(); return; }
+        console.log('Рендерим подсказки:', items);
+        if (!items || !items.length) { 
+          console.log('Нет подсказок для отображения');
+          hideBox(); 
+          return; 
+        }
         box.innerHTML = items.map(it => `
           <button type="button"
                   style="width:100%;text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.2s"
@@ -655,18 +668,28 @@
             ${esc(it.value)}
           </button>
         `).join('');
+        console.log('Показываем бокс с подсказками');
         showBox();
       }
 
       async function fetchSuggest(q) {
         try {
+          console.log('Запрос подсказок для:', q);
           const resp = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, {
             headers: {"X-Requested-With": "XMLHttpRequest"}
           });
+          
+          if (!resp.ok) {
+            console.warn('Ошибка ответа:', resp.status, resp.statusText);
+            hideBox();
+            return;
+          }
+          
           const data = await resp.json();
+          console.log('Получены подсказки:', data);
           render((data && data.suggestions) || []);
         } catch (e) {
-          console.error(e);
+          console.error('Ошибка при запросе подсказок:', e);
           hideBox();
         }
       }
@@ -680,12 +703,22 @@
 
       const onType = debounce(() => {
         const q = (input.value || '').trim();
-        if (!q) { hideBox(); return; }
-        if (q === lastQuery) return;
+        console.log('Ввод в поле адреса:', q, 'длина:', q.length);
+        if (!q) { 
+          console.log('Пустой запрос, скрываем бокс');
+          hideBox(); 
+          return; 
+        }
+        if (q === lastQuery) {
+          console.log('Запрос не изменился, пропускаем');
+          return;
+        }
         lastQuery = q;
         if (q.length >= 3) {
+          console.log('Запрос достаточно длинный, запрашиваем подсказки');
           fetchSuggest(q);
         } else {
+          console.log('Запрос слишком короткий, скрываем бокс');
           hideBox();
         }
       }, 300);
