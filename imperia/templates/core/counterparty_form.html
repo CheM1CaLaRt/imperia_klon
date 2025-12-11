@@ -607,6 +607,7 @@
   // ==========================================
   (function () {
     const endpoint = "{% url 'core:address_suggest_osm' %}";
+    console.log('Инициализация автозаполнения адресов, endpoint:', endpoint);
     
     function initAddressAutocomplete(input) {
       if (!input || input.dataset.autocompleteInitialized) return;
@@ -614,14 +615,21 @@
       
       const boxId = 'addr-suggest-box-' + input.id;
       let box = document.getElementById(boxId);
+      let wrapper = input.parentElement;
+      
+      // Проверяем, есть ли уже обертка
+      if (!wrapper || wrapper.tagName !== 'DIV' || !wrapper.style.position) {
+        // Создаем обертку, если её нет
+        wrapper = document.createElement('div');
+        wrapper.style.position = 'relative';
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
+      }
+      
       if (!box) {
         box = document.createElement('div');
         box.id = boxId;
         box.style.cssText = 'display:none;position:absolute;z-index:50;margin-top:4px;width:100%;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow);max-height:300px;overflow-y:auto';
-        const wrapper = document.createElement('div');
-        wrapper.style.position = 'relative';
-        input.parentNode.insertBefore(wrapper, input);
-        wrapper.appendChild(input);
         wrapper.appendChild(box);
       }
 
@@ -683,7 +691,14 @@
       }, 300);
 
       input.addEventListener('input', onType);
-      input.addEventListener('focus', () => { if (box.innerHTML.trim()) showBox(); });
+      input.addEventListener('focus', () => { 
+        const q = (input.value || '').trim();
+        if (q && q.length >= 3) {
+          fetchSuggest(q);
+        } else if (box.innerHTML.trim()) {
+          showBox();
+        }
+      });
       input.addEventListener('blur', () => setTimeout(hideBox, 150));
 
       box.addEventListener('click', (e) => {
@@ -700,24 +715,75 @@
     
     // Инициализируем автозаполнение для всех существующих полей адресов
     function initAllAddressAutocompletes() {
-      // Ищем все поля адресов в formset
-      const addressInputs = document.querySelectorAll('#address-formset-container input[id$="-address"], #address-formset-container input[name$="-address"]');
+      // Ищем все поля адресов в formset - пробуем разные селекторы
+      const selectors = [
+        '#address-formset-container input[id$="-address"]',
+        '#address-formset-container input[name$="-address"]',
+        '#address-formset-container input[type="text"][placeholder*="адрес"]',
+        '.address-form-row input[type="text"]'
+      ];
+      
+      let addressInputs = [];
+      for (const selector of selectors) {
+        addressInputs = document.querySelectorAll(selector);
+        if (addressInputs.length > 0) break;
+      }
+      
+      console.log('Найдено полей адресов для автозаполнения:', addressInputs.length);
+      
       addressInputs.forEach(input => {
-        if (input && !input.disabled) {
+        if (input && !input.disabled && input.type === 'text') {
+          console.log('Инициализируем автозаполнение для:', input.id || input.name);
           initAddressAutocomplete(input);
         }
       });
     }
     
-    // Инициализируем при загрузке
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initAllAddressAutocompletes);
-    } else {
-      initAllAddressAutocompletes();
+    // Инициализируем при загрузке с небольшой задержкой для гарантии
+    function initWhenReady() {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          setTimeout(initAllAddressAutocompletes, 200);
+        });
+      } else {
+        setTimeout(initAllAddressAutocompletes, 200);
+      }
+    }
+    
+    initWhenReady();
+    
+    // Отслеживаем добавление новых полей через MutationObserver
+    const container = document.getElementById('address-formset-container');
+    if (container) {
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.addedNodes.length) {
+            mutation.addedNodes.forEach(function(node) {
+              if (node.nodeType === 1) { // Element node
+                const addressInputs = node.querySelectorAll && node.querySelectorAll('input[id$="-address"], input[name$="-address"], input[type="text"][placeholder*="адрес"]');
+                if (addressInputs && addressInputs.length > 0) {
+                  addressInputs.forEach(input => {
+                    if (input && !input.disabled && !input.dataset.autocompleteInitialized) {
+                      console.log('Найдено новое поле адреса, инициализируем:', input.id || input.name);
+                      setTimeout(() => initAddressAutocomplete(input), 100);
+                    }
+                  });
+                }
+              }
+            });
+          }
+        });
+      });
+      
+      observer.observe(container, {
+        childList: true,
+        subtree: true
+      });
     }
     
     // Экспортируем функцию для использования в formset
     window.initAddressAutocomplete = initAddressAutocomplete;
+    window.initAllAddressAutocompletes = initAllAddressAutocompletes;
   })();
 
   // ==========================================
@@ -777,9 +843,21 @@
       
       // Инициализируем автозаполнение для нового поля адреса
       setTimeout(() => {
-        const newAddressInput = newRow.querySelector('input[id$="-address"]');
+        // Пробуем разные селекторы для поиска поля адреса
+        let newAddressInput = newRow.querySelector('input[id$="-address"]') ||
+                             newRow.querySelector('input[name$="-address"]') ||
+                             newRow.querySelector('input[type="text"][placeholder*="адрес"]') ||
+                             newRow.querySelector('input[type="text"]');
+        
         if (newAddressInput && window.initAddressAutocomplete) {
+          console.log('Инициализируем автозаполнение для нового поля:', newAddressInput.id || newAddressInput.name);
           window.initAddressAutocomplete(newAddressInput);
+        } else {
+          console.warn('Не удалось найти поле адреса в новой строке', newRow.innerHTML.substring(0, 200));
+          // Пробуем переинициализировать все поля
+          if (window.initAllAddressAutocompletes) {
+            setTimeout(() => window.initAllAddressAutocompletes(), 300);
+          }
         }
         
         // Настраиваем кнопку карты для новой строки
@@ -787,7 +865,7 @@
         if (newMapBtn && typeof setupMapButton === 'function') {
           setupMapButton(newMapBtn);
         }
-      }, 100);
+      }, 300);
       
       // Настраиваем обработчик для чекбокса удаления
       const deleteCheckbox = newRow.querySelector('input[type="checkbox"][name$="-DELETE"]');
