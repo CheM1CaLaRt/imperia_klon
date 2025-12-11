@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Функция геокодирования через Photon API (бесплатный, без ключа)
+// Функция геокодирования через несколько бесплатных API
 async function geocodeAddress(address, country = 'Россия') {
   if (!address || address.trim() === '') {
     console.warn('Пустой адрес для геокодирования');
@@ -320,21 +320,22 @@ async function geocodeAddress(address, country = 'Россия') {
 
   const cleanAddress = address.trim();
   
-  // Стратегии поиска для Photon API
+  // Стратегии поиска
   const searchQueries = [
     cleanAddress,
     // Если адрес начинается с "Пр.", добавляем Санкт-Петербург
     cleanAddress.match(/^[Пп]р\./) ? `${cleanAddress}, Санкт-Петербург` : null,
-    // С добавлением страны
-    `${cleanAddress}, ${country}`,
+    // С добавлением города и страны
+    cleanAddress.match(/^[Пп]р\./) ? `${cleanAddress}, Санкт-Петербург, Россия` : null,
   ].filter(Boolean);
 
+  // Попытка 1: Photon API (исправленный формат)
   for (let i = 0; i < searchQueries.length; i++) {
     const query = searchQueries[i];
     
     try {
-      // Photon API - бесплатный геокодер от Komoot на основе OpenStreetMap
-      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=ru`;
+      // Photon API - убираем параметр lang, он может вызывать 400
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`;
       
       console.log(`Попытка ${i + 1}/${searchQueries.length} через Photon:`, query);
       
@@ -345,45 +346,41 @@ async function geocodeAddress(address, country = 'Россия') {
         }
       });
       
-      if (!response.ok) {
-        console.warn(`HTTP ${response.status} для запроса:`, query);
-        continue;
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.features && data.features.length > 0) {
-        // Ищем результат в России
-        let bestResult = data.features[0];
+      if (response.ok) {
+        const data = await response.json();
         
-        // Пытаемся найти результат в России
-        const russianResult = data.features.find(f => {
-          const props = f.properties || {};
-          return props.country === 'Россия' || 
-                 props.country === 'Russia' || 
-                 props.countrycode === 'RU' ||
-                 props.countrycode === 'ru';
-        });
-        
-        if (russianResult) {
-          bestResult = russianResult;
+        if (data && data.features && data.features.length > 0) {
+          // Ищем результат в России
+          let bestResult = data.features[0];
+          
+          const russianResult = data.features.find(f => {
+            const props = f.properties || {};
+            return props.country === 'Россия' || 
+                   props.country === 'Russia' || 
+                   props.countrycode === 'RU' ||
+                   props.countrycode === 'ru';
+          });
+          
+          if (russianResult) {
+            bestResult = russianResult;
+          }
+          
+          const coords = bestResult.geometry.coordinates; // [долгота, широта]
+          const props = bestResult.properties || {};
+          const displayName = props.name || 
+                             (props.street && props.city ? `${props.street}, ${props.city}` : null) ||
+                             query;
+          
+          console.log('✓ Адрес найден через Photon:', query, '→', displayName);
+          
+          return {
+            lat: coords[1], // Широта
+            lon: coords[0], // Долгота
+            display_name: displayName
+          };
         }
-        
-        const coords = bestResult.geometry.coordinates; // [долгота, широта]
-        const props = bestResult.properties || {};
-        const displayName = props.name || 
-                           (props.street && props.city ? `${props.street}, ${props.city}` : null) ||
-                           props.display_name ||
-                           query;
-        
-        console.log('✓ Адрес найден через Photon:', query, '→', displayName);
-        
-        // Photon использует [долгота, широта], Leaflet использует [широта, долгота]
-        return {
-          lat: coords[1], // Широта
-          lon: coords[0], // Долгота
-          display_name: displayName
-        };
+      } else {
+        console.warn(`Photon HTTP ${response.status} для:`, query);
       }
       
       // Небольшая задержка между попытками
@@ -391,12 +388,52 @@ async function geocodeAddress(address, country = 'Россия') {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
     } catch (error) {
-      console.warn(`Ошибка при попытке ${i + 1}:`, error);
+      console.warn(`Ошибка Photon при попытке ${i + 1}:`, error);
       continue;
     }
   }
   
-  console.warn('Все попытки через Photon не удались, пробуем fallback');
+  // Попытка 2: Nominatim напрямую (через CORS proxy или напрямую)
+  console.log('Пробуем Nominatim напрямую...');
+  for (let i = 0; i < searchQueries.length; i++) {
+    const query = searchQueries[i];
+    
+    try {
+      // Используем CORS proxy для обхода CORS ограничений
+      const proxyUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=3&countrycodes=ru&addressdetails=1`;
+      const corsProxy = 'https://api.allorigins.win/get?url=';
+      const url = corsProxy + encodeURIComponent(proxyUrl);
+      
+      console.log(`Попытка ${i + 1} через Nominatim (CORS proxy):`, query);
+      
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const proxyData = await response.json();
+        const data = JSON.parse(proxyData.contents);
+        
+        if (data && data.length > 0) {
+          const result = data[0];
+          console.log('✓ Адрес найден через Nominatim:', query, '→', result.display_name);
+          
+          return {
+            lat: parseFloat(result.lat),
+            lon: parseFloat(result.lon),
+            display_name: result.display_name
+          };
+        }
+      }
+      
+      if (i < searchQueries.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } catch (error) {
+      console.warn(`Ошибка Nominatim при попытке ${i + 1}:`, error);
+      continue;
+    }
+  }
+  
+  console.warn('Все прямые попытки не удались, пробуем Django fallback');
   // Fallback на Django-эндпоинт
   return await geocodeAddressFallback(cleanAddress, country);
 }

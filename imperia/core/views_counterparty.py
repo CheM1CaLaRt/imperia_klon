@@ -566,15 +566,34 @@ def geocode_address(request):
     if not address:
         return JsonResponse({"error": "Адрес не указан"}, status=400)
     
-    # Стратегии поиска
-    search_queries = [
-        f"{address}, {country}",
-        address,
-    ]
+    # Стратегии поиска - более агрессивные для российских адресов
+    search_queries = []
     
     # Если адрес начинается с "Пр." или "пр.", добавляем Санкт-Петербург
     if address.startswith(("Пр.", "пр.", "Пр ", "пр ")):
-        search_queries.insert(1, f"{address}, Санкт-Петербург, {country}")
+        search_queries.extend([
+            f"{address}, Санкт-Петербург, {country}",
+            f"{address}, Санкт-Петербург",
+            f"{address}, СПб, {country}",
+            f"{address}, СПб",
+        ])
+    
+    # Общие стратегии
+    search_queries.extend([
+        f"{address}, {country}",
+        address,
+    ])
+    
+    # Если адрес содержит "12к7" или подобное, пробуем разные варианты
+    if "к" in address.lower() and any(char.isdigit() for char in address):
+        # Заменяем "к" на "корпус" или "корп."
+        address_variants = [
+            address.replace("к", " корпус ").replace("  ", " "),
+            address.replace("к", " корп. ").replace("  ", " "),
+        ]
+        for variant in address_variants:
+            if variant not in search_queries:
+                search_queries.append(variant)
     
     headers = {
         "User-Agent": "ImperiaApp/1.0 (admin@example.com)",
@@ -599,12 +618,13 @@ def geocode_address(request):
             params = {
                 "q": search_query,
                 "format": "json",
-                "limit": 3,
+                "limit": 5,  # Увеличиваем лимит для лучшего поиска
                 "addressdetails": 1,
+                "accept-language": "ru",
             }
             
-            # Для первых попыток ограничиваем по России
-            if i < len(search_queries) - 1:
+            # Для большинства попыток ограничиваем по России
+            if i < len(search_queries) - 2:
                 params["countrycodes"] = "ru"
             
             if use_requests:
