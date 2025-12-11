@@ -313,21 +313,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Функция геокодирования через Nominatim API
 async function geocodeAddress(address) {
+  if (!address || address.trim() === '') {
+    console.warn('Пустой адрес для геокодирования');
+    return null;
+  }
+
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=ru`,
-      {
-        headers: {
-          'User-Agent': 'Imperia/1.0'
-        }
+    // Пробуем сначала точный поиск с ограничением по России
+    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=ru&addressdetails=1`;
+    
+    let response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Imperia/1.0 (Contact: support@example.com)',
+        'Accept-Language': 'ru-RU,ru;q=0.9'
       }
-    );
+    });
     
     if (!response.ok) {
-      throw new Error('Ошибка геокодирования');
+      console.warn(`Nominatim вернул статус ${response.status}, пробуем без ограничения по стране`);
+      // Пробуем без ограничения по стране
+      url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1`;
+      response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Imperia/1.0 (Contact: support@example.com)',
+          'Accept-Language': 'ru-RU,ru;q=0.9'
+        }
+      });
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log('Результат геокодирования для:', address, data);
     
     if (data && data.length > 0) {
       return {
@@ -337,9 +356,10 @@ async function geocodeAddress(address) {
       };
     }
     
+    console.warn('Адрес не найден:', address);
     return null;
   } catch (error) {
-    console.error('Ошибка геокодирования:', error);
+    console.error('Ошибка геокодирования для адреса:', address, error);
     return null;
   }
 }
@@ -380,32 +400,61 @@ async function initAddressMap() {
     {% endif %}
   {% endwith %}
 
+  console.log('Собранные адреса из шаблона:', addresses);
+
   if (addresses.length === 0) {
     mapContainer.className = 'map-error';
     mapContainer.innerHTML = '<span>Адреса не указаны</span>';
     return;
   }
 
-  // Убираем дубликаты адресов
+  // Убираем дубликаты и пустые адреса
   const uniqueAddresses = [];
   const seenAddresses = new Set();
   
   for (const addr of addresses) {
+    if (!addr.address || typeof addr.address !== 'string') {
+      console.warn('Пропускаем некорректный адрес:', addr);
+      continue;
+    }
+    
     const normalized = addr.address.trim().toLowerCase();
+    if (normalized === '') {
+      console.warn('Пропускаем пустой адрес');
+      continue;
+    }
+    
     if (!seenAddresses.has(normalized)) {
       seenAddresses.add(normalized);
-      uniqueAddresses.push(addr);
+      uniqueAddresses.push({
+        ...addr,
+        address: addr.address.trim() // Убираем пробелы в начале/конце
+      });
     }
   }
+
+  console.log('Уникальные адреса для геокодирования:', uniqueAddresses);
 
   // Геокодируем все адреса
   mapContainer.className = 'map-loading';
   mapContainer.innerHTML = '<span>Поиск адресов на карте...</span>';
 
+  console.log('Начинаем геокодирование адресов:', uniqueAddresses);
+
   const geocodedAddresses = [];
+  const failedAddresses = [];
   
-  for (const addr of uniqueAddresses) {
+  for (let i = 0; i < uniqueAddresses.length; i++) {
+    const addr = uniqueAddresses[i];
+    
+    // Обновляем статус загрузки
+    if (uniqueAddresses.length > 1) {
+      mapContainer.innerHTML = `<span>Поиск адресов на карте... (${i + 1}/${uniqueAddresses.length})</span>`;
+    }
+    
+    console.log(`Геокодируем адрес ${i + 1}/${uniqueAddresses.length}:`, addr.address);
     const coords = await geocodeAddress(addr.address);
+    
     if (coords) {
       geocodedAddresses.push({
         ...addr,
@@ -413,15 +462,37 @@ async function initAddressMap() {
         lon: coords.lon,
         display_name: coords.display_name
       });
+      console.log('✓ Адрес найден:', addr.address, coords);
+    } else {
+      failedAddresses.push(addr.address);
+      console.warn('✗ Адрес не найден:', addr.address);
     }
-    // Небольшая задержка между запросами (избегаем rate limiting)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Задержка между запросами (избегаем rate limiting Nominatim)
+    // Nominatim требует минимум 1 запрос в секунду
+    if (i < uniqueAddresses.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1100));
+    }
   }
 
   if (geocodedAddresses.length === 0) {
     mapContainer.className = 'map-error';
-    mapContainer.innerHTML = '<span>Не удалось найти адреса на карте</span>';
+    let errorMsg = '<div style="text-align:center;padding:20px;"><div style="font-weight:600;margin-bottom:8px;">Не удалось найти адреса на карте</div>';
+    if (failedAddresses.length > 0) {
+      errorMsg += '<div style="font-size:12px;color:#6b7280;margin-top:8px;">Попробовали найти:<br>';
+      failedAddresses.forEach(addr => {
+        errorMsg += `• ${addr}<br>`;
+      });
+      errorMsg += '</div>';
+    }
+    errorMsg += '</div>';
+    mapContainer.innerHTML = errorMsg;
+    console.error('Не удалось найти ни одного адреса. Провалившиеся адреса:', failedAddresses);
     return;
+  }
+
+  if (failedAddresses.length > 0) {
+    console.warn('Некоторые адреса не найдены:', failedAddresses);
   }
 
   // Инициализируем карту
