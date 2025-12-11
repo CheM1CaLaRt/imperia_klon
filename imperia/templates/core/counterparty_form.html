@@ -603,6 +603,124 @@
 
 
   // ==========================================
+  // 4) Автозаполнение адресов для formset
+  // ==========================================
+  (function () {
+    const endpoint = "{% url 'core:address_suggest_osm' %}";
+    
+    function initAddressAutocomplete(input) {
+      if (!input || input.dataset.autocompleteInitialized) return;
+      input.dataset.autocompleteInitialized = 'true';
+      
+      const boxId = 'addr-suggest-box-' + input.id;
+      let box = document.getElementById(boxId);
+      if (!box) {
+        box = document.createElement('div');
+        box.id = boxId;
+        box.style.cssText = 'display:none;position:absolute;z-index:50;margin-top:4px;width:100%;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow);max-height:300px;overflow-y:auto';
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'relative';
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
+        wrapper.appendChild(box);
+      }
+
+      let timer = null;
+      let lastQuery = '';
+
+      function hideBox() { box.style.display = 'none'; box.innerHTML = ''; }
+      function showBox() { box.style.display = 'block'; }
+      function esc(s) {
+        return (s || '').replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+      }
+      function render(items) {
+        if (!items || !items.length) { hideBox(); return; }
+        box.innerHTML = items.map(it => `
+          <button type="button"
+                  style="width:100%;text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.2s"
+                  onmouseover="this.style.background='var(--bg)'"
+                  onmouseout="this.style.background='transparent'"
+                  data-value="${esc(it.value)}">
+            ${esc(it.value)}
+          </button>
+        `).join('');
+        showBox();
+      }
+
+      async function fetchSuggest(q) {
+        try {
+          const resp = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, {
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+          });
+          const data = await resp.json();
+          render((data && data.suggestions) || []);
+        } catch (e) {
+          console.error(e);
+          hideBox();
+        }
+      }
+
+      function debounce(fn, ms) {
+        return (...args) => {
+          clearTimeout(timer);
+          timer = setTimeout(() => fn(...args), ms);
+        };
+      }
+
+      const onType = debounce(() => {
+        const q = (input.value || '').trim();
+        if (!q) { hideBox(); return; }
+        if (q === lastQuery) return;
+        lastQuery = q;
+        if (q.length >= 3) {
+          fetchSuggest(q);
+        } else {
+          hideBox();
+        }
+      }, 300);
+
+      input.addEventListener('input', onType);
+      input.addEventListener('focus', () => { if (box.innerHTML.trim()) showBox(); });
+      input.addEventListener('blur', () => setTimeout(hideBox, 150));
+
+      box.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-value]');
+        if (!btn) return;
+        input.value = btn.getAttribute('data-value') || '';
+        hideBox();
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideBox();
+      });
+    }
+    
+    // Инициализируем автозаполнение для всех существующих полей адресов
+    function initAllAddressAutocompletes() {
+      // Ищем все поля адресов в formset
+      const addressInputs = document.querySelectorAll('#address-formset-container input[id$="-address"], #address-formset-container input[name$="-address"]');
+      addressInputs.forEach(input => {
+        if (input && !input.disabled) {
+          initAddressAutocomplete(input);
+        }
+      });
+    }
+    
+    // Инициализируем при загрузке
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAllAddressAutocompletes);
+    } else {
+      initAllAddressAutocompletes();
+    }
+    
+    // Экспортируем функцию для использования в formset
+    window.initAddressAutocomplete = initAddressAutocomplete;
+  })();
+
+  // ==========================================
   // 5) Formset для адресов доставки
   // ==========================================
   (function () {
@@ -657,11 +775,19 @@
       container.appendChild(newRow);
       totalInput.value = idx + 1;
       
-      // Настраиваем кнопку карты для новой строки
-      const newMapBtn = newRow.querySelector('.yandex-map-btn');
-      if (newMapBtn && typeof setupMapButton === 'function') {
-        setupMapButton(newMapBtn);
-      }
+      // Инициализируем автозаполнение для нового поля адреса
+      setTimeout(() => {
+        const newAddressInput = newRow.querySelector('input[id$="-address"]');
+        if (newAddressInput && window.initAddressAutocomplete) {
+          window.initAddressAutocomplete(newAddressInput);
+        }
+        
+        // Настраиваем кнопку карты для новой строки
+        const newMapBtn = newRow.querySelector('.yandex-map-btn');
+        if (newMapBtn && typeof setupMapButton === 'function') {
+          setupMapButton(newMapBtn);
+        }
+      }, 100);
       
       // Настраиваем обработчик для чекбокса удаления
       const deleteCheckbox = newRow.querySelector('input[type="checkbox"][name$="-DELETE"]');
