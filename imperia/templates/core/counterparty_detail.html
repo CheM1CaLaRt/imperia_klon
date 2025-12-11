@@ -311,6 +311,80 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// Функция для упрощения адреса (убираем лишние детали)
+function simplifyAddress(address) {
+  if (!address) return address;
+  
+  let simplified = address.trim();
+  
+  // Убираем детали: этаж, помещение, комната
+  simplified = simplified
+    .replace(/,\s*ЭТ\s*\d+/gi, '') // Убираем "ЭТ 5"
+    .replace(/,\s*ПОМ\s*[IVX\d]+/gi, '') // Убираем "ПОМ II"
+    .replace(/,\s*КОМ\s*\d+/gi, '') // Убираем "КОМ 3"
+    .replace(/,\s*ПОМЕЩЕНИЕ\s*\d+/gi, '') // Убираем "ПОМЕЩЕНИЕ"
+    .replace(/,\s*ОФИС\s*\d+/gi, '') // Убираем "ОФИС"
+    .replace(/,\s*К\s*\d+/gi, ' корпус ') // Заменяем "К. 20" на "корпус 20"
+    .replace(/\s+/g, ' ') // Убираем лишние пробелы
+    .replace(/,\s*,/g, ',') // Убираем двойные запятые
+    .trim();
+  
+  // Нормализуем сокращения
+  simplified = simplified
+    .replace(/Г\./gi, 'г.') // "Г.МОСКВА" -> "г. Москва"
+    .replace(/УЛ\./gi, 'ул.') // "УЛ." -> "ул."
+    .replace(/Д\./gi, 'д.') // "Д." -> "д."
+    .replace(/ПР\./gi, 'пр.') // "ПР." -> "пр."
+    .replace(/ПРОСПЕКТ/gi, 'пр.') // "ПРОСПЕКТ" -> "пр."
+    .replace(/ПЕРЕУЛОК/gi, 'пер.') // "ПЕРЕУЛОК" -> "пер."
+    .replace(/ПЛОЩАДЬ/gi, 'пл.') // "ПЛОЩАДЬ" -> "пл."
+    .replace(/БУЛЬВАР/gi, 'б-р') // "БУЛЬВАР" -> "б-р"
+    .replace(/МОСКВА/gi, 'Москва') // "МОСКВА" -> "Москва"
+    .replace(/САНКТ-ПЕТЕРБУРГ/gi, 'Санкт-Петербург') // "САНКТ-ПЕТЕРБУРГ" -> "Санкт-Петербург"
+    .replace(/СПБ/gi, 'Санкт-Петербург') // "СПБ" -> "Санкт-Петербург"
+    .replace(/СПБ/gi, 'Санкт-Петербург'); // "СПБ" -> "Санкт-Петербург"
+  
+  return simplified;
+}
+
+// Функция для создания вариантов адреса для поиска
+function createAddressVariants(address) {
+  const variants = [];
+  const simplified = simplifyAddress(address);
+  
+  // Если адрес содержит индекс, пробуем с ним и без
+  const indexMatch = simplified.match(/^(\d{6}),?\s*(.+)/);
+  if (indexMatch) {
+    const [, index, rest] = indexMatch;
+    variants.push(`${rest}, ${index}`); // Без индекса в начале
+    variants.push(simplified); // С индексом
+  } else {
+    variants.push(simplified);
+  }
+  
+  // Если адрес содержит "Москва" или "Санкт-Петербург", пробуем разные варианты
+  if (simplified.match(/Москва/i)) {
+    const withoutCity = simplified.replace(/г\.?\s*Москва,?\s*/i, '').trim();
+    variants.push(`Москва, ${withoutCity}`);
+    variants.push(withoutCity);
+  }
+  
+  if (simplified.match(/Санкт-Петербург/i)) {
+    const withoutCity = simplified.replace(/г\.?\s*Санкт-Петербург,?\s*/i, '').trim();
+    variants.push(`Санкт-Петербург, ${withoutCity}`);
+    variants.push(withoutCity);
+  }
+  
+  // Если адрес начинается с "Пр.", добавляем город
+  if (simplified.match(/^[Пп]р\./)) {
+    variants.push(`${simplified}, Санкт-Петербург`);
+    variants.push(`${simplified}, Санкт-Петербург, Россия`);
+  }
+  
+  // Убираем дубликаты и пустые
+  return [...new Set(variants.filter(v => v && v.trim()))];
+}
+
 // Функция геокодирования через несколько бесплатных API
 async function geocodeAddress(address, country = 'Россия') {
   if (!address || address.trim() === '') {
@@ -320,14 +394,10 @@ async function geocodeAddress(address, country = 'Россия') {
 
   const cleanAddress = address.trim();
   
-  // Стратегии поиска
-  const searchQueries = [
-    cleanAddress,
-    // Если адрес начинается с "Пр.", добавляем Санкт-Петербург
-    cleanAddress.match(/^[Пп]р\./) ? `${cleanAddress}, Санкт-Петербург` : null,
-    // С добавлением города и страны
-    cleanAddress.match(/^[Пп]р\./) ? `${cleanAddress}, Санкт-Петербург, Россия` : null,
-  ].filter(Boolean);
+  // Создаем варианты адреса для поиска
+  const searchQueries = createAddressVariants(cleanAddress);
+  
+  console.log('Варианты адреса для поиска:', searchQueries);
 
   // Попытка 1: Photon API (исправленный формат)
   for (let i = 0; i < searchQueries.length; i++) {
@@ -393,45 +463,8 @@ async function geocodeAddress(address, country = 'Россия') {
     }
   }
   
-  // Попытка 2: Nominatim напрямую (через CORS proxy или напрямую)
-  console.log('Пробуем Nominatim напрямую...');
-  for (let i = 0; i < searchQueries.length; i++) {
-    const query = searchQueries[i];
-    
-    try {
-      // Используем CORS proxy для обхода CORS ограничений
-      const proxyUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=3&countrycodes=ru&addressdetails=1`;
-      const corsProxy = 'https://api.allorigins.win/get?url=';
-      const url = corsProxy + encodeURIComponent(proxyUrl);
-      
-      console.log(`Попытка ${i + 1} через Nominatim (CORS proxy):`, query);
-      
-      const response = await fetch(url);
-      
-      if (response.ok) {
-        const proxyData = await response.json();
-        const data = JSON.parse(proxyData.contents);
-        
-        if (data && data.length > 0) {
-          const result = data[0];
-          console.log('✓ Адрес найден через Nominatim:', query, '→', result.display_name);
-          
-          return {
-            lat: parseFloat(result.lat),
-            lon: parseFloat(result.lon),
-            display_name: result.display_name
-          };
-        }
-      }
-      
-      if (i < searchQueries.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    } catch (error) {
-      console.warn(`Ошибка Nominatim при попытке ${i + 1}:`, error);
-      continue;
-    }
-  }
+  // Попытка 2: Пропускаем CORS proxy (он не работает), сразу используем Django fallback
+  console.log('CORS proxy не работает, используем Django fallback');
   
   console.warn('Все прямые попытки не удались, пробуем Django fallback');
   // Fallback на Django-эндпоинт

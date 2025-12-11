@@ -566,34 +566,75 @@ def geocode_address(request):
     if not address:
         return JsonResponse({"error": "Адрес не указан"}, status=400)
     
+    # Функция для упрощения адреса
+    def simplify_addr(addr):
+        """Упрощает адрес, убирая лишние детали"""
+        simplified = addr
+        # Убираем детали: этаж, помещение, комната
+        import re
+        simplified = re.sub(r',\s*ЭТ\s*\d+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ПОМ\s*[IVX\d]+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*КОМ\s*\d+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ПОМЕЩЕНИЕ\s*\d+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ОФИС\s*\d+', '', simplified, flags=re.IGNORECASE)
+        # Заменяем "К. 20" на "корпус 20"
+        simplified = re.sub(r',\s*К\.\s*(\d+)', r', корпус \1', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*К\s*(\d+)', r', корпус \1', simplified, flags=re.IGNORECASE)
+        # Нормализуем пробелы
+        simplified = re.sub(r'\s+', ' ', simplified)
+        simplified = re.sub(r',\s*,', ',', simplified)
+        return simplified.strip()
+    
     # Стратегии поиска - более агрессивные для российских адресов
     search_queries = []
     
+    # Упрощаем адрес
+    simplified = simplify_addr(address)
+    
+    # Если адрес содержит индекс в начале, пробуем с ним и без
+    import re
+    index_match = re.match(r'^(\d{6}),?\s*(.+)', simplified)
+    if index_match:
+        index, rest = index_match.groups()
+        search_queries.append(f"{rest}, {index}")
+        search_queries.append(simplified)
+    else:
+        search_queries.append(simplified)
+    
+    # Если адрес содержит "Москва", пробуем разные варианты
+    if "Москва" in simplified or "МОСКВА" in simplified:
+        without_city = re.sub(r'г\.?\s*Москва,?\s*', '', simplified, flags=re.IGNORECASE)
+        without_city = re.sub(r'г\.?\s*МОСКВА,?\s*', '', without_city, flags=re.IGNORECASE)
+        if without_city != simplified:
+            search_queries.extend([
+                f"Москва, {without_city}",
+                without_city
+            ])
+    
     # Если адрес начинается с "Пр." или "пр.", добавляем Санкт-Петербург
-    if address.startswith(("Пр.", "пр.", "Пр ", "пр ")):
+    if simplified.startswith(("Пр.", "пр.", "Пр ", "пр ")):
         search_queries.extend([
-            f"{address}, Санкт-Петербург, {country}",
-            f"{address}, Санкт-Петербург",
-            f"{address}, СПб, {country}",
-            f"{address}, СПб",
+            f"{simplified}, Санкт-Петербург, {country}",
+            f"{simplified}, Санкт-Петербург",
+            f"{simplified}, СПб, {country}",
+            f"{simplified}, СПб",
         ])
     
     # Общие стратегии
     search_queries.extend([
-        f"{address}, {country}",
-        address,
+        f"{simplified}, {country}",
+        simplified,
     ])
     
-    # Если адрес содержит "12к7" или подобное, пробуем разные варианты
-    if "к" in address.lower() and any(char.isdigit() for char in address):
-        # Заменяем "к" на "корпус" или "корп."
-        address_variants = [
-            address.replace("к", " корпус ").replace("  ", " "),
-            address.replace("к", " корп. ").replace("  ", " "),
-        ]
-        for variant in address_variants:
-            if variant not in search_queries:
-                search_queries.append(variant)
+    # Убираем дубликаты, сохраняя порядок
+    seen = set()
+    unique_queries = []
+    for q in search_queries:
+        if q and q not in seen:
+            seen.add(q)
+            unique_queries.append(q)
+    
+    search_queries = unique_queries
     
     headers = {
         "User-Agent": "ImperiaApp/1.0 (admin@example.com)",
