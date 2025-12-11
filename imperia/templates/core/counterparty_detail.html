@@ -621,7 +621,7 @@ async function initAddressMap() {
   // Инициализируем карту
   const map = L.map('address-map', {
     zoomControl: true,
-    attributionControl: true,
+    attributionControl: false, // Отключаем стандартную атрибуцию
     preferCanvas: false
   });
   
@@ -634,9 +634,9 @@ async function initAddressMap() {
     map.invalidateSize();
   }, 200);
 
-  // Добавляем тайлы OpenStreetMap
+  // Добавляем тайлы OpenStreetMap без атрибуции
   const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    attribution: '', // Убираем атрибуцию
     maxZoom: 19,
     subdomains: ['a', 'b', 'c'],
     crossOrigin: true
