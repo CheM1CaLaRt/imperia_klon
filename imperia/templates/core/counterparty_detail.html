@@ -7,6 +7,20 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""/>
+  {# Yandex Maps API - загружаем асинхронно #}
+  <script>
+    // Загружаем Yandex Maps API асинхронно
+    (function() {
+      var script = document.createElement('script');
+      script.src = 'https://api-maps.yandex.ru/2.1/?apikey=&lang=ru_RU';
+      script.type = 'text/javascript';
+      script.async = true;
+      script.onerror = function() {
+        console.warn('Не удалось загрузить Yandex Maps API, будет использован fallback');
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
   <style>
     #address-map {
       height: 400px;
@@ -311,17 +325,98 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Функция геокодирования через Django-эндпоинт (прокси к Nominatim)
+// Функция геокодирования через Yandex Maps Geocoder API
 async function geocodeAddress(address, country = 'Россия') {
   if (!address || address.trim() === '') {
     console.warn('Пустой адрес для геокодирования');
     return null;
   }
 
+  const cleanAddress = address.trim();
+  
+  // Проверяем, загружена ли Yandex Maps API
+  if (typeof ymaps === 'undefined') {
+    console.error('Yandex Maps API не загружена');
+    // Fallback на Django-эндпоинт
+    return await geocodeAddressFallback(cleanAddress, country);
+  }
+
+  return new Promise((resolve) => {
+    // Ждем готовности Yandex Maps API
+    ymaps.ready(function() {
+      const geocoder = ymaps.geocode(cleanAddress, {
+        results: 1
+      });
+      
+      geocoder.then(
+        function(res) {
+          const firstGeoObject = res.geoObjects.get(0);
+          
+          if (firstGeoObject) {
+            const coords = firstGeoObject.geometry.getCoordinates();
+            const displayName = firstGeoObject.getAddressLine();
+            
+            console.log('✓ Адрес найден через Yandex:', cleanAddress, '→', displayName);
+            
+            // Yandex Maps использует [долгота, широта], Leaflet использует [широта, долгота]
+            resolve({
+              lat: coords[1], // Широта
+              lon: coords[0], // Долгота
+              display_name: displayName || cleanAddress
+            });
+          } else {
+            console.warn('Адрес не найден через Yandex:', cleanAddress);
+            // Пробуем с добавлением города для адресов, начинающихся с "Пр."
+            if (cleanAddress.match(/^[Пп]р\./)) {
+              const addressWithCity = `${cleanAddress}, Санкт-Петербург`;
+              console.log('Пробуем с городом:', addressWithCity);
+              
+              const geocoder2 = ymaps.geocode(addressWithCity, { results: 1 });
+              geocoder2.then(
+                function(res2) {
+                  const firstGeoObject2 = res2.geoObjects.get(0);
+                  if (firstGeoObject2) {
+                    const coords2 = firstGeoObject2.geometry.getCoordinates();
+                    const displayName2 = firstGeoObject2.getAddressLine();
+                    console.log('✓ Адрес найден с городом:', addressWithCity, '→', displayName2);
+                    // Yandex Maps использует [долгота, широта], Leaflet использует [широта, долгота]
+                    resolve({
+                      lat: coords2[1], // Широта
+                      lon: coords2[0], // Долгота
+                      display_name: displayName2 || addressWithCity
+                    });
+                  } else {
+                    // Fallback на Django-эндпоинт
+                    geocodeAddressFallback(cleanAddress, country).then(resolve);
+                  }
+                },
+                function(err) {
+                  console.warn('Ошибка Yandex Geocoder:', err);
+                  geocodeAddressFallback(cleanAddress, country).then(resolve);
+                }
+              );
+            } else {
+              // Fallback на Django-эндпоинт
+              geocodeAddressFallback(cleanAddress, country).then(resolve);
+            }
+          }
+        },
+        function(err) {
+          console.warn('Ошибка Yandex Geocoder:', err);
+          // Fallback на Django-эндпоинт
+          geocodeAddressFallback(cleanAddress, country).then(resolve);
+        }
+      );
+    });
+  });
+}
+
+// Fallback функция через Django-эндпоинт (Nominatim)
+async function geocodeAddressFallback(address, country = 'Россия') {
   try {
-    const url = `{% url 'core:geocode_address' %}?address=${encodeURIComponent(address.trim())}&country=${encodeURIComponent(country)}`;
+    const url = `{% url 'core:geocode_address' %}?address=${encodeURIComponent(address)}&country=${encodeURIComponent(country)}`;
     
-    console.log('Геокодируем через Django-эндпоинт:', address);
+    console.log('Геокодируем через Django-эндпоинт (fallback):', address);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -339,14 +434,14 @@ async function geocodeAddress(address, country = 'Россия') {
     const data = await response.json();
     
     if (data.success && data.lat && data.lon) {
-      console.log('✓ Адрес найден:', address, '→', data.display_name);
+      console.log('✓ Адрес найден через Nominatim:', address, '→', data.display_name);
       return {
         lat: parseFloat(data.lat),
         lon: parseFloat(data.lon),
         display_name: data.display_name
       };
     } else {
-      console.warn('Адрес не найден:', address, data.error || '');
+      console.warn('Адрес не найден через Nominatim:', address, data.error || '');
       return null;
     }
   } catch (error) {
