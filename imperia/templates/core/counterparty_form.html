@@ -675,7 +675,17 @@
       async function fetchSuggest(q) {
         try {
           console.log('Запрос подсказок для:', q);
-          const resp = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, {
+          
+          // Пробуем несколько вариантов запроса для лучших результатов
+          const queries = [
+            q,  // Как есть
+            q + ', Россия',  // С добавлением страны
+            q + ', Москва',  // С Москвой (если не указан город)
+            q + ', Санкт-Петербург',  // С СПб (если не указан город)
+          ];
+          
+          // Пробуем первый вариант (как есть)
+          let resp = await fetch(`${endpoint}?q=${encodeURIComponent(queries[0])}`, {
             headers: {"X-Requested-With": "XMLHttpRequest"}
           });
           
@@ -685,8 +695,28 @@
             return;
           }
           
-          const data = await resp.json();
-          console.log('Получены подсказки:', data);
+          let data = await resp.json();
+          console.log('Получены подсказки (вариант 1):', data);
+          
+          // Если нет результатов, пробуем другие варианты
+          if (!data.suggestions || data.suggestions.length === 0) {
+            for (let i = 1; i < queries.length; i++) {
+              console.log('Пробуем вариант', i + 1, ':', queries[i]);
+              resp = await fetch(`${endpoint}?q=${encodeURIComponent(queries[i])}`, {
+                headers: {"X-Requested-With": "XMLHttpRequest"}
+              });
+              if (resp.ok) {
+                data = await resp.json();
+                console.log('Получены подсказки (вариант', i + 1, '):', data);
+                if (data.suggestions && data.suggestions.length > 0) {
+                  break;
+                }
+              }
+              // Небольшая задержка между запросами
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+          }
+          
           render((data && data.suggestions) || []);
         } catch (e) {
           console.error('Ошибка при запросе подсказок:', e);

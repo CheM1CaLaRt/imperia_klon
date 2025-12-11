@@ -495,43 +495,173 @@ def counterparty_list(request):
 def address_suggest_osm(request):
     """
     GET ?q=ул тверская 7  → {"suggestions":[{"value":"..."}]}
-    Проксирующий ендпоинт для клиента. Источник — OSM Nominatim.
+    Проксирующий ендпоинт для клиента. 
+    Пробует несколько источников: Dadata (если есть ключ), затем Nominatim.
     """
     q = (request.GET.get("q") or "").strip()
     if len(q) < 3:
         return JsonResponse({"suggestions": []})
 
-    params = {
-        "q": q,
-        "format": "json",
-        "addressdetails": 0,
-        "limit": 5,
-        "accept-language": "ru",
-    }
+    suggestions = []
+    
+    # Попытка 1: Dadata API (если есть ключ) - лучший для российских адресов
+    import os
+    dadata_token = os.getenv("DADATA_API_TOKEN")
+    dadata_secret = os.getenv("DADATA_API_SECRET")
+    
+    if dadata_token and dadata_secret:
+        try:
+            import requests
+            dadata_url = "https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Token {dadata_token}",
+                "X-Secret": dadata_secret
+            }
+            payload = {
+                "query": q,
+                "count": 5,
+                "language": "ru"
+            }
+            r = requests.post(dadata_url, json=payload, headers=headers, timeout=3)
+            r.raise_for_status()
+            data = r.json()
+            suggestions = [
+                {"value": item.get("value", "")}
+                for item in data.get("suggestions", [])
+                if item.get("value")
+            ]
+            if suggestions:
+                return JsonResponse({"suggestions": suggestions})
+        except Exception as e:
+            # Продолжаем к другим источникам
+            pass
+    
+    # Попытка 2: Photon API (бесплатный, без ключа, хорошо работает с адресами)
+    try:
+        import requests
+        # Photon API - бесплатный геокодер от Komoot
+        url = f"https://photon.komoot.io/api/?q={requests.utils.quote(q)}&limit=5&lang=ru"
+        r = requests.get(url, timeout=3)
+        if r.ok:
+            data = r.json()
+            if data.get("features"):
+                suggestions = []
+                for feature in data["features"][:5]:
+                    props = feature.get("properties", {})
+                    # Формируем читаемый адрес
+                    parts = []
+                    if props.get("name"):
+                        parts.append(props["name"])
+                    if props.get("housenumber"):
+                        parts.append(props["housenumber"])
+                    if props.get("street"):
+                        if not parts:
+                            parts.append(props["street"])
+                        elif props.get("housenumber"):
+                            parts.insert(-1, props["street"])
+                    if props.get("city"):
+                        parts.append(f", {props['city']}")
+                    elif props.get("state"):
+                        parts.append(f", {props['state']}")
+                    
+                    if parts:
+                        formatted = " ".join(parts)
+                        suggestions.append({"value": formatted})
+                    elif props.get("name"):
+                        suggestions.append({"value": props["name"]})
+                
+                if suggestions:
+                    return JsonResponse({"suggestions": suggestions})
+    except Exception:
+        pass
+    
+    # Попытка 3: Nominatim с улучшенными параметрами и разными вариантами запроса
+    # Пробуем несколько вариантов запроса для лучших результатов
+    query_variants = [
+        q,  # Как есть
+        f"{q}, Россия",  # С добавлением страны
+    ]
+    
+    # Если запрос начинается с "проспект" или "пр.", добавляем город
+    if q.lower().startswith(("проспект", "пр.", "пр ")):
+        query_variants.extend([
+            f"{q}, Санкт-Петербург",
+            f"{q}, Санкт-Петербург, Россия",
+        ])
+    elif q.lower().startswith(("улица", "ул.", "ул ")):
+        query_variants.extend([
+            f"{q}, Москва",
+            f"{q}, Москва, Россия",
+        ])
+    
     headers = {
         "User-Agent": "ImperiaApp/1.0 (admin@example.com)"
     }
 
-    suggestions = []
-
     try:
-        import requests  # noqa: F401
-        try:
-            r = requests.get(
-                "https://nominatim.openstreetmap.org/search",
-                params=params,
-                headers=headers,
-                timeout=3,
-            )
-            r.raise_for_status()
-            data = r.json()
-            suggestions = [
-                {"value": item.get("display_name", "")}
-                for item in data
-                if item.get("display_name")
-            ]
-        except Exception:
-            suggestions = []
+        import requests
+        for query_variant in query_variants:
+            try:
+                params = {
+                    "q": query_variant,
+                    "format": "json",
+                    "addressdetails": 1,
+                    "limit": 10,
+                    "accept-language": "ru",
+                    "countrycodes": "ru",
+                }
+                
+                r = requests.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params=params,
+                    headers=headers,
+                    timeout=5,
+                )
+                r.raise_for_status()
+                data = r.json()
+                
+                if data:
+                    # Форматируем результаты лучше
+                    for item in data:
+                        display_name = item.get("display_name", "")
+                        if display_name:
+                            # Пробуем создать более читаемый адрес
+                            address = item.get("address", {})
+                            if address:
+                                parts = []
+                                if address.get("road"):
+                                    parts.append(address["road"])
+                                if address.get("house_number"):
+                                    parts.append(address["house_number"])
+                                if address.get("city") or address.get("town"):
+                                    city = address.get("city") or address.get("town")
+                                    if parts:
+                                        parts.append(f", {city}")
+                                    else:
+                                        parts.append(city)
+                                
+                                if parts:
+                                    formatted = " ".join(parts)
+                                    suggestions.append({"value": formatted})
+                                else:
+                                    suggestions.append({"value": display_name})
+                            else:
+                                suggestions.append({"value": display_name})
+                            
+                            if len(suggestions) >= 5:
+                                break
+                    
+                    if suggestions:
+                        break  # Если нашли результаты, прекращаем поиск
+                
+                # Небольшая задержка между запросами
+                import time
+                time.sleep(0.5)
+            except Exception:
+                continue
+    except Exception:
+        pass
     except Exception:
         from urllib.parse import urlencode
         from urllib.request import Request, urlopen
@@ -539,12 +669,12 @@ def address_suggest_osm(request):
         try:
             url = "https://nominatim.openstreetmap.org/search?" + urlencode(params)
             req = Request(url, headers=headers)
-            with urlopen(req, timeout=3) as resp:
+            with urlopen(req, timeout=5) as resp:
                 raw = resp.read().decode("utf-8", "ignore")
                 data = json.loads(raw)
                 suggestions = [
                     {"value": item.get("display_name", "")}
-                    for item in data
+                    for item in data[:5]
                     if item.get("display_name")
                 ]
         except Exception:
