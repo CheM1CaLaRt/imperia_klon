@@ -607,7 +607,6 @@
   // ==========================================
   (function () {
     const endpoint = "{% url 'core:address_suggest_osm' %}";
-    console.log('Инициализация автозаполнения адресов, endpoint:', endpoint);
     
     function initAddressAutocomplete(input) {
       if (!input || input.dataset.autocompleteInitialized) return;
@@ -631,31 +630,40 @@
         box.id = boxId;
         box.style.cssText = 'display:none;position:absolute;z-index:9999;margin-top:4px;width:100%;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow);max-height:300px;overflow-y:auto';
         wrapper.appendChild(box);
-        console.log('Создан бокс подсказок для:', input.id || input.name);
       }
 
       let timer = null;
       let lastQuery = '';
+      let currentController = null; // Для отмены предыдущих запросов
+      let isRequesting = false; // Флаг активного запроса
+      let hideTimeout = null; // Таймер для скрытия бокса
 
       function hideBox() { 
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
         box.style.display = 'none'; 
         box.innerHTML = ''; 
-        console.log('Бокс скрыт');
       }
+      
       function showBox() { 
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
         box.style.display = 'block'; 
-        console.log('Бокс показан, позиция:', box.style.position, 'z-index:', box.style.zIndex);
       }
+      
       function esc(s) {
         return (s || '').replace(/&/g, '&amp;')
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;')
                         .replace(/"/g, '&quot;');
       }
+      
       function render(items) {
-        console.log('Рендерим подсказки:', items);
         if (!items || !items.length) { 
-          console.log('Нет подсказок для отображения');
           hideBox(); 
           return; 
         }
@@ -668,59 +676,62 @@
             ${esc(it.value)}
           </button>
         `).join('');
-        console.log('Показываем бокс с подсказками');
         showBox();
       }
 
       async function fetchSuggest(q) {
+        // Отменяем предыдущий запрос, если он еще выполняется
+        if (currentController) {
+          currentController.abort();
+        }
+        
+        // Создаем новый AbortController для этого запроса
+        currentController = new AbortController();
+        const signal = currentController.signal;
+        
+        // Устанавливаем флаг активного запроса
+        isRequesting = true;
+        
+        // Показываем индикатор загрузки
+        box.innerHTML = '<div style="padding:12px 16px;text-align:center;color:var(--muted);font-size:14px">Поиск адресов...</div>';
+        showBox();
+        
         try {
-          console.log('Запрос подсказок для:', q);
-          
-          // Пробуем несколько вариантов запроса для лучших результатов
-          const queries = [
-            q,  // Как есть
-            q + ', Россия',  // С добавлением страны
-            q + ', Москва',  // С Москвой (если не указан город)
-            q + ', Санкт-Петербург',  // С СПб (если не указан город)
-          ];
-          
-          // Пробуем первый вариант (как есть)
-          let resp = await fetch(`${endpoint}?q=${encodeURIComponent(queries[0])}`, {
-            headers: {"X-Requested-With": "XMLHttpRequest"}
+          const resp = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`, {
+            headers: {"X-Requested-With": "XMLHttpRequest"},
+            signal: signal
           });
           
+          // Проверяем, не был ли запрос отменен
+          if (signal.aborted) {
+            return;
+          }
+          
           if (!resp.ok) {
-            console.warn('Ошибка ответа:', resp.status, resp.statusText);
             hideBox();
             return;
           }
           
-          let data = await resp.json();
-          console.log('Получены подсказки (вариант 1):', data);
+          const data = await resp.json();
           
-          // Если нет результатов, пробуем другие варианты
-          if (!data.suggestions || data.suggestions.length === 0) {
-            for (let i = 1; i < queries.length; i++) {
-              console.log('Пробуем вариант', i + 1, ':', queries[i]);
-              resp = await fetch(`${endpoint}?q=${encodeURIComponent(queries[i])}`, {
-                headers: {"X-Requested-With": "XMLHttpRequest"}
-              });
-              if (resp.ok) {
-                data = await resp.json();
-                console.log('Получены подсказки (вариант', i + 1, '):', data);
-                if (data.suggestions && data.suggestions.length > 0) {
-                  break;
-                }
-              }
-              // Небольшая задержка между запросами
-              await new Promise(resolve => setTimeout(resolve, 200));
-            }
+          // Проверяем еще раз, не был ли запрос отменен
+          if (signal.aborted) {
+            return;
           }
           
-          render((data && data.suggestions) || []);
+          // Проверяем, что это все еще актуальный запрос (q не изменился)
+          if (q === lastQuery) {
+            render((data && data.suggestions) || []);
+          }
         } catch (e) {
-          console.error('Ошибка при запросе подсказок:', e);
+          // Игнорируем ошибки отмены запроса
+          if (e.name === 'AbortError') {
+            return;
+          }
           hideBox();
+        } finally {
+          isRequesting = false;
+          currentController = null;
         }
       }
 
@@ -733,42 +744,74 @@
 
       const onType = debounce(() => {
         const q = (input.value || '').trim();
-        console.log('Ввод в поле адреса:', q, 'длина:', q.length);
+        
         if (!q) { 
-          console.log('Пустой запрос, скрываем бокс');
+          lastQuery = '';
           hideBox(); 
           return; 
         }
+        
+        // Если запрос не изменился, не делаем новый запрос
         if (q === lastQuery) {
-          console.log('Запрос не изменился, пропускаем');
           return;
         }
+        
         lastQuery = q;
+        
         if (q.length >= 3) {
-          console.log('Запрос достаточно длинный, запрашиваем подсказки');
           fetchSuggest(q);
         } else {
-          console.log('Запрос слишком короткий, скрываем бокс');
           hideBox();
         }
-      }, 300);
+      }, 400); // Увеличиваем debounce до 400ms для более плавной работы
 
       input.addEventListener('input', onType);
+      
       input.addEventListener('focus', () => { 
         const q = (input.value || '').trim();
-        if (q && q.length >= 3) {
+        if (q && q.length >= 3 && q !== lastQuery) {
+          lastQuery = q;
           fetchSuggest(q);
-        } else if (box.innerHTML.trim()) {
+        } else if (box.innerHTML.trim() && !isRequesting) {
           showBox();
         }
       });
-      input.addEventListener('blur', () => setTimeout(hideBox, 150));
+      
+      input.addEventListener('blur', () => {
+        // Откладываем скрытие, чтобы клик по подсказке успел сработать
+        hideTimeout = setTimeout(() => {
+          // Проверяем, что фокус действительно ушел (не перешел на бокс)
+          if (document.activeElement !== input && !box.contains(document.activeElement)) {
+            hideBox();
+          }
+        }, 200);
+      });
+      
+      // Предотвращаем скрытие при наведении на бокс
+      box.addEventListener('mouseenter', () => {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+      });
+      
+      box.addEventListener('mouseleave', () => {
+        // Если фокус не на поле ввода, скрываем бокс
+        if (document.activeElement !== input) {
+          hideTimeout = setTimeout(hideBox, 150);
+        }
+      });
 
-      box.addEventListener('click', (e) => {
+      box.addEventListener('mousedown', (e) => {
+        // Используем mousedown вместо click, чтобы предотвратить blur
+        e.preventDefault();
         const btn = e.target.closest('button[data-value]');
         if (!btn) return;
-        input.value = btn.getAttribute('data-value') || '';
+        const value = btn.getAttribute('data-value') || '';
+        input.value = value;
+        lastQuery = value; // Обновляем lastQuery, чтобы не делать новый запрос
         hideBox();
+        input.focus(); // Возвращаем фокус на поле
       });
 
       input.addEventListener('keydown', (e) => {
@@ -792,11 +835,8 @@
         if (addressInputs.length > 0) break;
       }
       
-      console.log('Найдено полей адресов для автозаполнения:', addressInputs.length);
-      
       addressInputs.forEach(input => {
         if (input && !input.disabled && input.type === 'text') {
-          console.log('Инициализируем автозаполнение для:', input.id || input.name);
           initAddressAutocomplete(input);
         }
       });
@@ -827,7 +867,6 @@
                 if (addressInputs && addressInputs.length > 0) {
                   addressInputs.forEach(input => {
                     if (input && !input.disabled && !input.dataset.autocompleteInitialized) {
-                      console.log('Найдено новое поле адреса, инициализируем:', input.id || input.name);
                       setTimeout(() => initAddressAutocomplete(input), 100);
                     }
                   });
@@ -913,10 +952,8 @@
                              newRow.querySelector('input[type="text"]');
         
         if (newAddressInput && window.initAddressAutocomplete) {
-          console.log('Инициализируем автозаполнение для нового поля:', newAddressInput.id || newAddressInput.name);
           window.initAddressAutocomplete(newAddressInput);
         } else {
-          console.warn('Не удалось найти поле адреса в новой строке', newRow.innerHTML.substring(0, 200));
           // Пробуем переинициализировать все поля
           if (window.initAllAddressAutocompletes) {
             setTimeout(() => window.initAllAddressAutocompletes(), 300);
