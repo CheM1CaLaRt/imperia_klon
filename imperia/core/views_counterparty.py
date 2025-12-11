@@ -570,29 +570,62 @@ def geocode_address(request):
     def simplify_addr(addr):
         """Упрощает адрес, убирая лишние детали"""
         simplified = addr
-        # Убираем детали: этаж, помещение, комната
+        # Убираем детали: этаж, помещение, комната (более агрессивно)
         import re
         simplified = re.sub(r',\s*ЭТ\s*\d+', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r',\s*ПОМ\s*[IVX\d]+', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r',\s*КОМ\s*\d+', '', simplified, flags=re.IGNORECASE)
-        simplified = re.sub(r',\s*ПОМЕЩЕНИЕ\s*\d+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r',\s*ПОМЕЩЕНИЕ\s*[IVX\d]+', '', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r',\s*ОФИС\s*\d+', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r'ПОМ\s*II', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r'КОМ\s*\d+', '', simplified, flags=re.IGNORECASE)
         # Заменяем "К. 20" на "корпус 20"
         simplified = re.sub(r',\s*К\.\s*(\d+)', r', корпус \1', simplified, flags=re.IGNORECASE)
         simplified = re.sub(r',\s*К\s*(\d+)', r', корпус \1', simplified, flags=re.IGNORECASE)
         # Нормализуем пробелы
         simplified = re.sub(r'\s+', ' ', simplified)
         simplified = re.sub(r',\s*,', ',', simplified)
+        simplified = re.sub(r'^,\s*', '', simplified)
+        simplified = re.sub(r',\s*$', '', simplified)
         return simplified.strip()
+    
+    # Функция для извлечения основных частей адреса (улица + дом)
+    def extract_main_address(addr):
+        """Извлекает только улицу и дом из адреса"""
+        import re
+        variants = []
+        simplified = simplify_addr(addr)
+        
+        # Пытаемся извлечь улицу и дом
+        street_match = re.search(r'(?:ул\.|улица|пр\.|проспект|пер\.|переулок|пл\.|площадь|б-р|бульвар)\s+([^,]+)', simplified, re.IGNORECASE)
+        house_match = re.search(r'д\.\s*([^,]+)', simplified, re.IGNORECASE)
+        
+        if street_match and house_match:
+            street = street_match.group(1).strip()
+            house = house_match.group(1).strip()
+            
+            # Варианты с городом
+            if re.search(r'Москва', simplified, re.IGNORECASE):
+                variants.append(f"Москва, {street}, {house}")
+                variants.append(f"{street}, {house}, Москва")
+            
+            # Варианты без города
+            variants.append(f"{street}, {house}")
+        
+        return variants
     
     # Стратегии поиска - более агрессивные для российских адресов
     search_queries = []
+    import re
+    
+    # Сначала пробуем самые простые варианты (только улица + дом)
+    main_variants = extract_main_address(address)
+    search_queries.extend(main_variants)
     
     # Упрощаем адрес
     simplified = simplify_addr(address)
     
     # Если адрес содержит индекс в начале, пробуем с ним и без
-    import re
     index_match = re.match(r'^(\d{6}),?\s*(.+)', simplified)
     if index_match:
         index, rest = index_match.groups()
@@ -610,6 +643,14 @@ def geocode_address(request):
                 f"Москва, {without_city}",
                 without_city
             ])
+            
+            # Пробуем без индекса
+            without_index = re.sub(r'^\d{6},?\s*', '', without_city).strip()
+            if without_index != without_city:
+                search_queries.extend([
+                    f"Москва, {without_index}",
+                    without_index
+                ])
     
     # Если адрес начинается с "Пр." или "пр.", добавляем Санкт-Петербург
     if simplified.startswith(("Пр.", "пр.", "Пр ", "пр ")):
@@ -626,13 +667,15 @@ def geocode_address(request):
         simplified,
     ])
     
-    # Убираем дубликаты, сохраняя порядок
+    # Убираем дубликаты, сохраняя порядок (простые варианты первыми)
     seen = set()
     unique_queries = []
     for q in search_queries:
-        if q and q not in seen:
-            seen.add(q)
-            unique_queries.append(q)
+        if q and q.strip():
+            normalized = q.strip().lower()
+            if normalized not in seen:
+                seen.add(normalized)
+                unique_queries.append(q.strip())
     
     search_queries = unique_queries
     

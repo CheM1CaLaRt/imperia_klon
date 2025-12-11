@@ -317,16 +317,21 @@ function simplifyAddress(address) {
   
   let simplified = address.trim();
   
-  // Убираем детали: этаж, помещение, комната
+  // Убираем детали: этаж, помещение, комната (более агрессивно)
   simplified = simplified
     .replace(/,\s*ЭТ\s*\d+/gi, '') // Убираем "ЭТ 5"
     .replace(/,\s*ПОМ\s*[IVX\d]+/gi, '') // Убираем "ПОМ II"
     .replace(/,\s*КОМ\s*\d+/gi, '') // Убираем "КОМ 3"
-    .replace(/,\s*ПОМЕЩЕНИЕ\s*\d+/gi, '') // Убираем "ПОМЕЩЕНИЕ"
+    .replace(/,\s*ПОМЕЩЕНИЕ\s*[IVX\d]+/gi, '') // Убираем "ПОМЕЩЕНИЕ II"
     .replace(/,\s*ОФИС\s*\d+/gi, '') // Убираем "ОФИС"
-    .replace(/,\s*К\s*\d+/gi, ' корпус ') // Заменяем "К. 20" на "корпус 20"
+    .replace(/ПОМ\s*II/gi, '') // Убираем "ПОМ II" отдельно
+    .replace(/КОМ\s*\d+/gi, '') // Убираем "КОМ 3" отдельно
+    .replace(/,\s*К\.\s*(\d+)/gi, ', корпус $1') // Заменяем "К. 20" на "корпус 20"
+    .replace(/,\s*К\s*(\d+)/gi, ', корпус $1') // Заменяем "К 20" на "корпус 20"
     .replace(/\s+/g, ' ') // Убираем лишние пробелы
     .replace(/,\s*,/g, ',') // Убираем двойные запятые
+    .replace(/^,\s*/, '') // Убираем запятую в начале
+    .replace(/,\s*$/, '') // Убираем запятую в конце
     .trim();
   
   // Нормализуем сокращения
@@ -341,16 +346,48 @@ function simplifyAddress(address) {
     .replace(/БУЛЬВАР/gi, 'б-р') // "БУЛЬВАР" -> "б-р"
     .replace(/МОСКВА/gi, 'Москва') // "МОСКВА" -> "Москва"
     .replace(/САНКТ-ПЕТЕРБУРГ/gi, 'Санкт-Петербург') // "САНКТ-ПЕТЕРБУРГ" -> "Санкт-Петербург"
-    .replace(/СПБ/gi, 'Санкт-Петербург') // "СПБ" -> "Санкт-Петербург"
     .replace(/СПБ/gi, 'Санкт-Петербург'); // "СПБ" -> "Санкт-Петербург"
   
   return simplified;
+}
+
+// Функция для извлечения основных частей адреса (улица + дом)
+function extractMainAddress(address) {
+  if (!address) return [];
+  
+  const variants = [];
+  const simplified = simplifyAddress(address);
+  
+  // Пытаемся извлечь улицу и дом
+  // Паттерн: "ул. НИЖНЯЯ КРАСНОСЕЛЬСКАЯ, д. 40/12"
+  const streetMatch = simplified.match(/(?:ул\.|улица|пр\.|проспект|пер\.|переулок|пл\.|площадь|б-р|бульвар)\s+([^,]+)/i);
+  const houseMatch = simplified.match(/д\.\s*([^,]+)/i);
+  
+  if (streetMatch && houseMatch) {
+    const street = streetMatch[1].trim();
+    const house = houseMatch[1].trim();
+    
+    // Варианты с городом
+    if (simplified.match(/Москва/i)) {
+      variants.push(`Москва, ${street}, ${house}`);
+      variants.push(`${street}, ${house}, Москва`);
+    }
+    
+    // Варианты без города
+    variants.push(`${street}, ${house}`);
+  }
+  
+  return variants;
 }
 
 // Функция для создания вариантов адреса для поиска
 function createAddressVariants(address) {
   const variants = [];
   const simplified = simplifyAddress(address);
+  
+  // Сначала пробуем самые простые варианты (только улица + дом)
+  const mainVariants = extractMainAddress(address);
+  variants.push(...mainVariants);
   
   // Если адрес содержит индекс, пробуем с ним и без
   const indexMatch = simplified.match(/^(\d{6}),?\s*(.+)/);
@@ -362,11 +399,18 @@ function createAddressVariants(address) {
     variants.push(simplified);
   }
   
-  // Если адрес содержит "Москва" или "Санкт-Петербург", пробуем разные варианты
+  // Если адрес содержит "Москва", пробуем разные варианты
   if (simplified.match(/Москва/i)) {
     const withoutCity = simplified.replace(/г\.?\s*Москва,?\s*/i, '').trim();
     variants.push(`Москва, ${withoutCity}`);
     variants.push(withoutCity);
+    
+    // Пробуем без индекса
+    const withoutIndex = withoutCity.replace(/^\d{6},?\s*/, '').trim();
+    if (withoutIndex !== withoutCity) {
+      variants.push(`Москва, ${withoutIndex}`);
+      variants.push(withoutIndex);
+    }
   }
   
   if (simplified.match(/Санкт-Петербург/i)) {
@@ -381,8 +425,15 @@ function createAddressVariants(address) {
     variants.push(`${simplified}, Санкт-Петербург, Россия`);
   }
   
-  // Убираем дубликаты и пустые
-  return [...new Set(variants.filter(v => v && v.trim()))];
+  // Убираем дубликаты и пустые, сохраняем порядок (простые варианты первыми)
+  const seen = new Set();
+  return variants.filter(v => {
+    if (!v || !v.trim()) return false;
+    const normalized = v.trim().toLowerCase();
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
 }
 
 // Функция геокодирования через несколько бесплатных API
