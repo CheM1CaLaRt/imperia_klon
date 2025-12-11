@@ -2,6 +2,41 @@
 {% load humanize %}
 {% block title %}{{ obj.name }} — IndigoFlow{% endblock %}
 
+{% block extra_head %}
+  {# Leaflet CSS #}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+  <style>
+    #address-map {
+      height: 400px;
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-top: 20px;
+    }
+    .map-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 400px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .map-error {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 400px;
+      color: #dc2626;
+      font-size: 14px;
+      background: #fee2e2;
+      border-radius: 12px;
+      border: 1px solid #fecaca;
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
 
 <div class="card">
@@ -133,6 +168,15 @@
   </div>
 </div>
 
+{# Карта адресов #}
+{% if obj.address or obj.addresses.all or obj.actual_address %}
+<div class="card">
+  <h2 style="font-size:18px;font-weight:700;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid var(--border)">Карта адресов</h2>
+  <div id="address-map" class="map-loading">
+    <span>Загрузка карты...</span>
+  </div>
+</div>
+{% endif %}
 
 {# Платёжные реквизиты #}
 <div class="card">
@@ -243,6 +287,11 @@
   {% endif %}
 </div>
 
+{# Leaflet JS #}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
 <script>
 // Обработка кнопок "Открыть на карте"
 document.addEventListener('DOMContentLoaded', function() {
@@ -254,7 +303,182 @@ document.addEventListener('DOMContentLoaded', function() {
       window.open(url, '_blank', 'noopener,noreferrer');
     });
   });
+
+  // Инициализация карты адресов
+  const mapContainer = document.getElementById('address-map');
+  if (mapContainer) {
+    initAddressMap();
+  }
 });
+
+// Функция геокодирования через Nominatim API
+async function geocodeAddress(address) {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=ru`,
+      {
+        headers: {
+          'User-Agent': 'Imperia/1.0'
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error('Ошибка геокодирования');
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon),
+        display_name: data[0].display_name
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Ошибка геокодирования:', error);
+    return null;
+  }
+}
+
+// Инициализация карты
+async function initAddressMap() {
+  const mapContainer = document.getElementById('address-map');
+  if (!mapContainer) return;
+
+  // Собираем адреса
+  const addresses = [];
+  
+  // Юридический адрес
+  {% if obj.address %}
+  addresses.push({
+    address: '{{ obj.address|escapejs }}',
+    type: 'legal',
+    label: 'Юридический адрес'
+  });
+  {% endif %}
+  
+  // Фактические адреса
+  {% with addresses=obj.addresses.all %}
+    {% if addresses %}
+      {% for addr in addresses %}
+      addresses.push({
+        address: '{{ addr.address|escapejs }}',
+        type: 'actual',
+        label: '{{ addr.is_default|yesno:"Адрес по умолчанию,Фактический адрес" }}'
+      });
+      {% endfor %}
+    {% elif obj.actual_address %}
+      addresses.push({
+        address: '{{ obj.actual_address|escapejs }}',
+        type: 'actual',
+        label: 'Фактический адрес'
+      });
+    {% endif %}
+  {% endwith %}
+
+  if (addresses.length === 0) {
+    mapContainer.className = 'map-error';
+    mapContainer.innerHTML = '<span>Адреса не указаны</span>';
+    return;
+  }
+
+  // Убираем дубликаты адресов
+  const uniqueAddresses = [];
+  const seenAddresses = new Set();
+  
+  for (const addr of addresses) {
+    const normalized = addr.address.trim().toLowerCase();
+    if (!seenAddresses.has(normalized)) {
+      seenAddresses.add(normalized);
+      uniqueAddresses.push(addr);
+    }
+  }
+
+  // Геокодируем все адреса
+  mapContainer.className = 'map-loading';
+  mapContainer.innerHTML = '<span>Поиск адресов на карте...</span>';
+
+  const geocodedAddresses = [];
+  
+  for (const addr of uniqueAddresses) {
+    const coords = await geocodeAddress(addr.address);
+    if (coords) {
+      geocodedAddresses.push({
+        ...addr,
+        lat: coords.lat,
+        lon: coords.lon,
+        display_name: coords.display_name
+      });
+    }
+    // Небольшая задержка между запросами (избегаем rate limiting)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  if (geocodedAddresses.length === 0) {
+    mapContainer.className = 'map-error';
+    mapContainer.innerHTML = '<span>Не удалось найти адреса на карте</span>';
+    return;
+  }
+
+  // Инициализируем карту
+  const map = L.map('address-map').setView(
+    [geocodedAddresses[0].lat, geocodedAddresses[0].lon],
+    geocodedAddresses.length > 1 ? 12 : 15
+  );
+
+  // Добавляем тайлы OpenStreetMap
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Добавляем метки
+  const markers = [];
+  const colors = {
+    legal: '#dc2626',    // Красный для юридического
+    actual: '#3b82f6'    // Синий для фактического
+  };
+
+  geocodedAddresses.forEach((addr, index) => {
+    const color = colors[addr.type] || '#6b7280';
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="
+        background-color: ${color};
+        width: 24px;
+        height: 24px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        border: 3px solid white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      "></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+
+    const marker = L.marker([addr.lat, addr.lon], { icon: icon }).addTo(map);
+    
+    marker.bindPopup(`
+      <div style="font-weight: 600; margin-bottom: 4px; color: ${color};">${addr.label}</div>
+      <div style="font-size: 13px; color: #6b7280;">${addr.address}</div>
+    `);
+
+    markers.push(marker);
+  });
+
+  // Если несколько меток, подгоняем зум чтобы показать все
+  if (markers.length > 1) {
+    const group = new L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.1));
+  }
+
+  // Убираем класс загрузки
+  mapContainer.className = '';
+}
 </script>
 
 {% endblock %}
