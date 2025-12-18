@@ -253,44 +253,47 @@ def product_list(request):
     # Временно отключаем категории, чтобы избежать ошибок
     has_categories = False
     ProductCategory = None
-    # try:
-    #     from .models import ProductCategory
-    #     # Проверяем, существует ли поле category в Product
-    #     if hasattr(Product, '_meta'):
-    #         field_names = [f.name for f in Product._meta.get_fields()]
-    #         if 'category' in field_names:
-    #             has_categories = True
-    # except (ImportError, AttributeError, Exception):
-    #     has_categories = False
-    #     ProductCategory = None
     
-    q        = (request.GET.get("q") or "").strip()
-    supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
-    category = (request.GET.get("category") or "").strip()   # фильтр по категории
-    sort     = (request.GET.get("sort") or "").lower()       # '' | 'price'
-    order    = (request.GET.get("order") or "asc").lower()
-
     try:
-        page = int(request.GET.get("page") or 1)
-    except ValueError:
-        page = 1
-    try:
-        per_page = int(request.GET.get("per_page") or 24)
-    except ValueError:
-        per_page = 24
+        q        = (request.GET.get("q") or "").strip()
+        supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
+        category = (request.GET.get("category") or "").strip()   # фильтр по категории
+        sort     = (request.GET.get("sort") or "").lower()       # '' | 'price'
+        order    = (request.GET.get("order") or "asc").lower()
 
-    # База + min_price
-    # Не используем select_related("category"), чтобы избежать ошибок, если поле не существует
-    base_qs = (
-        Product.objects
-        .select_related("supplier")
-        .prefetch_related("images", "prices")
-        .annotate(min_price=Min("prices__value"))
-        .filter(is_active=True)
-    )
+        try:
+            page = int(request.GET.get("page") or 1)
+        except ValueError:
+            page = 1
+        try:
+            per_page = int(request.GET.get("per_page") or 24)
+        except ValueError:
+            per_page = 24
 
-    # Поиск (3+ символа)
-    if len(q) >= 3:
+        # База + min_price
+        # Не используем select_related("category"), чтобы избежать ошибок, если поле не существует
+        try:
+            base_qs = (
+                Product.objects
+                .select_related("supplier")
+                .prefetch_related("images", "prices")
+                .annotate(min_price=Min("prices__value"))
+                .filter(is_active=True)
+            )
+        except Exception as e:
+            # Если есть проблема с запросом, используем упрощенный вариант
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Ошибка при создании запроса с prefetch_related: {e}")
+            base_qs = (
+                Product.objects
+                .select_related("supplier")
+                .annotate(min_price=Min("prices__value"))
+                .filter(is_active=True)
+            )
+
+        # Поиск (3+ символа)
+        if len(q) >= 3:
         base_qs = base_qs.filter(
             Q(name__icontains=q) |
             Q(barcode__startswith=q) |
@@ -299,86 +302,64 @@ def product_list(request):
             Q(vendor_code__icontains=q)
         )
 
-    # Список поставщиков из текущей выборки
-    suppliers_raw = (
+        # Список поставщиков из текущей выборки
+        suppliers_raw = (
         base_qs
         .values_list("supplier__code", "supplier__name")
         .distinct()
         .order_by("supplier__name", "supplier__code")
     )
-    suppliers = [{"code": c or "", "name": n or ""} for c, n in suppliers_raw if c]
+        suppliers = [{"code": c or "", "name": n or ""} for c, n in suppliers_raw if c]
 
-    # Фильтр по выбранному поставщику
-    qs = base_qs
-    if supplier:
-        qs = qs.filter(supplier__code=supplier)
-    
-    # Фильтр по категории (включая дочерние категории)
-    if category and has_categories and ProductCategory:
-        try:
-            cat = ProductCategory.objects.get(slug=category, is_active=True)
-            # Получаем все дочерние категории
-            child_cats = cat.get_all_children()
-            category_ids = [cat.id] + [c.id for c in child_cats]
-            # Проверяем, существует ли поле category_id перед фильтрацией
-            try:
-                qs = qs.filter(category_id__in=category_ids)
-            except Exception:
-                # Если поле не существует, игнорируем фильтр
-                pass
-        except (ProductCategory.DoesNotExist, AttributeError, Exception):
-            pass
+        # Фильтр по выбранному поставщику
+        qs = base_qs
+        if supplier:
+            qs = qs.filter(supplier__code=supplier)
+        
+        # Фильтр по категории отключен (временно)
+        # if category and has_categories and ProductCategory:
+        #     pass
 
-    # Сортировка — только по цене (или без сортировки)
-    if sort == "price":
-        qs = qs.order_by(
-            OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True),
-            "id",
-        )
-    else:
-        # «без сортировки» — пусть будет по имени (asc/desc) как дефолт
-        sort_field = "name"
-        if order == "desc":
-            sort_field = "-" + sort_field
-        qs = qs.order_by(sort_field, "id")
+        # Сортировка — только по цене (или без сортировки)
+        if sort == "price":
+            qs = qs.order_by(
+                OrderBy(F("min_price"), descending=(order == "desc"), nulls_last=True),
+                "id",
+            )
+        else:
+            # «без сортировки» — пусть будет по имени (asc/desc) как дефолт
+            sort_field = "name"
+            if order == "desc":
+                sort_field = "-" + sort_field
+            qs = qs.order_by(sort_field, "id")
 
-    # Пагинация
-    paginator = Paginator(qs, per_page)
-    page_obj = paginator.get_page(page)
-    
-    # Получаем все активные категории для фильтра
-    categories = []
-    if has_categories and ProductCategory:
-        try:
-            # Проверяем существование таблицы через raw SQL
-            from django.db import connection
-            table_name = ProductCategory._meta.db_table
-            with connection.cursor() as cursor:
-                if 'sqlite' in connection.vendor:
-                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table_name])
-                elif 'postgresql' in connection.vendor:
-                    cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=%s", [table_name])
-                else:
-                    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s", [table_name])
-                table_exists = bool(cursor.fetchone())
-            
-            if table_exists:
-                categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
-        except Exception as e:
-            # Если таблица не существует или другая ошибка, просто используем пустой список
-            categories = []
+        # Пагинация
+        paginator = Paginator(qs, per_page)
+        page_obj = paginator.get_page(page)
+        
+        # Получаем все активные категории для фильтра
+        # Временно отключаем категории
+        categories = []
 
-    return render(request, "core/product_list.html", {
-        "page_obj": page_obj,
-        "q": q,
-        "supplier": supplier,
-        "category": category,
-        "suppliers": suppliers,
-        "categories": categories,
-        "sort": sort,
-        "order": order,
-        "per_page": per_page,
-    })
+        return render(request, "core/product_list.html", {
+            "page_obj": page_obj,
+            "q": q,
+            "supplier": supplier,
+            "category": category,
+            "suppliers": suppliers,
+            "categories": categories,
+            "sort": sort,
+            "order": order,
+            "per_page": per_page,
+        })
+    except Exception as e:
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"Критическая ошибка в product_list: {e}\n{traceback.format_exc()}")
+        # Возвращаем простую страницу с ошибкой
+        from django.http import HttpResponseServerError
+        return HttpResponseServerError(f"Ошибка загрузки страницы товаров: {str(e)}")
 
 @login_required
 def home(request):
