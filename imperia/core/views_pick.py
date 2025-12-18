@@ -72,8 +72,12 @@ def stock_lookup_by_sku(request):
     if not sku:
         return JsonResponse({"ok": False, "error": "empty"}, status=400)
 
-    # Ищем товар по артикулу (sku)
-    product = Product.objects.filter(sku=sku, is_active=True).first()
+    # Ищем товар по артикулу (sku) - ищем среди всех поставщиков, включая relef
+    product = Product.objects.filter(
+        sku=sku, 
+        is_active=True
+    ).select_related("supplier").first()
+    
     if not product:
         return JsonResponse({"ok": False, "error": "not_found"}, status=404)
 
