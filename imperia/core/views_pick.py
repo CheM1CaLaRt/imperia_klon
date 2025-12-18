@@ -80,14 +80,30 @@ def stock_lookup_by_sku(request):
     # Ищем товар по артикулу - проверяем и sku, и vendor_code
     # Для samson артикул в sku, для relef в vendor_code
     from django.db.models import Q
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Логируем запрос для отладки
+    logger.debug(f"Поиск товара по артикулу: '{sku}'")
+    
     product = Product.objects.filter(
         Q(sku=sku) | Q(vendor_code=sku),
         is_active=True
     ).select_related("supplier").first()
     
     if not product:
+        # Проверяем, есть ли товары с похожим артикулом (для отладки)
+        similar_sku = Product.objects.filter(
+            Q(sku__icontains=sku) | Q(vendor_code__icontains=sku),
+            is_active=True
+        ).select_related("supplier")[:5]
+        if similar_sku.exists():
+            logger.debug(f"Товар '{sku}' не найден, но есть похожие: {[(p.sku, p.vendor_code, p.supplier.code) for p in similar_sku]}")
         return JsonResponse({"ok": False, "error": "not_found"}, status=404)
+    
+    logger.debug(f"Товар найден: id={product.id}, name={product.name}, supplier={product.supplier.code}, sku={product.sku}, vendor_code={product.vendor_code}")
 
+    # Проверяем наличие на складе (не обязательно - товар может быть без остатков)
     inv = (
         Inventory.objects
         .filter(product=product, quantity__gt=0)

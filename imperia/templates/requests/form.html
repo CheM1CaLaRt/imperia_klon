@@ -257,6 +257,7 @@ body.modal-open{overflow:hidden}
   let autocompleteTimeout = null;
   let currentAutocompleteRow = null;
   let autocompleteList = null;
+  let articleSearchTimeout = null; // Таймер для поиска по артикулу
 
   // Загрузка адресов и контактов при выборе контрагента
   if (counterpartySelect) {
@@ -585,23 +586,100 @@ body.modal-open{overflow:hidden}
       row.removeAttribute('data-notfound');
       const article = el.value.trim();
       
-      if (article.length < 2) return;
+      // Очищаем предыдущий таймер
+      if (articleSearchTimeout) {
+        clearTimeout(articleSearchTimeout);
+        articleSearchTimeout = null;
+      }
+      
+      if (article.length < 2) {
+        // Очищаем поля, если артикул слишком короткий
+        return;
+      }
 
+      // Добавляем debounce для поиска по артикулу (500ms)
+      articleSearchTimeout = setTimeout(async function() {
+        console.log('Поиск товара по артикулу:', article);
+        try {
+          const url = `{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`;
+          console.log('Запрос к:', url);
+          const resp = await fetch(url);
+          console.log('Ответ сервера:', resp.status, resp.statusText);
+          if (!resp.ok) {
+            console.warn('Товар не найден, статус:', resp.status);
+            row.setAttribute('data-notfound', '1');
+            return;
+          }
+          const data = await resp.json();
+          console.log('Данные товара:', data);
+          if (!data.ok) {
+            console.warn('Товар не найден, ошибка:', data.error);
+            row.setAttribute('data-notfound', '1');
+            return;
+          }
+
+          const set = (sel, v) => {
+            const el = row.querySelector(sel);
+            if (el) el.value = v || '';
+          };
+          set('[name$="-name"]', data.name);
+          set('[name$="-barcode"]', data.barcode || '');
+          set('[name$="-article"]', data.sku || '');
+          set('[name$="-product_id"]', data.id || '');
+          const qtyEl = row.querySelector('[name$="-quantity"]');
+          if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+          row.removeAttribute('data-notfound');
+        } catch (err) {
+          console.error('Ошибка при поиске по артикулу:', err);
+          row.setAttribute('data-notfound', '1');
+        }
+      }, 500); // Задержка 500ms для поиска по артикулу
+      return;
+    }
+  });
+
+  // Поиск по артикулу при потере фокуса или нажатии Enter
+  document.addEventListener('blur', async function(e) {
+    const el = e.target;
+    if (!el || !el.closest('#orderItemsBody')) return;
+    
+    if (el.name && el.name.endsWith('-article')) {
+      const row = el.closest('[data-form-row]');
+      if (!row) return;
+      
+      const article = el.value.trim();
+      if (article.length < 2) return;
+      
+      // Если уже есть данные, не ищем повторно
+      const nameField = row.querySelector('[name$="-name"]');
+      if (nameField && nameField.value.trim()) return;
+      
+      // Выполняем поиск сразу при потере фокуса
+      if (articleSearchTimeout) {
+        clearTimeout(articleSearchTimeout);
+        articleSearchTimeout = null;
+      }
+      
+      console.log('Поиск товара по артикулу (blur):', article);
       try {
-        const resp = await fetch(`{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`);
+        const url = `{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`;
+        const resp = await fetch(url);
         if (!resp.ok) {
+          console.warn('Товар не найден (blur), статус:', resp.status);
           row.setAttribute('data-notfound', '1');
           return;
         }
         const data = await resp.json();
         if (!data.ok) {
+          console.warn('Товар не найден (blur), ошибка:', data.error);
           row.setAttribute('data-notfound', '1');
           return;
         }
+        console.log('Товар найден (blur):', data);
 
         const set = (sel, v) => {
-          const el = row.querySelector(sel);
-          if (el) el.value = v || '';
+          const field = row.querySelector(sel);
+          if (field) field.value = v || '';
         };
         set('[name$="-name"]', data.name);
         set('[name$="-barcode"]', data.barcode || '');
@@ -610,10 +688,68 @@ body.modal-open{overflow:hidden}
         const qtyEl = row.querySelector('[name$="-quantity"]');
         if (qtyEl && !qtyEl.value) qtyEl.value = 1;
         row.removeAttribute('data-notfound');
-      } catch (_) {
+      } catch (err) {
+        console.error('Ошибка при поиске по артикулу (blur):', err);
         row.setAttribute('data-notfound', '1');
       }
-      return;
+    }
+  }, true); // Используем capture phase для blur
+
+  // Поиск по артикулу при нажатии Enter
+  document.addEventListener('keydown', async function(e) {
+    const el = e.target;
+    if (!el || !el.closest('#orderItemsBody')) return;
+    
+    if (e.key === 'Enter' && el.name && el.name.endsWith('-article')) {
+      e.preventDefault();
+      const row = el.closest('[data-form-row]');
+      if (!row) return;
+      
+      const article = el.value.trim();
+      if (article.length < 2) return;
+      
+      // Очищаем таймер, если он есть
+      if (articleSearchTimeout) {
+        clearTimeout(articleSearchTimeout);
+        articleSearchTimeout = null;
+      }
+      
+      console.log('Поиск товара по артикулу (Enter):', article);
+      try {
+        const url = `{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          console.warn('Товар не найден (Enter), статус:', resp.status);
+          row.setAttribute('data-notfound', '1');
+          return;
+        }
+        const data = await resp.json();
+        if (!data.ok) {
+          console.warn('Товар не найден (Enter), ошибка:', data.error);
+          row.setAttribute('data-notfound', '1');
+          return;
+        }
+        console.log('Товар найден (Enter):', data);
+
+        const set = (sel, v) => {
+          const field = row.querySelector(sel);
+          if (field) field.value = v || '';
+        };
+        set('[name$="-name"]', data.name);
+        set('[name$="-barcode"]', data.barcode || '');
+        set('[name$="-article"]', data.sku || '');
+        set('[name$="-product_id"]', data.id || '');
+        const qtyEl = row.querySelector('[name$="-quantity"]');
+        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+        row.removeAttribute('data-notfound');
+        
+        // Переходим на следующее поле
+        const nameField = row.querySelector('[name$="-name"]');
+        if (nameField) nameField.focus();
+      } catch (err) {
+        console.error('Ошибка при поиске по артикулу (Enter):', err);
+        row.setAttribute('data-notfound', '1');
+      }
     }
   });
 
