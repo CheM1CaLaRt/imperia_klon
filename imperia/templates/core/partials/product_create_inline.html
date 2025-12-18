@@ -112,8 +112,6 @@
 (function() {
   function initCreateProductForm() {
     const form = document.getElementById('createProductForm');
-    const cancelBtn = document.getElementById('cancelCreateProduct');
-    const modal = document.getElementById('createProductModal');
     
     if (!form) return;
     
@@ -121,15 +119,46 @@
     const newForm = form.cloneNode(true);
     form.parentNode.replaceChild(newForm, form);
     
-    // Находим кнопку "Отмена" в новой форме и добавляем обработчик
-    const newCancelBtn = newForm.querySelector('#cancelCreateProduct');
-    if (newCancelBtn && modal) {
-      newCancelBtn.addEventListener('click', function(e) {
-        e.preventDefault();
+    // Функция для закрытия модального окна
+    function closeModal() {
+      // Используем глобальную функцию, если она доступна
+      if (window.closeCreateProductModal) {
+        console.log('Используем глобальную функцию закрытия');
+        window.closeCreateProductModal();
+        return;
+      }
+      
+      // Иначе используем локальную логику
+      const modal = document.getElementById('createProductModal');
+      if (modal) {
+        console.log('Закрытие модального окна через кнопку Отмена');
         modal.classList.add('hidden');
         modal.style.display = 'none';
         document.body.style.overflow = '';
+        // Очищаем содержимое формы
+        const contentDiv = document.getElementById('createProductContent');
+        if (contentDiv) {
+          contentDiv.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">Загрузка формы...</div>';
+        }
+      }
+    }
+    
+    // Находим кнопку "Отмена" в новой форме и добавляем обработчик
+    const newCancelBtn = newForm.querySelector('#cancelCreateProduct');
+    if (newCancelBtn) {
+      // Удаляем старые обработчики, если есть
+      const newCancelBtnClone = newCancelBtn.cloneNode(true);
+      newCancelBtn.parentNode.replaceChild(newCancelBtnClone, newCancelBtn);
+      
+      newCancelBtnClone.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Кнопка Отмена нажата');
+        closeModal();
+        return false;
       });
+    } else {
+      console.error('Кнопка cancelCreateProduct не найдена в форме');
     }
     
     newForm.addEventListener('submit', function(e) {
@@ -160,6 +189,7 @@
         console.log('Результат:', result);
         if (result.type === 'json' && result.data && result.data.success) {
           // Успешно создан, закрываем модальное окно и перезагружаем страницу
+          const modal = document.getElementById('createProductModal');
           if (modal) {
             modal.classList.add('hidden');
             modal.style.display = 'none';

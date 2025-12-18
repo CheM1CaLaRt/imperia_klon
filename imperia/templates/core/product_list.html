@@ -461,7 +461,19 @@
       createModalClose.addEventListener('click', closeCreateModal);
     }
     
+    // Делегирование событий для кнопки "Отмена" внутри формы
     if (createModal) {
+      createModal.addEventListener('click', function(e) {
+        // Обработка клика по кнопке "Отмена"
+        if (e.target && e.target.id === 'cancelCreateProduct') {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Кнопка Отмена нажата (делегирование)');
+          closeCreateModal();
+          return false;
+        }
+      });
+      
       const overlay = createModal.querySelector('.absolute.inset-0');
       if (overlay) {
         overlay.addEventListener('click', (e) => {
@@ -469,6 +481,9 @@
         });
       }
     }
+    
+    // Экспортируем функцию закрытия глобально для использования в форме
+    window.closeCreateProductModal = closeCreateModal;
     
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !createModal.classList.contains('hidden')) {
