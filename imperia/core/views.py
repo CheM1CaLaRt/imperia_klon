@@ -250,8 +250,11 @@ def director_dashboard(request):
 
 @warehouse_or_director_required
 def product_list(request):
+    from .models import ProductCategory
+    
     q        = (request.GET.get("q") or "").strip()
     supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
+    category = (request.GET.get("category") or "").strip()   # фильтр по категории
     sort     = (request.GET.get("sort") or "").lower()       # '' | 'price'
     order    = (request.GET.get("order") or "asc").lower()
 
@@ -267,9 +270,10 @@ def product_list(request):
     # База + min_price
     base_qs = (
         Product.objects
-        .select_related("supplier")
+        .select_related("supplier", "category")
         .prefetch_related("images", "prices")
         .annotate(min_price=Min("prices__value"))
+        .filter(is_active=True)
     )
 
     # Поиск (3+ символа)
@@ -295,6 +299,17 @@ def product_list(request):
     qs = base_qs
     if supplier:
         qs = qs.filter(supplier__code=supplier)
+    
+    # Фильтр по категории (включая дочерние категории)
+    if category:
+        try:
+            cat = ProductCategory.objects.get(slug=category, is_active=True)
+            # Получаем все дочерние категории
+            child_cats = cat.get_all_children()
+            category_ids = [cat.id] + [c.id for c in child_cats]
+            qs = qs.filter(category_id__in=category_ids)
+        except ProductCategory.DoesNotExist:
+            pass
 
     # Сортировка — только по цене (или без сортировки)
     if sort == "price":
@@ -312,12 +327,17 @@ def product_list(request):
     # Пагинация
     paginator = Paginator(qs, per_page)
     page_obj = paginator.get_page(page)
+    
+    # Получаем все активные категории для фильтра
+    categories = ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name")
 
     return render(request, "core/product_list.html", {
         "page_obj": page_obj,
         "q": q,
         "supplier": supplier,
+        "category": category,
         "suppliers": suppliers,
+        "categories": categories,
         "sort": sort,
         "order": order,
         "per_page": per_page,

@@ -38,6 +38,8 @@ urlpatterns = [
          views.inventory_edit, name="inventory_edit"),
 
     path("products/<int:pk>/card/", views.product_card, name="product_card"),
+    path("products/<int:pk>/json/", views.product_detail_json, name="product_detail_json"),
+    path("products/create-inline/", views.product_create_inline, name="product_create_inline"),
     path("ajax/product-by-barcode/", views.product_by_barcode, name="product_by_barcode"),
     path("ajax/product-create-inline/", views.product_create_inline, name="product_create_inline"),
     path("ajax/product/<int:pk>/edit/", views.product_update_inline, name="product_update_inline"),

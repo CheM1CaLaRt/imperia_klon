@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from django.utils.html import format_html
 import re
-from .models import Supplier, Product, ProductImage, ProductCertificate, ProductPrice, ImportBatch
+from .models import Supplier, Product, ProductImage, ProductCertificate, ProductPrice, ImportBatch, ProductCategory
 from .models import Warehouse, StorageBin, Inventory, StockMovement
 from .models import Profile
 try:
@@ -105,10 +105,22 @@ class ProductPriceInline(admin.TabularInline):
     model = ProductPrice
     extra = 0
 
+@admin.register(ProductCategory)
+class ProductCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "icon", "parent", "order", "is_active", "products_count")
+    list_filter = ("is_active", "parent")
+    search_fields = ("name", "slug", "description")
+    prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("created_at", "updated_at")
+    
+    def products_count(self, obj):
+        return obj.products.count()
+    products_count.short_description = "Товаров"
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "barcode", "supplier", "sku", "brand", "manufacturer_country", "is_active")
-    list_filter = ("supplier", "brand", "manufacturer_country", "is_active")
+    list_display = ("name", "barcode", "supplier", "category", "sku", "brand", "manufacturer_country", "is_active")
+    list_filter = ("supplier", "category", "brand", "manufacturer_country", "is_active")
     search_fields = ("name", "barcode", "sku", "vendor_code", "brand")
     inlines = [ProductImageInline, ProductCertificateInline, ProductPriceInline]
     readonly_fields = ("created_at", "updated_at", "last_import_batch")

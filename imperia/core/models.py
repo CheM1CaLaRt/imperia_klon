@@ -74,6 +74,57 @@ class Supplier(models.Model):
         return self.name
 
 
+class ProductCategory(models.Model):
+    """Иерархическая категория товаров"""
+    name = models.CharField("Название", max_length=200)
+    slug = models.SlugField("URL-адрес", max_length=200, unique=True, db_index=True)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+        verbose_name="Родительская категория"
+    )
+    description = models.TextField("Описание", blank=True, default="")
+    icon = models.CharField("Иконка (эмодзи)", max_length=10, blank=True, default="📦")
+    color = models.CharField("Цвет (hex)", max_length=7, blank=True, default="#667eea", help_text="Цвет для отображения категории")
+    order = models.PositiveIntegerField("Порядок сортировки", default=0, db_index=True)
+    is_active = models.BooleanField("Активна", default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Категория товара"
+        verbose_name_plural = "Категории товаров"
+        ordering = ["order", "name"]
+        indexes = [
+            models.Index(fields=["parent", "is_active"]),
+        ]
+
+    def __str__(self):
+        if self.parent:
+            return f"{self.parent.name} → {self.name}"
+        return self.name
+    
+    def get_full_path(self):
+        """Возвращает полный путь категории (родитель → категория)"""
+        path = [self.name]
+        current = self.parent
+        while current:
+            path.insert(0, current.name)
+            current = current.parent
+        return " → ".join(path)
+    
+    def get_all_children(self):
+        """Возвращает все дочерние категории (рекурсивно)"""
+        children = list(self.children.filter(is_active=True))
+        for child in self.children.filter(is_active=True):
+            children.extend(child.get_all_children())
+        return children
+
+
 class ImportBatch(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT)
     source_name = models.CharField(max_length=200, help_text="Файл или URL")
@@ -89,6 +140,14 @@ class ImportBatch(models.Model):
 class Product(models.Model):
     # уникальность: если есть barcode -> по нему глобально; иначе по (supplier, sku)
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT)
+    category = models.ForeignKey(
+        "ProductCategory",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+        verbose_name="Категория"
+    )
     sku = models.CharField(max_length=100, db_index=True)  # из Самсона: "sku"
     barcode = models.CharField(max_length=64, blank=True, null=True, unique=True)
     name = models.TextField()
@@ -116,6 +175,7 @@ class Product(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["supplier", "sku"], name="idx_supplier_sku"),
+            models.Index(fields=["category", "is_active"], name="idx_category_active"),
         ]
         constraints = [
             # Не даём дубликаты по (supplier, sku) когда barcode отсутствует/пуст
