@@ -84,6 +84,7 @@ urlpatterns = [
     path("requests/<int:pk>/pick/", vp.request_pick_section, name="request_pick_section"),
     path("requests/<int:pk>/pick/submit/", vp.pick_submit, name="pick_submit"),
     path("api/stock/lookup/", vp.stock_lookup_by_barcode, name="stock_lookup_by_barcode"),
+    path("api/stock/lookup-by-sku/", vp.stock_lookup_by_sku, name="stock_lookup_by_sku"),
     path("api/stock/lookup-by-name/", vp.stock_lookup_by_name, name="stock_lookup_by_name"),
     path("api/stock/lookup-by-name-selected/", vp.stock_lookup_by_name_selected, name="stock_lookup_by_name_selected"),
 

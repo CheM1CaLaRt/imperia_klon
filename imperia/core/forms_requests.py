@@ -170,6 +170,15 @@ class OrderItemForm(forms.Form):
             "inputmode": "numeric",
         })
     )
+    article = forms.CharField(
+        required=False,
+        label="Артикул",
+        widget=forms.TextInput(attrs={
+            "class": "order-article",
+            "placeholder": "Артикул",
+            "autocomplete": "off",
+        })
+    )
     name = forms.CharField(
         required=False,
         label="Название",

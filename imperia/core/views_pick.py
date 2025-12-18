@@ -44,13 +44,58 @@ def stock_lookup(request):
     location = inv.bin.code if inv and inv.bin else ""
     unit = "шт"
 
-    return JsonResponse({"ok": True, "name": product.name, "location": location, "unit": unit})
+    return JsonResponse({
+        "ok": True,
+        "id": product.id,
+        "name": product.name,
+        "barcode": product.barcode or "",
+        "sku": product.sku or "",
+        "location": location,
+        "unit": unit
+    })
 
 
 @require_GET
 @require_groups("operator", "director", "warehouse", "manager")
 def stock_lookup_by_barcode(request):
     return stock_lookup(request)
+
+
+@require_GET
+@require_groups("operator", "director", "warehouse", "manager")
+def stock_lookup_by_sku(request):
+    """
+    Поиск товара по артикулу (SKU).
+    Возвращает первый найденный товар с таким артикулом.
+    """
+    sku = (request.GET.get("sku") or request.GET.get("article") or "").strip()
+    if not sku:
+        return JsonResponse({"ok": False, "error": "empty"}, status=400)
+
+    # Ищем товар по артикулу (sku)
+    product = Product.objects.filter(sku=sku, is_active=True).first()
+    if not product:
+        return JsonResponse({"ok": False, "error": "not_found"}, status=404)
+
+    inv = (
+        Inventory.objects
+        .filter(product=product, quantity__gt=0)
+        .select_related("warehouse", "bin")
+        .order_by("-quantity")
+        .first()
+    )
+    location = inv.bin.code if inv and inv.bin else ""
+    unit = "шт"
+
+    return JsonResponse({
+        "ok": True,
+        "id": product.id,
+        "name": product.name,
+        "barcode": product.barcode or "",
+        "sku": product.sku,
+        "location": location,
+        "unit": unit,
+    })
 
 
 @require_GET
@@ -103,6 +148,7 @@ def stock_lookup_by_name(request):
             "id": product.id,
             "name": product.name,
             "barcode": product.barcode or "",
+            "sku": product.sku or "",
             "location": location,
             "unit": "шт",
             "qty_on_hand": qty_on_hand,

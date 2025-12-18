@@ -94,6 +94,7 @@
           <thead>
             <tr style="border-bottom:2px solid var(--border)">
               <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Штрихкод</th>
+              <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Артикул</th>
               <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Название</th>
               <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Кол-во</th>
               <th style="padding:12px;text-align:left;font-size:13px;font-weight:600;color:var(--muted)">Примечание</th>
@@ -107,6 +108,10 @@
                 {{ item_form.product_id }}
                 {{ item_form.barcode }}
                 {% if item_form.barcode.errors %}<div style="color:#ef4444;font-size:11px">{{ item_form.barcode.errors }}</div>{% endif %}
+              </td>
+              <td style="padding:8px">
+                {{ item_form.article }}
+                {% if item_form.article.errors %}<div style="color:#ef4444;font-size:11px">{{ item_form.article.errors }}</div>{% endif %}
               </td>
               <td style="padding:8px;position:relative">
                 {{ item_form.name }}
@@ -456,6 +461,7 @@ body.modal-open{overflow:hidden}
     
     set('[name$="-name"]', product.name);
     set('[name$="-barcode"]', product.barcode || '');
+    if (product.sku) set('[name$="-article"]', product.sku);
     set('[name$="-product_id"]', product.id || '');
     
     const qtyEl = row.querySelector('[name$="-quantity"]');
@@ -561,6 +567,44 @@ body.modal-open{overflow:hidden}
           if (el) el.value = v || '';
         };
         set('[name$="-name"]', data.name);
+        if (data.sku) set('[name$="-article"]', data.sku);
+        set('[name$="-product_id"]', data.id || '');
+        const qtyEl = row.querySelector('[name$="-quantity"]');
+        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+        row.removeAttribute('data-notfound');
+      } catch (_) {
+        row.setAttribute('data-notfound', '1');
+      }
+      return;
+    }
+
+    // Поиск по артикулу
+    if (el.name && el.name.endsWith('-article')) {
+      row.removeAttribute('data-notfound');
+      const article = el.value.trim();
+      
+      if (article.length < 2) return;
+
+      try {
+        const resp = await fetch(`{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`);
+        if (!resp.ok) {
+          row.setAttribute('data-notfound', '1');
+          return;
+        }
+        const data = await resp.json();
+        if (!data.ok) {
+          row.setAttribute('data-notfound', '1');
+          return;
+        }
+
+        const set = (sel, v) => {
+          const el = row.querySelector(sel);
+          if (el) el.value = v || '';
+        };
+        set('[name$="-name"]', data.name);
+        set('[name$="-barcode"]', data.barcode || '');
+        set('[name$="-article"]', data.sku || '');
+        set('[name$="-product_id"]', data.id || '');
         const qtyEl = row.querySelector('[name$="-quantity"]');
         if (qtyEl && !qtyEl.value) qtyEl.value = 1;
         row.removeAttribute('data-notfound');
