@@ -67,14 +67,21 @@ def stock_lookup_by_sku(request):
     """
     Поиск товара по артикулу (SKU).
     Возвращает первый найденный товар с таким артикулом.
+    
+    Для разных поставщиков артикул хранится в разных полях:
+    - samson и другие: в поле sku
+    - relef: в поле vendor_code
+    Поэтому ищем по обоим полям.
     """
     sku = (request.GET.get("sku") or request.GET.get("article") or "").strip()
     if not sku:
         return JsonResponse({"ok": False, "error": "empty"}, status=400)
 
-    # Ищем товар по артикулу (sku) - ищем среди всех поставщиков, включая relef
+    # Ищем товар по артикулу - проверяем и sku, и vendor_code
+    # Для samson артикул в sku, для relef в vendor_code
+    from django.db.models import Q
     product = Product.objects.filter(
-        sku=sku, 
+        Q(sku=sku) | Q(vendor_code=sku),
         is_active=True
     ).select_related("supplier").first()
     
@@ -91,12 +98,23 @@ def stock_lookup_by_sku(request):
     location = inv.bin.code if inv and inv.bin else ""
     unit = "шт"
 
+    # Определяем, какой артикул использовать для ответа
+    # Для relef артикул в vendor_code, для других поставщиков в sku
+    # Возвращаем тот артикул, по которому нашли товар
+    if product.vendor_code == sku:
+        article_value = product.vendor_code
+    elif product.sku == sku:
+        article_value = product.sku
+    else:
+        # Fallback: используем то, что есть
+        article_value = product.sku or product.vendor_code or ""
+    
     return JsonResponse({
         "ok": True,
         "id": product.id,
         "name": product.name,
         "barcode": product.barcode or "",
-        "sku": product.sku,
+        "sku": article_value,  # Возвращаем артикул, по которому нашли товар
         "location": location,
         "unit": unit,
     })
@@ -148,11 +166,14 @@ def stock_lookup_by_name(request):
             location = inv.bin.code if inv and inv.bin else ""
             qty_on_hand = float(inv.quantity)
         
+        # Определяем артикул: для relef в vendor_code, для других в sku
+        article_value = product.sku or product.vendor_code or ""
+        
         result.append({
             "id": product.id,
             "name": product.name,
             "barcode": product.barcode or "",
-            "sku": product.sku or "",
+            "sku": article_value,  # Возвращаем артикул (sku или vendor_code)
             "location": location,
             "unit": "шт",
             "qty_on_hand": qty_on_hand,

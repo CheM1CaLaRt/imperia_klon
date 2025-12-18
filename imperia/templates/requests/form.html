@@ -461,6 +461,8 @@ body.modal-open{overflow:hidden}
     
     set('[name$="-name"]', product.name);
     set('[name$="-barcode"]', product.barcode || '');
+    // Артикул может быть в sku (для samson) или в vendor_code (для relef)
+    // API возвращает правильное значение в поле sku
     if (product.sku) set('[name$="-article"]', product.sku);
     set('[name$="-product_id"]', product.id || '');
     
