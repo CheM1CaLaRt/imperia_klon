@@ -178,13 +178,13 @@
   {% endif %}
 
   {# ===== MODAL ===== #}
-  <div id="productModal" class="fixed inset-0 z-50 hidden">
+  <div id="productModal" class="fixed inset-0 z-[10000] hidden" style="display: none; align-items: center; justify-content: center;">
     <!-- overlay -->
-    <div class="absolute inset-0 bg-black/50"></div>
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
 
     <!-- dialog -->
-    <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="w-[min(900px,95vw)] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-gray-200 relative">
+    <div class="relative w-full h-full flex items-center justify-center p-4" style="overflow-y: auto; overflow-x: hidden;">
+      <div class="w-[min(900px,95vw)] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-gray-200 relative" style="margin: auto;">
         <!-- header -->
         <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b px-5 py-3 flex items-center justify-between">
           <h3 id="mTitle" class="text-xl font-semibold line-clamp-1">Карточка товара</h3>
@@ -329,10 +329,31 @@
     const thumbs  = document.getElementById('mThumbs');
     const certs   = document.getElementById('mCerts');
 
-    function openModal(){ modal.classList.remove('hidden'); document.body.style.overflow='hidden'; }
-    function closeModal(){ modal.classList.add('hidden'); document.body.style.overflow=''; }
+    function openModal(){ 
+      modal.classList.remove('hidden'); 
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
+      // Прокручиваем контент модального окна в начало
+      const dialogContent = modal.querySelector('.relative.w-full');
+      if (dialogContent) dialogContent.scrollTop = 0;
+      // Прокручиваем сам контент карточки в начало
+      const cardContent = modal.querySelector('.overflow-y-auto.bg-white');
+      if (cardContent) cardContent.scrollTop = 0;
+    }
+    function closeModal(){ 
+      modal.classList.add('hidden'); 
+      modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = ''; 
+    }
 
-    overlay.addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+      // Закрываем только если клик был именно на overlay, а не на содержимое
+      if (e.target === overlay) {
+        closeModal();
+      }
+    });
     closeBtn && closeBtn.addEventListener('click', closeModal);
     closeBtn2 && closeBtn2.addEventListener('click', closeModal);
     document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(); });
@@ -435,4 +456,66 @@
     });
   })();
 </script>
+
+<style>
+  /* Стили для модального окна товара */
+  #productModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  #productModal.hidden {
+    display: none !important;
+  }
+  
+  /* Контент модального окна */
+  #productModal > div:last-child {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  /* Карточка товара */
+  #productModal .bg-white.rounded-2xl {
+    margin: auto;
+    max-height: 85vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  /* Предотвращаем закрытие при клике на содержимое */
+  #productModal .bg-white.rounded-2xl {
+    pointer-events: auto;
+  }
+  
+  /* Overlay */
+  #productModal > div:first-child {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: auto;
+  }
+  
+  /* Блокируем скролл body при открытом модальном окне */
+  body.modal-open {
+    overflow: hidden !important;
+  }
+</style>
 {% endblock %}

@@ -959,12 +959,12 @@
             setTimeout(() => window.initAllAddressAutocompletes(), 300);
           }
         }
-        
-        // Настраиваем кнопку карты для новой строки
-        const newMapBtn = newRow.querySelector('.yandex-map-btn');
-        if (newMapBtn && typeof setupMapButton === 'function') {
-          setupMapButton(newMapBtn);
-        }
+      
+      // Настраиваем кнопку карты для новой строки
+      const newMapBtn = newRow.querySelector('.yandex-map-btn');
+      if (newMapBtn && typeof setupMapButton === 'function') {
+        setupMapButton(newMapBtn);
+      }
       }, 300);
       
       // Настраиваем обработчик для чекбокса удаления
