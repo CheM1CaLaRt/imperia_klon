@@ -250,7 +250,12 @@ def director_dashboard(request):
 
 @warehouse_or_director_required
 def product_list(request):
-    from .models import ProductCategory
+    try:
+        from .models import ProductCategory
+        has_categories = True
+    except (ImportError, AttributeError):
+        has_categories = False
+        ProductCategory = None
     
     q        = (request.GET.get("q") or "").strip()
     supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
@@ -270,7 +275,7 @@ def product_list(request):
     # База + min_price
     base_qs = (
         Product.objects
-        .select_related("supplier", "category")
+        .select_related("supplier")
         .prefetch_related("images", "prices")
         .annotate(min_price=Min("prices__value"))
         .filter(is_active=True)
@@ -301,14 +306,14 @@ def product_list(request):
         qs = qs.filter(supplier__code=supplier)
     
     # Фильтр по категории (включая дочерние категории)
-    if category:
+    if category and has_categories and ProductCategory:
         try:
             cat = ProductCategory.objects.get(slug=category, is_active=True)
             # Получаем все дочерние категории
             child_cats = cat.get_all_children()
             category_ids = [cat.id] + [c.id for c in child_cats]
             qs = qs.filter(category_id__in=category_ids)
-        except ProductCategory.DoesNotExist:
+        except (ProductCategory.DoesNotExist, AttributeError):
             pass
 
     # Сортировка — только по цене (или без сортировки)
@@ -329,7 +334,17 @@ def product_list(request):
     page_obj = paginator.get_page(page)
     
     # Получаем все активные категории для фильтра
-    categories = ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name")
+    categories = []
+    if has_categories and ProductCategory:
+        try:
+            # Пробуем получить категории, если таблица существует
+            categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
+        except Exception as e:
+            # Если таблица не существует или другая ошибка, просто используем пустой список
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Не удалось загрузить категории: {e}")
+            categories = []
 
     return render(request, "core/product_list.html", {
         "page_obj": page_obj,
