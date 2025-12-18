@@ -1073,12 +1073,16 @@ def product_create_inline(request):
 
     # --- цена типа 'contracts' (если указали) ---
     price_val = cd.get("price_contracts")
-    if price_val is not None:  # поле присутствует в форме и не пустое
-        ProductPrice.objects.update_or_create(
-            product=product,
-            price_type="contracts",
-            defaults={"value": price_val, "currency": "RUB"},
-        )
+    if price_val is not None and price_val != "":  # поле присутствует в форме и не пустое
+        try:
+            price_decimal = Decimal(str(price_val))
+            ProductPrice.objects.update_or_create(
+                product=product,
+                price_type="contracts",
+                defaults={"value": price_decimal, "currency": "RUB"},
+            )
+        except (ValueError, TypeError):
+            pass  # Игнорируем некорректные значения цены
 
     # --- превью справа: показываем ту же 'contracts' цену ---
     ctx = {
