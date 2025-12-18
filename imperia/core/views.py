@@ -250,17 +250,31 @@ def director_dashboard(request):
 
 @warehouse_or_director_required
 def product_list(request):
-    # Безопасная проверка наличия категорий
+    # Безопасная проверка наличия категорий в БД
     ProductCategory = None
     has_categories = False
+    
     try:
         from .models import ProductCategory
-        # Проверяем, существует ли поле category в модели Product
-        if hasattr(Product, '_meta'):
-            field_names = [f.name for f in Product._meta.get_fields()]
-            if 'category' in field_names:
-                has_categories = True
-    except (ImportError, AttributeError):
+        # Проверяем, существует ли таблица категорий в базе данных
+        from django.db import connection
+        table_name = ProductCategory._meta.db_table
+        with connection.cursor() as cursor:
+            if 'sqlite' in connection.vendor:
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table_name])
+            elif 'postgresql' in connection.vendor:
+                cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=%s", [table_name])
+            else:
+                cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s", [table_name])
+            table_exists = bool(cursor.fetchone())
+        
+        if table_exists:
+            # Проверяем, существует ли поле category в модели Product
+            if hasattr(Product, '_meta'):
+                field_names = [f.name for f in Product._meta.get_fields()]
+                if 'category' in field_names:
+                    has_categories = True
+    except (ImportError, AttributeError, Exception):
         has_categories = False
         ProductCategory = None
     
@@ -280,7 +294,7 @@ def product_list(request):
         per_page = 24
 
     # База + min_price
-    # Используем select_related("category") только если категории доступны
+    # НЕ используем select_related("category"), чтобы избежать ошибок при отсутствии таблицы
     base_qs = (
         Product.objects
         .select_related("supplier")
@@ -288,13 +302,6 @@ def product_list(request):
         .annotate(min_price=Min("prices__value"))
         .filter(is_active=True)
     )
-    
-    # Добавляем select_related("category") только если поле существует
-    if has_categories:
-        try:
-            base_qs = base_qs.select_related("category")
-        except:
-            pass
 
     # Поиск (3+ символа)
     if len(q) >= 3:
@@ -352,7 +359,20 @@ def product_list(request):
     categories = []
     if has_categories and ProductCategory:
         try:
-            categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
+            # Дополнительная проверка существования таблицы перед запросом
+            from django.db import connection
+            table_name = ProductCategory._meta.db_table
+            with connection.cursor() as cursor:
+                if 'sqlite' in connection.vendor:
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table_name])
+                elif 'postgresql' in connection.vendor:
+                    cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=%s", [table_name])
+                else:
+                    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s", [table_name])
+                table_exists = bool(cursor.fetchone())
+            
+            if table_exists:
+                categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
         except Exception:
             categories = []
 
