@@ -250,7 +250,19 @@ def director_dashboard(request):
 
 @warehouse_or_director_required
 def product_list(request):
-    from .models import ProductCategory
+    # Безопасная проверка наличия категорий
+    ProductCategory = None
+    has_categories = False
+    try:
+        from .models import ProductCategory
+        # Проверяем, существует ли поле category в модели Product
+        if hasattr(Product, '_meta'):
+            field_names = [f.name for f in Product._meta.get_fields()]
+            if 'category' in field_names:
+                has_categories = True
+    except (ImportError, AttributeError):
+        has_categories = False
+        ProductCategory = None
     
     q        = (request.GET.get("q") or "").strip()
     supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
@@ -268,13 +280,21 @@ def product_list(request):
         per_page = 24
 
     # База + min_price
+    # Используем select_related("category") только если категории доступны
     base_qs = (
         Product.objects
-        .select_related("supplier", "category")
+        .select_related("supplier")
         .prefetch_related("images", "prices")
         .annotate(min_price=Min("prices__value"))
         .filter(is_active=True)
     )
+    
+    # Добавляем select_related("category") только если поле существует
+    if has_categories:
+        try:
+            base_qs = base_qs.select_related("category")
+        except:
+            pass
 
     # Поиск (3+ символа)
     if len(q) >= 3:
@@ -301,14 +321,14 @@ def product_list(request):
         qs = qs.filter(supplier__code=supplier)
     
     # Фильтр по категории (включая дочерние категории)
-    if category:
+    if category and has_categories and ProductCategory:
         try:
             cat = ProductCategory.objects.get(slug=category, is_active=True)
             # Получаем все дочерние категории
             child_cats = cat.get_all_children()
             category_ids = [cat.id] + [c.id for c in child_cats]
             qs = qs.filter(category_id__in=category_ids)
-        except ProductCategory.DoesNotExist:
+        except (ProductCategory.DoesNotExist, AttributeError):
             pass
 
     # Сортировка — только по цене (или без сортировки)
@@ -329,7 +349,12 @@ def product_list(request):
     page_obj = paginator.get_page(page)
     
     # Получаем все активные категории для фильтра
-    categories = ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name")
+    categories = []
+    if has_categories and ProductCategory:
+        try:
+            categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
+        except Exception:
+            categories = []
 
     return render(request, "core/product_list.html", {
         "page_obj": page_obj,
