@@ -11,6 +11,9 @@ from . import views_requests as rq
 # сборка (pick) — используем функции из views_pick
 from . import views_pick as vp
 
+# управление сотрудниками
+from . import views_employees as ve
+
 app_name = "core"
 
 urlpatterns = [
@@ -75,6 +78,13 @@ urlpatterns = [
     path("director/", vc.director_dashboard, name="director_dashboard"),
     path("director/requests/<int:req_id>/approve/", vc.deletion_request_approve, name="deletion_request_approve"),
     path("director/requests/<int:req_id>/reject/", vc.deletion_request_reject, name="deletion_request_reject"),
+    
+    # Управление сотрудниками
+    path("employees/", ve.employee_list, name="employee_list"),
+    path("employees/new/", ve.employee_create, name="employee_create"),
+    path("employees/<int:pk>/edit/", ve.employee_edit, name="employee_edit"),
+    path("employees/<int:pk>/delete/", ve.employee_delete, name="employee_delete"),
+    path("employees/<int:pk>/detail/", ve.employee_detail, name="employee_detail"),
     path("operator/", vc.operator_dashboard, name="operator_dashboard"),
     path("deletion-requests/<int:req_id>/cancel/", vc.deletion_request_cancel, name="deletion_request_cancel"),
     path("deletion-requests/clear-rejected/", vc.deletion_requests_clear_rejected, name="deletion_requests_clear_rejected"),

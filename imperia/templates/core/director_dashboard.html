@@ -87,5 +87,43 @@
     {% endif %}
   </div>
 
+  <!-- Управление сотрудниками -->
+  <div class="card">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Управление сотрудниками</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="text-sm muted">
+          Всего: <b>{{ employees_count }}</b>
+        </div>
+        <a href="{% url 'core:employee_list' %}" class="btn btn-primary" style="padding:8px 16px;font-size:14px">
+          Управление
+        </a>
+      </div>
+    </div>
+
+    <div style="padding:20px">
+      <div style="display:grid;gap:16px">
+        <div style="padding:20px;background:var(--bg);border-radius:12px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:16px;font-weight:600;margin-bottom:4px">Сотрудники системы</div>
+              <div style="font-size:13px;color:var(--muted)">
+                Создавайте, редактируйте и управляйте сотрудниками. Назначайте роли и права доступа.
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <a href="{% url 'core:employee_list' %}" class="btn btn-secondary" style="padding:10px 20px">
+                Список сотрудников
+              </a>
+              <a href="{% url 'core:employee_create' %}" class="btn btn-primary" style="padding:10px 20px">
+                + Создать сотрудника
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

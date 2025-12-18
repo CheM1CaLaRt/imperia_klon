@@ -287,13 +287,25 @@ def counterparty_delete(request, pk: int):
 @login_required
 @user_passes_test(_is_director)
 def director_dashboard(request):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
     pending = (
         CounterpartyDeletionRequest.objects
         .filter(status=CounterpartyDeletionRequest.Status.PENDING)
         .select_related("counterparty", "requested_by")
         .order_by("-created_at")
     )
-    return render(request, "core/director_dashboard.html", {"pending": pending})
+    
+    # Получаем количество сотрудников для отображения
+    employees_count = User.objects.count()
+    recent_employees = User.objects.select_related("profile").prefetch_related("groups").order_by("-date_joined")[:5]
+    
+    return render(request, "core/director_dashboard.html", {
+        "pending": pending,
+        "employees_count": employees_count,
+        "recent_employees": recent_employees,
+    })
 
 @login_required
 @user_passes_test(_is_director)

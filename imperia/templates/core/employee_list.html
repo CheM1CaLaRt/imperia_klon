@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Сотрудники — IndigoFlow{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Управление сотрудниками</h1>
+      <p class="card-subtitle">Список всех сотрудников системы</p>
+    </div>
+    <a href="{% url 'core:employee_create' %}" class="btn btn-primary">
+      + Создать сотрудника
+    </a>
+  </div>
+
+  <!-- Поиск и фильтры -->
+  <div style="padding:20px;border-bottom:1px solid var(--border)">
+    <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+      <div style="flex:1;min-width:200px">
+        <label class="field label">Поиск</label>
+        <input 
+          type="text" 
+          name="q" 
+          value="{{ search_query }}" 
+          placeholder="Логин, имя, email..."
+          class="input w-full"
+        >
+      </div>
+      <div style="min-width:180px">
+        <label class="field label">Роль</label>
+        <select name="role" class="input w-full">
+          <option value="">Все роли</option>
+          {% for role in roles %}
+            <option value="{{ role.name }}" {% if role_filter == role.name %}selected{% endif %}>
+              {{ role.name|title }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary">Искать</button>
+      {% if search_query or role_filter %}
+        <a href="{% url 'core:employee_list' %}" class="btn">Сбросить</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Список сотрудников -->
+  <div style="padding:20px">
+    {% if employees %}
+      <div style="display:grid;gap:12px">
+        {% for employee in employees %}
+          <div class="employee-card" style="padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--card);transition:all 0.2s">
+            <div style="display:flex;justify-content:space-between;align-items:start;gap:16px">
+              <!-- Информация о сотруднике -->
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                  <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;color:white;font-weight:600;font-size:16px;flex-shrink:0">
+                    {{ employee.first_name|first|upper }}{{ employee.last_name|first|upper|default:"" }}
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:16px;color:var(--text)">
+                      {{ employee.get_full_name|default:employee.username }}
+                    </div>
+                    <div style="font-size:13px;color:var(--muted);margin-top:2px">
+                      @{{ employee.username }}
+                      {% if employee.email %} • {{ employee.email }}{% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:13px">
+                  <!-- Роль -->
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span style="color:var(--muted)">Роль:</span>
+                    <span style="padding:4px 10px;background:var(--bg);border-radius:6px;font-weight:500">
+                      {% with role=employee.groups.first %}
+                        {{ role.name|title|default:"Нет роли" }}
+                      {% endwith %}
+                    </span>
+                  </div>
+                  
+                  <!-- Статус -->
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span style="color:var(--muted)">Статус:</span>
+                    {% if employee.is_active %}
+                      <span style="padding:4px 10px;background:#dcfce7;color:#166534;border-radius:6px;font-weight:500">Активен</span>
+                    {% else %}
+                      <span style="padding:4px 10px;background:#fee2e2;color:#991b1b;border-radius:6px;font-weight:500">Неактивен</span>
+                    {% endif %}
+                  </div>
+                  
+                  <!-- Контакты -->
+                  {% if employee.profile.phone %}
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span style="color:var(--muted)">📞</span>
+                      <span>{{ employee.profile.phone }}</span>
+                    </div>
+                  {% endif %}
+                  
+                  {% if employee.profile.telegram %}
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span style="color:var(--muted)">💬</span>
+                      <span>{{ employee.profile.telegram }}</span>
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+                  Зарегистрирован: {{ employee.date_joined|date:"d.m.Y" }}
+                  {% if employee.last_login %}
+                    • Последний вход: {{ employee.last_login|date:"d.m.Y H:i" }}
+                  {% endif %}
+                </div>
+              </div>
+              
+              <!-- Действия -->
+              <div style="display:flex;gap:8px;flex-shrink:0">
+                <button 
+                  type="button" 
+                  class="btn btn-ghost employee-detail-btn" 
+                  data-id="{{ employee.id }}"
+                  style="padding:8px 16px;font-size:13px"
+                >
+                  Подробнее
+                </button>
+                <a 
+                  href="{% url 'core:employee_edit' employee.id %}" 
+                  class="btn btn-secondary"
+                  style="padding:8px 16px;font-size:13px"
+                >
+                  Редактировать
+                </a>
+                {% if employee != request.user %}
+                  <form 
+                    method="post" 
+                    action="{% url 'core:employee_delete' employee.id %}"
+                    style="display:inline"
+                    onsubmit="return confirm('Вы уверены, что хотите удалить сотрудника {{ employee.get_full_name|default:employee.username }}?');"
+                  >
+                    {% csrf_token %}
+                    <button type="submit" class="btn" style="padding:8px 16px;font-size:13px;background:#fee2e2;color:#991b1b;border-color:#fecaca">
+                      Удалить
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      
+      <!-- Пагинация -->
+      {% if employees.has_other_pages %}
+        <div style="margin-top:24px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+          {% if employees.has_previous %}
+            <a href="?page={{ employees.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="btn btn-ghost">
+              ← Назад
+            </a>
+          {% endif %}
+          
+          <span style="display:flex;align-items:center;padding:8px 16px;color:var(--muted)">
+            Страница {{ employees.number }} из {{ employees.paginator.num_pages }}
+          </span>
+          
+          {% if employees.has_next %}
+            <a href="?page={{ employees.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if role_filter %}&role={{ role_filter }}{% endif %}" class="btn btn-ghost">
+              Вперёд →
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div style="text-align:center;padding:60px 20px">
+        <div style="font-size:48px;margin-bottom:16px">👥</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px">Сотрудники не найдены</div>
+        <div style="color:var(--muted);margin-bottom:24px">
+          {% if search_query or role_filter %}
+            Попробуйте изменить параметры поиска
+          {% else %}
+            Создайте первого сотрудника для работы в системе
+          {% endif %}
+        </div>
+        {% if not search_query and not role_filter %}
+          <a href="{% url 'core:employee_create' %}" class="btn btn-primary">
+            + Создать сотрудника
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Модальное окно с деталями сотрудника -->
+<div id="employeeModal" class="fixed inset-0 z-[10000] hidden" style="display: none; align-items: center; justify-content: center;">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+  <div class="relative w-full h-full flex items-center justify-center p-4" style="overflow-y: auto; overflow-x: hidden;">
+    <div class="w-[min(600px,95vw)] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-gray-200 relative" style="margin: auto;">
+      <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b px-5 py-3 flex items-center justify-between">
+        <h3 class="text-xl font-semibold">Информация о сотруднике</h3>
+        <button id="employeeModalClose" class="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-gray-100" aria-label="Закрыть">✕</button>
+      </div>
+      <div id="employeeModalBody" class="p-5" style="min-height:200px">
+        <div style="text-align:center;padding:40px;color:var(--muted)">Загрузка...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.employee-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+</style>
+
+<script>
+(function() {
+  const modal = document.getElementById('employeeModal');
+  const modalBody = document.getElementById('employeeModalBody');
+  const closeBtn = document.getElementById('employeeModalClose');
+  
+  function openModal() {
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+  
+  // Обработчики закрытия
+  closeBtn.addEventListener('click', closeModal);
+  modal.querySelector('.absolute.inset-0').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+  
+  // Обработчик для кнопки закрытия внутри модального окна
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('employee-modal-close-btn')) {
+      closeModal();
+    }
+  });
+  
+  // Загрузка данных сотрудника
+  document.querySelectorAll('.employee-detail-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const id = this.dataset.id;
+      openModal();
+      modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Загрузка...</div>';
+      
+      try {
+        const resp = await fetch(`/employees/${id}/detail/`);
+        if (!resp.ok) throw new Error('Ошибка загрузки');
+        const data = await resp.json();
+        
+        modalBody.innerHTML = `
+          <div style="space-y-4">
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px">
+              <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;color:white;font-weight:600;font-size:24px">
+                ${data.first_name?.[0] || ''}${data.last_name?.[0] || ''}
+              </div>
+              <div>
+                <div style="font-size:20px;font-weight:600">${data.full_name}</div>
+                <div style="font-size:14px;color:var(--muted);margin-top:4px">@${data.username}</div>
+              </div>
+            </div>
+            
+            <div style="display:grid;gap:16px">
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Email</div>
+                <div style="font-size:14px">${data.email || 'Не указан'}</div>
+              </div>
+              
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Роль</div>
+                <div style="font-size:14px;padding:4px 10px;background:var(--bg);border-radius:6px;display:inline-block">${data.role}</div>
+              </div>
+              
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Статус</div>
+                <div style="font-size:14px;padding:4px 10px;background:${data.is_active ? '#dcfce7' : '#fee2e2'};color:${data.is_active ? '#166534' : '#991b1b'};border-radius:6px;display:inline-block">
+                  ${data.is_active ? 'Активен' : 'Неактивен'}
+                </div>
+              </div>
+              
+              ${data.phone ? `
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Телефон</div>
+                <div style="font-size:14px">${data.phone}</div>
+              </div>
+              ` : ''}
+              
+              ${data.telegram ? `
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Telegram</div>
+                <div style="font-size:14px">${data.telegram}</div>
+              </div>
+              ` : ''}
+              
+              ${data.whatsapp ? `
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">WhatsApp</div>
+                <div style="font-size:14px">${data.whatsapp}</div>
+              </div>
+              ` : ''}
+              
+              ${data.vk ? `
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">VK</div>
+                <div style="font-size:14px"><a href="${data.vk}" target="_blank" style="color:var(--primary)">${data.vk}</a></div>
+              </div>
+              ` : ''}
+              
+              ${data.birth_date ? `
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Дата рождения</div>
+                <div style="font-size:14px">${data.birth_date}</div>
+              </div>
+              ` : ''}
+              
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Зарегистрирован</div>
+                <div style="font-size:14px">${data.date_joined}</div>
+              </div>
+              
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Последний вход</div>
+                <div style="font-size:14px">${data.last_login}</div>
+              </div>
+            </div>
+            
+            <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);display:flex;gap:12px">
+              <a href="/employees/${data.id}/edit/" class="btn btn-primary" style="flex:1">Редактировать</a>
+              <button type="button" class="btn btn-secondary employee-modal-close-btn" style="flex:1">Закрыть</button>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">Ошибка загрузки данных</div>';
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}
+
