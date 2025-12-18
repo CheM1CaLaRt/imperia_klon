@@ -297,9 +297,9 @@ def director_dashboard(request):
         .order_by("-created_at")
     )
     
-    # Получаем количество сотрудников для отображения
-    employees_count = User.objects.count()
-    recent_employees = User.objects.select_related("profile").prefetch_related("groups").order_by("-date_joined")[:5]
+    # Получаем количество сотрудников для отображения (исключая суперпользователей)
+    employees_count = User.objects.filter(is_superuser=False).count()
+    recent_employees = User.objects.filter(is_superuser=False).select_related("profile").prefetch_related("groups").order_by("-date_joined")[:5]
     
     return render(request, "core/director_dashboard.html", {
         "pending": pending,

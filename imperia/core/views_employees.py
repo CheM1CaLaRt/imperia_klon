@@ -25,8 +25,8 @@ def _is_director(user):
 @login_required
 @user_passes_test(_is_director)
 def employee_list(request):
-    """Список всех сотрудников"""
-    employees = User.objects.select_related("profile").prefetch_related("groups").all().order_by("-date_joined")
+    """Список всех сотрудников (исключая суперпользователей)"""
+    employees = User.objects.select_related("profile").prefetch_related("groups").filter(is_superuser=False).order_by("-date_joined")
     
     # Поиск
     search_query = request.GET.get("q", "").strip()
