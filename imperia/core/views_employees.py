@@ -161,6 +161,9 @@ def employee_delete(request, pk):
 @require_http_methods(["GET"])
 def employee_detail(request, pk):
     """Детальная информация о сотруднике (JSON для модального окна)"""
+    from django.utils import timezone
+    from datetime import timedelta
+    
     user = get_object_or_404(
         User.objects.select_related("profile").prefetch_related("groups"),
         pk=pk
@@ -172,6 +175,101 @@ def employee_detail(request, pk):
         profile = None
     
     role = user.groups.first()
+    
+    # Собираем историю событий сотрудника
+    activities = []
+    
+    # 1. Созданные заявки
+    from .models_requests import Request, RequestHistory
+    created_requests = Request.objects.filter(initiator=user).order_by("-created_at")[:20]
+    for req in created_requests:
+        activities.append({
+            "type": "request_created",
+            "icon": "📝",
+            "title": "Создана заявка",
+            "description": f"Заявка #{req.number or req.id}: {req.title}",
+            "date": req.created_at,
+            "link": f"/requests/{req.id}/",
+        })
+    
+    # 2. История изменений заявок (где сотрудник был автором)
+    request_history = RequestHistory.objects.filter(author=user).select_related("request").order_by("-created_at")[:30]
+    for hist in request_history:
+        status_names = {
+            "draft": "Черновик",
+            "submitted": "Отправлена",
+            "approved": "Согласована",
+            "to_pick": "В сборку",
+            "in_progress": "Собирается",
+            "ready_to_ship": "Готова к отгрузке",
+            "delivered": "Доставлена",
+            "done": "Завершена",
+            "rejected": "Отклонена",
+            "canceled": "Отменена",
+        }
+        from_status = status_names.get(hist.from_status, hist.from_status) if hist.from_status else "—"
+        to_status = status_names.get(hist.to_status, hist.to_status)
+        
+        activities.append({
+            "type": "request_status_changed",
+            "icon": "🔄",
+            "title": "Изменен статус заявки",
+            "description": f"Заявка #{hist.request.number or hist.request.id}: {from_status} → {to_status}",
+            "note": hist.note if hist.note else "",
+            "date": hist.created_at,
+            "link": f"/requests/{hist.request.id}/",
+        })
+    
+    # 3. Движения товаров на складе
+    from .models import StockMovement
+    stock_movements = StockMovement.objects.filter(actor=user).select_related("product", "warehouse").order_by("-timestamp")[:30]
+    movement_type_names = {
+        "IN": "Поступление",
+        "OUT": "Списание/Отгрузка",
+        "MOVE": "Перемещение",
+        "ADJ": "Корректировка",
+    }
+    for move in stock_movements:
+        type_name = movement_type_names.get(move.movement_type, move.movement_type)
+        activities.append({
+            "type": "stock_movement",
+            "icon": "📦",
+            "title": f"{type_name} товара",
+            "description": f"{move.product.name} × {move.quantity}",
+            "note": f"Склад: {move.warehouse.code}" + (f" • {move.note}" if move.note else ""),
+            "date": move.timestamp,
+            "link": None,
+        })
+    
+    # 4. Назначенные заявки (где сотрудник ответственный)
+    assigned_requests = Request.objects.filter(assignee=user).order_by("-created_at")[:10]
+    for req in assigned_requests:
+        activities.append({
+            "type": "request_assigned",
+            "icon": "👤",
+            "title": "Назначена заявка",
+            "description": f"Заявка #{req.number or req.id}: {req.title}",
+            "date": req.updated_at,
+            "link": f"/requests/{req.id}/",
+        })
+    
+    # Сортируем все события по дате (новые сверху)
+    activities.sort(key=lambda x: x["date"], reverse=True)
+    activities = activities[:50]  # Ограничиваем до 50 последних событий
+    
+    # Форматируем события для JSON
+    activities_data = []
+    for act in activities:
+        activities_data.append({
+            "type": act["type"],
+            "icon": act["icon"],
+            "title": act["title"],
+            "description": act["description"],
+            "note": act.get("note", ""),
+            "date": act["date"].strftime("%d.%m.%Y %H:%M") if act["date"] else "",
+            "date_iso": act["date"].isoformat() if act["date"] else "",
+            "link": act.get("link"),
+        })
     
     data = {
         "id": user.id,
@@ -189,6 +287,8 @@ def employee_detail(request, pk):
         "telegram": profile.telegram if profile else "",
         "vk": profile.vk if profile else "",
         "birth_date": profile.birth_date.strftime("%d.%m.%Y") if profile and profile.birth_date else "",
+        "activities": activities_data,
+        "activities_count": len(activities_data),
     }
     
     return JsonResponse(data)

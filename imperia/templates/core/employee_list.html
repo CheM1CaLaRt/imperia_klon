@@ -196,7 +196,7 @@
 <div id="employeeModal" class="fixed inset-0 z-[10000] hidden" style="display: none; align-items: center; justify-content: center;">
   <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
   <div class="relative w-full h-full flex items-center justify-center p-4" style="overflow-y: auto; overflow-x: hidden;">
-    <div class="w-[min(600px,95vw)] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-gray-200 relative" style="margin: auto;">
+    <div class="w-[min(800px,95vw)] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-gray-200 relative" style="margin: auto;">
       <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b px-5 py-3 flex items-center justify-between">
         <h3 class="text-xl font-semibold">Информация о сотруднике</h3>
         <button id="employeeModalClose" class="w-9 h-9 inline-flex items-center justify-center rounded-full hover:bg-gray-100" aria-label="Закрыть">✕</button>
@@ -335,6 +335,83 @@
                 <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Последний вход</div>
                 <div style="font-size:14px">${data.last_login}</div>
               </div>
+            </div>
+            
+            <!-- История событий -->
+            <div style="margin-top:32px;padding-top:24px;border-top:2px solid var(--border)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <h3 style="font-size:16px;font-weight:600;margin:0">История активности</h3>
+                <span style="font-size:12px;color:var(--muted);padding:4px 10px;background:var(--bg);border-radius:6px">
+                  ${data.activities_count || 0} событий
+                </span>
+              </div>
+              
+              ${data.activities && data.activities.length > 0 ? `
+                <div style="max-height:450px;overflow-y:auto;padding-right:8px">
+                  <div style="position:relative;padding-left:24px">
+                    <!-- Вертикальная линия -->
+                    <div style="position:absolute;left:8px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom, #667eea, #764ba2);border-radius:2px"></div>
+                    
+                    ${data.activities.map((act, idx) => {
+                      // Определяем цвет иконки в зависимости от типа события
+                      let iconBg = '#667eea';
+                      if (act.type === 'request_created') iconBg = '#3b82f6';
+                      else if (act.type === 'request_status_changed') iconBg = '#8b5cf6';
+                      else if (act.type === 'stock_movement') iconBg = '#10b981';
+                      else if (act.type === 'request_assigned') iconBg = '#f59e0b';
+                      
+                      return `
+                      <div style="position:relative;margin-bottom:20px;padding-left:20px">
+                        <!-- Точка на линии -->
+                        <div style="position:absolute;left:-16px;top:4px;width:16px;height:16px;background:white;border:3px solid ${iconBg};border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.1)"></div>
+                        
+                        <!-- Содержимое события -->
+                        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;cursor:${act.link ? 'pointer' : 'default'}" 
+                             onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';this.style.transform='translateX(4px)';this.style.borderColor='${iconBg}'"
+                             onmouseout="this.style.boxShadow='';this.style.transform='';this.style.borderColor='var(--border)'"
+                             ${act.link ? `onclick="window.open('${act.link}', '_blank')"` : ''}>
+                          <div style="display:flex;align-items:start;gap:12px">
+                            <div style="font-size:20px;line-height:1;flex-shrink:0">${act.icon}</div>
+                            <div style="flex:1;min-width:0">
+                              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                                <div style="font-size:14px;font-weight:600;color:var(--text)">${act.title}</div>
+                                <div style="font-size:11px;color:var(--muted);padding:2px 8px;background:var(--bg);border-radius:4px;font-family:monospace;white-space:nowrap">
+                                  ${act.date}
+                                </div>
+                              </div>
+                              <div style="font-size:13px;color:var(--text);margin-bottom:4px;line-height:1.5">
+                                ${act.description}
+                              </div>
+                              ${act.note ? `
+                                <div style="font-size:12px;color:var(--muted);margin-top:6px;padding:6px 10px;background:var(--bg);border-radius:6px;border-left:3px solid ${iconBg}">
+                                  ${act.note}
+                                </div>
+                              ` : ''}
+                              ${act.link ? `
+                                <div style="margin-top:8px">
+                                  <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--primary);font-weight:500">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M5.25 3.5H2.33333C1.89131 3.5 1.46738 3.67559 1.15482 3.98815C0.842261 4.30071 0.666667 4.72464 0.666667 5.16667V11.6667C0.666667 12.1087 0.842261 12.5326 1.15482 12.8452C1.46738 13.1577 1.89131 13.3333 2.33333 13.3333H8.83333C9.27536 13.3333 9.69929 13.1577 10.0118 12.8452C10.3244 12.5326 10.5 12.1087 10.5 11.6667V8.75M9.33333 1.16667H13.3333M13.3333 1.16667V5.16667M13.3333 1.16667L5.25 9.33333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    Открыть
+                                  </span>
+                                </div>
+                              ` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                    }).join('')}
+                  </div>
+                </div>
+              ` : `
+                <div style="text-align:center;padding:40px;background:var(--bg);border-radius:12px;border:1px dashed var(--border)">
+                  <div style="font-size:32px;margin-bottom:12px">📋</div>
+                  <div style="font-size:14px;color:var(--muted)">История активности пуста</div>
+                  <div style="font-size:12px;color:var(--muted);margin-top:4px">События появятся здесь по мере работы сотрудника в системе</div>
+                </div>
+              `}
             </div>
             
             <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);display:flex;gap:12px">
