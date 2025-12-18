@@ -121,6 +121,17 @@
     const newForm = form.cloneNode(true);
     form.parentNode.replaceChild(newForm, form);
     
+    // Находим кнопку "Отмена" в новой форме и добавляем обработчик
+    const newCancelBtn = newForm.querySelector('#cancelCreateProduct');
+    if (newCancelBtn && modal) {
+      newCancelBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+      });
+    }
+    
     newForm.addEventListener('submit', function(e) {
       e.preventDefault();
       
@@ -176,15 +187,6 @@
         alert('Произошла ошибка при создании товара: ' + error.message);
       });
     });
-    
-    const newCancelBtn = document.getElementById('cancelCreateProduct');
-    if (newCancelBtn && modal) {
-      newCancelBtn.addEventListener('click', function() {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-        document.body.style.overflow = '';
-      });
-    }
   }
   
   // Инициализируем при загрузке
