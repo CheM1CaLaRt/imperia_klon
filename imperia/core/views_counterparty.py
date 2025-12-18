@@ -213,6 +213,12 @@ def counterparty_refresh_finance(request, pk: int):
     obj = get_object_or_404(Counterparty, pk=pk)
     try:
         fin_json, revenue, profit = fetch_finance_by_inn(obj.inn)
+        # Гарантируем, что fin_json всегда будет словарем, а не None
+        if fin_json is None:
+            fin_json = {}
+        elif not isinstance(fin_json, dict):
+            fin_json = {}
+        
         CounterpartyFinance.objects.update_or_create(
             counterparty=obj,
             defaults={"data": fin_json, "revenue_last": revenue, "profit_last": profit},

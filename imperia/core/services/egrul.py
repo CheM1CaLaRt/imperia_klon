@@ -191,6 +191,12 @@ def fetch_finance_by_inn(inn: str):
             data = json.loads(resp.text.replace("'", '"'))
         except Exception as e:
             raise EgrulError(f"Не удалось распарсить JSON финданных: {e}")
+    
+    # Гарантируем, что data всегда будет словарем
+    if data is None:
+        data = {}
+    elif not isinstance(data, dict):
+        data = {}
 
     # ожидаемый формат: {"2011":{"income":...,"outcome":...}, ...}
     revenue_last = profit_last = None
