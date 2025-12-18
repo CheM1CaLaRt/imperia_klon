@@ -12,6 +12,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 
 STATICFILES_DIRS = [BASE_DIR / "static"]  # если этой записи нет
+STATIC_ROOT = BASE_DIR / "staticfiles"  # для collectstatic в production
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
