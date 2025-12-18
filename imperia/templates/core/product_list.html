@@ -393,12 +393,31 @@
     
     // Загрузка формы создания товара
     fetch('/ajax/product-create-inline/')
-      .then(r => r.text())
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
       .then(html => {
         createContent.innerHTML = html;
+        // Инициализируем форму после загрузки
+        setTimeout(() => {
+          if (window.initCreateProductForm) {
+            window.initCreateProductForm();
+          } else {
+            // Если функция еще не загружена, ждем еще
+            setTimeout(() => {
+              if (window.initCreateProductForm) {
+                window.initCreateProductForm();
+              } else {
+                console.error('initCreateProductForm не найдена после загрузки формы');
+              }
+            }, 300);
+          }
+        }, 100);
       })
       .catch(err => {
-        createContent.innerHTML = '<div class="text-center py-8 text-red-500">Ошибка загрузки формы</div>';
+        console.error('Ошибка загрузки формы:', err);
+        createContent.innerHTML = '<div class="text-center py-8 text-red-500 text-sm">Ошибка загрузки формы: ' + err.message + '</div>';
       });
   }
   

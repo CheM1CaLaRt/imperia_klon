@@ -1049,14 +1049,17 @@ def product_create_inline(request):
     vendor_code = (cd.get("vendor_code") or cd.get("barcode") or f"AUTO-{supplier_obj.code}-{int(time.time())}")[:255]
 
     # --- создаём сам продукт ---
+    # Генерируем SKU, если не указан
+    sku_value = (cd.get("sku") or cd.get("vendor_code") or vendor_code or f"AUTO-{supplier_obj.code}-{int(time.time())}")[:100]
+    
     product = Product.objects.create(
         name=(cd.get("name") or "").strip(),
         barcode=(cd.get("barcode") or "").strip() or None,
         brand=(cd.get("brand") or "").strip(),
         description=cd.get("description") or "",
         supplier=supplier_obj,
+        sku=sku_value,
         vendor_code=vendor_code,
-
         manufacturer_country=cd.get("country") or "",
         weight_kg=cd.get("weight_kg"),
         volume_m3=cd.get("volume_m3"),
@@ -1084,6 +1087,14 @@ def product_create_inline(request):
         except (ValueError, TypeError):
             pass  # Игнорируем некорректные значения цены
 
+    # После успешного создания возвращаем JSON для AJAX запроса
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            "success": True,
+            "message": "Товар успешно создан",
+            "product_id": product.id
+        })
+    
     # --- превью справа: показываем ту же 'contracts' цену ---
     ctx = {
         "barcode": product.barcode,

@@ -10,7 +10,7 @@
   <form
     id="createProductForm"
     method="post"
-    action="{% url 'product_create_inline' %}"
+    action="/ajax/product-create-inline/"
     class="space-y-4"
   >
     {% csrf_token %}
@@ -110,21 +110,27 @@
 
 <script>
 (function() {
-  const form = document.getElementById('createProductForm');
-  const cancelBtn = document.getElementById('cancelCreateProduct');
-  const modal = document.getElementById('createProductModal');
-  
-  if (form) {
-    form.addEventListener('submit', function(e) {
+  function initCreateProductForm() {
+    const form = document.getElementById('createProductForm');
+    const cancelBtn = document.getElementById('cancelCreateProduct');
+    const modal = document.getElementById('createProductModal');
+    
+    if (!form) return;
+    
+    // Удаляем старые обработчики, если есть
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    newForm.addEventListener('submit', function(e) {
       e.preventDefault();
       
-      const formData = new FormData(form);
-      const submitBtn = form.querySelector('button[type="submit"]');
+      const formData = new FormData(newForm);
+      const submitBtn = newForm.querySelector('button[type="submit"]');
       const originalText = submitBtn.textContent;
       submitBtn.disabled = true;
       submitBtn.textContent = 'Сохранение...';
       
-      fetch(form.action, {
+      fetch(newForm.action, {
         method: 'POST',
         body: formData,
         headers: {
@@ -140,7 +146,8 @@
         }
       })
       .then(result => {
-        if (result.type === 'json' && result.data.success) {
+        console.log('Результат:', result);
+        if (result.type === 'json' && result.data && result.data.success) {
           // Успешно создан, закрываем модальное окно и перезагружаем страницу
           if (modal) {
             modal.classList.add('hidden');
@@ -150,25 +157,15 @@
           window.location.reload();
         } else {
           // Есть ошибки или HTML форма, показываем обновленную форму
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(result.html, 'text/html');
-          const errorDiv = doc.querySelector('.bg-red-50');
-          
-          if (errorDiv || result.type === 'html') {
-            document.getElementById('createProductContent').innerHTML = result.html;
+          const contentDiv = document.getElementById('createProductContent');
+          if (contentDiv) {
+            contentDiv.innerHTML = result.html || result;
             // Переинициализируем обработчики
-            const newForm = document.getElementById('createProductForm');
-            const newCancelBtn = document.getElementById('cancelCreateProduct');
-            if (newForm) {
-              newForm.addEventListener('submit', arguments.callee);
-            }
-            if (newCancelBtn && modal) {
-              newCancelBtn.addEventListener('click', function() {
-                modal.classList.add('hidden');
-                modal.style.display = 'none';
-                document.body.style.overflow = '';
-              });
-            }
+            setTimeout(initCreateProductForm, 100);
+          } else {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            console.error('Не найден элемент createProductContent');
           }
         }
       })
@@ -176,17 +173,28 @@
         console.error('Ошибка:', error);
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
-        alert('Произошла ошибка при создании товара');
+        alert('Произошла ошибка при создании товара: ' + error.message);
       });
     });
+    
+    const newCancelBtn = document.getElementById('cancelCreateProduct');
+    if (newCancelBtn && modal) {
+      newCancelBtn.addEventListener('click', function() {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+      });
+    }
   }
   
-  if (cancelBtn && modal) {
-    cancelBtn.addEventListener('click', function() {
-      modal.classList.add('hidden');
-      modal.style.display = 'none';
-      document.body.style.overflow = '';
-    });
+  // Инициализируем при загрузке
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCreateProductForm);
+  } else {
+    initCreateProductForm();
   }
+  
+  // Экспортируем функцию для повторной инициализации
+  window.initCreateProductForm = initCreateProductForm;
 })();
 </script>
