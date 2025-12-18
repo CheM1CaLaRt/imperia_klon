@@ -355,20 +355,20 @@
       </div>
     </div>
   </div>
-{% endblock %}
 
-<!-- Модальное окно создания товара -->
-<div id="createProductModal" class="fixed inset-0 z-[10001] hidden" style="display: none; align-items: center; justify-content: center;">
-  <div class="absolute inset-0 bg-black/40"></div>
-  <div class="relative w-full h-full flex items-center justify-center p-4">
-    <div class="w-[min(700px,95vw)] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 relative">
-      <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-gray-900">Создать новый товар</h3>
-        <button id="createModalClose" class="w-8 h-8 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors">✕</button>
-      </div>
-      <div class="p-6">
-        <div id="createProductContent">
-          <div class="text-center py-8 text-gray-500 text-sm">Загрузка формы...</div>
+  <!-- Модальное окно создания товара -->
+  <div id="createProductModal" class="fixed inset-0 z-[10001] hidden" style="display: none; align-items: center; justify-content: center;">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative w-full h-full flex items-center justify-center p-4">
+      <div class="w-[min(700px,95vw)] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 relative">
+        <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-gray-900">Создать новый товар</h3>
+          <button id="createModalClose" class="w-8 h-8 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors">✕</button>
+        </div>
+        <div class="p-6">
+          <div id="createProductContent">
+            <div class="text-center py-8 text-gray-500 text-sm">Загрузка формы...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -379,67 +379,105 @@
 <script>
 // Модальное окно создания товара
 (function() {
-  const createModal = document.getElementById('createProductModal');
-  const createBtn = document.getElementById('createProductBtn');
-  const createModalClose = document.getElementById('createModalClose');
-  const createContent = document.getElementById('createProductContent');
-  
-  if (!createModal || !createBtn) return;
-  
-  function openCreateModal() {
-    createModal.classList.remove('hidden');
-    createModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+  function initCreateModal() {
+    const createModal = document.getElementById('createProductModal');
+    const createBtn = document.getElementById('createProductBtn');
+    const createModalClose = document.getElementById('createModalClose');
+    const createContent = document.getElementById('createProductContent');
     
-    // Загрузка формы создания товара
-    fetch('/ajax/product-create-inline/')
-      .then(r => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      })
-      .then(html => {
-        createContent.innerHTML = html;
-        // Инициализируем форму после загрузки
-        setTimeout(() => {
-          if (window.initCreateProductForm) {
-            window.initCreateProductForm();
-          } else {
-            // Если функция еще не загружена, ждем еще
-            setTimeout(() => {
-              if (window.initCreateProductForm) {
-                window.initCreateProductForm();
-              } else {
-                console.error('initCreateProductForm не найдена после загрузки формы');
-              }
-            }, 300);
-          }
-        }, 100);
-      })
-      .catch(err => {
-        console.error('Ошибка загрузки формы:', err);
-        createContent.innerHTML = '<div class="text-center py-8 text-red-500 text-sm">Ошибка загрузки формы: ' + err.message + '</div>';
-      });
-  }
-  
-  function closeCreateModal() {
-    createModal.classList.add('hidden');
-    createModal.style.display = 'none';
-    document.body.style.overflow = '';
-  }
-  
-  createBtn.addEventListener('click', openCreateModal);
-  if (createModalClose) createModalClose.addEventListener('click', closeCreateModal);
-  if (createModal) {
-    createModal.querySelector('.absolute.inset-0').addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) closeCreateModal();
+    if (!createModal) {
+      console.error('Модальное окно createProductModal не найдено');
+      return;
+    }
+    
+    if (!createBtn) {
+      console.error('Кнопка createProductBtn не найдена');
+      return;
+    }
+    
+    console.log('Инициализация модального окна создания товара');
+    
+    function openCreateModal() {
+      console.log('Открытие модального окна');
+      createModal.classList.remove('hidden');
+      createModal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      
+      // Загрузка формы создания товара
+      createContent.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">Загрузка формы...</div>';
+      
+      fetch('/ajax/product-create-inline/')
+        .then(r => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        })
+        .then(html => {
+          console.log('Форма загружена');
+          createContent.innerHTML = html;
+          // Инициализируем форму после загрузки
+          setTimeout(() => {
+            if (window.initCreateProductForm) {
+              window.initCreateProductForm();
+            } else {
+              // Если функция еще не загружена, ждем еще
+              setTimeout(() => {
+                if (window.initCreateProductForm) {
+                  window.initCreateProductForm();
+                } else {
+                  console.error('initCreateProductForm не найдена после загрузки формы');
+                }
+              }, 300);
+            }
+          }, 100);
+        })
+        .catch(err => {
+          console.error('Ошибка загрузки формы:', err);
+          createContent.innerHTML = '<div class="text-center py-8 text-red-500 text-sm">Ошибка загрузки формы: ' + err.message + '<br><button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800">Обновить страницу</button></div>';
+        });
+    }
+    
+    function closeCreateModal() {
+      console.log('Закрытие модального окна');
+      createModal.classList.add('hidden');
+      createModal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    
+    // Удаляем старые обработчики, если есть
+    const newBtn = createBtn.cloneNode(true);
+    createBtn.parentNode.replaceChild(newBtn, createBtn);
+    
+    newBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      openCreateModal();
+    });
+    
+    if (createModalClose) {
+      createModalClose.addEventListener('click', closeCreateModal);
+    }
+    
+    if (createModal) {
+      const overlay = createModal.querySelector('.absolute.inset-0');
+      if (overlay) {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === e.currentTarget) closeCreateModal();
+        });
+      }
+    }
+    
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !createModal.classList.contains('hidden')) {
+        closeCreateModal();
+      }
     });
   }
   
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !createModal.classList.contains('hidden')) {
-      closeCreateModal();
-    }
-  });
+  // Инициализируем после загрузки DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCreateModal);
+  } else {
+    initCreateModal();
+  }
 })();
 
 // Поиск — автоматический поиск при вводе 3+ символов
