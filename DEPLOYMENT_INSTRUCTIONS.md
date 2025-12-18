@@ -67,6 +67,31 @@ git pull origin main
 
 После этого `collectstatic` будет работать корректно, так как `STATIC_ROOT` теперь установлен в `BASE_DIR / "staticfiles"`.
 
+## Решение проблемы с ALLOWED_HOSTS
+
+Если возникает ошибка `DisallowedHost: Invalid HTTP_HOST header: 'klonmone.ru'`, это уже исправлено в коде. Домен `klonmone.ru` теперь добавлен в `ALLOWED_HOSTS` по умолчанию.
+
+Обновите код на сервере:
+
+```bash
+git pull origin main
+```
+
+Или настройте через переменную окружения в `.env` файле:
+
+```bash
+# В файле .env на сервере
+ALLOWED_HOSTS=klonmone.ru,www.klonmone.ru
+DEBUG=False
+```
+
+После обновления кода перезапустите сервер:
+
+```bash
+sudo systemctl restart gunicorn
+# или другой способ перезапуска вашего сервера
+```
+
 ## Что было исправлено
 
 1. **Проверка существования таблицы категорий** - код проверяет наличие таблицы `core_productcategory` в базе данных перед использованием
