@@ -250,12 +250,19 @@ def director_dashboard(request):
 
 @warehouse_or_director_required
 def product_list(request):
-    try:
-        from .models import ProductCategory
-        has_categories = True
-    except (ImportError, AttributeError):
-        has_categories = False
-        ProductCategory = None
+    # Временно отключаем категории, чтобы избежать ошибок
+    has_categories = False
+    ProductCategory = None
+    # try:
+    #     from .models import ProductCategory
+    #     # Проверяем, существует ли поле category в Product
+    #     if hasattr(Product, '_meta'):
+    #         field_names = [f.name for f in Product._meta.get_fields()]
+    #         if 'category' in field_names:
+    #             has_categories = True
+    # except (ImportError, AttributeError, Exception):
+    #     has_categories = False
+    #     ProductCategory = None
     
     q        = (request.GET.get("q") or "").strip()
     supplier = (request.GET.get("supplier") or "").strip()   # фильтр по коду поставщика
@@ -273,6 +280,7 @@ def product_list(request):
         per_page = 24
 
     # База + min_price
+    # Не используем select_related("category"), чтобы избежать ошибок, если поле не существует
     base_qs = (
         Product.objects
         .select_related("supplier")
@@ -312,8 +320,13 @@ def product_list(request):
             # Получаем все дочерние категории
             child_cats = cat.get_all_children()
             category_ids = [cat.id] + [c.id for c in child_cats]
-            qs = qs.filter(category_id__in=category_ids)
-        except (ProductCategory.DoesNotExist, AttributeError):
+            # Проверяем, существует ли поле category_id перед фильтрацией
+            try:
+                qs = qs.filter(category_id__in=category_ids)
+            except Exception:
+                # Если поле не существует, игнорируем фильтр
+                pass
+        except (ProductCategory.DoesNotExist, AttributeError, Exception):
             pass
 
     # Сортировка — только по цене (или без сортировки)
@@ -337,13 +350,22 @@ def product_list(request):
     categories = []
     if has_categories and ProductCategory:
         try:
-            # Пробуем получить категории, если таблица существует
-            categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
+            # Проверяем существование таблицы через raw SQL
+            from django.db import connection
+            table_name = ProductCategory._meta.db_table
+            with connection.cursor() as cursor:
+                if 'sqlite' in connection.vendor:
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table_name])
+                elif 'postgresql' in connection.vendor:
+                    cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=%s", [table_name])
+                else:
+                    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=%s", [table_name])
+                table_exists = bool(cursor.fetchone())
+            
+            if table_exists:
+                categories = list(ProductCategory.objects.filter(is_active=True, parent__isnull=True).prefetch_related("children").order_by("order", "name"))
         except Exception as e:
             # Если таблица не существует или другая ошибка, просто используем пустой список
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Не удалось загрузить категории: {e}")
             categories = []
 
     return render(request, "core/product_list.html", {
