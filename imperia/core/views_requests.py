@@ -1050,7 +1050,7 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
         products_data_json = "{}"
     
     return render(request, "requests/quote_form.html", {
-        "request": obj,
+        "request_obj": obj,  # Переименовано, чтобы не конфликтовать с request из Django
         "quote": quote,
         "formset": formset,
         "request_items": request_items,
