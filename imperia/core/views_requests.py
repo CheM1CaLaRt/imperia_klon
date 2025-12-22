@@ -981,8 +981,15 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     "note": item.note,
                 })
                 if product_id:
+                    # Убеждаемся, что purchase_price это число или None
+                    price_value = None
+                    if purchase_price:
+                        try:
+                            price_value = float(purchase_price)
+                        except (ValueError, TypeError):
+                            price_value = None
                     products_data[product_id] = {
-                        "purchase_price": float(purchase_price) if purchase_price else None,
+                        "purchase_price": price_value,
                     }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
         else:
@@ -1010,8 +1017,15 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     "note": item.note,
                 })
                 if product_id:
+                    # Убеждаемся, что purchase_price это число или None
+                    price_value = None
+                    if purchase_price:
+                        try:
+                            price_value = float(purchase_price)
+                        except (ValueError, TypeError):
+                            price_value = None
                     products_data[product_id] = {
-                        "purchase_price": float(purchase_price) if purchase_price else None,
+                        "purchase_price": price_value,
                     }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
     
@@ -1027,12 +1041,21 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
         is_operator = request.user.groups.filter(name="operator").exists()
         is_director = request.user.groups.filter(name="director").exists()
     
+    # Сериализуем products_data в JSON для безопасной передачи в JavaScript
+    import json
+    try:
+        products_data_json = json.dumps(products_data)
+    except (TypeError, ValueError):
+        # Если не удалось сериализовать, создаем пустой объект
+        products_data_json = "{}"
+    
     return render(request, "requests/quote_form.html", {
         "request": obj,
         "quote": quote,
         "formset": formset,
         "request_items": request_items,
         "products_data": products_data,  # Данные о товарах для расчета наценки
+        "products_data_json": products_data_json,  # JSON версия для JavaScript
         "is_operator": is_operator,
         "is_director": is_director,
     })

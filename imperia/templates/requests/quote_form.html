@@ -241,21 +241,8 @@ body.modal-open {
     
     const isOperatorOrDirector = {% if is_operator|default:False or is_director|default:False %}true{% else %}false{% endif %};
     
-    // Преобразуем products_data в JavaScript объект
-    const productsDataMap = {};
-    {% if products_data %}
-      {% for pid, data in products_data.items %}
-      try {
-        {% if data.purchase_price %}
-        productsDataMap[{{ pid }}] = { purchase_price: {{ data.purchase_price }} };
-        {% else %}
-        productsDataMap[{{ pid }}] = { purchase_price: null };
-        {% endif %}
-      } catch (e) {
-        console.error('Ошибка при добавлении товара в productsDataMap:', e);
-      }
-      {% endfor %}
-    {% endif %}
+    // Преобразуем products_data в JavaScript объект из JSON
+    const productsDataMap = {% if products_data_json %}{{ products_data_json|safe }}{% else %}{}{% endif %};
   
   // Функция для форматирования чисел
   function formatNumber(num) {
