@@ -318,6 +318,16 @@ class RequestQuoteItemForm(forms.Form):
             "placeholder": "Цена за единицу",
         })
     )
+    markup_percent = forms.DecimalField(
+        required=False,
+        max_digits=8,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            "class": "input",
+            "step": "0.1",
+            "placeholder": "Наценка %",
+        })
+    )
     note = forms.CharField(
         required=False,
         max_length=200,
