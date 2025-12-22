@@ -830,6 +830,7 @@ def request_toggle_payment(request, pk: int):
 
 
 # ---------- Создать/редактировать КП с товарами ----------
+@login_required
 @require_groups("operator", "director")
 def request_quote_create_edit(request, pk: int, quote_id: int = None):
     """Создание или редактирование коммерческого предложения с товарами и ценами"""
@@ -1012,12 +1013,18 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
     
+    # Проверяем права пользователя для передачи в шаблон
+    is_operator = request.user.groups.filter(name="operator").exists()
+    is_director = request.user.groups.filter(name="director").exists()
+    
     return render(request, "requests/quote_form.html", {
         "request": obj,
         "quote": quote,
         "formset": formset,
         "request_items": request_items,
         "products_data": products_data,  # Данные о товарах для расчета наценки
+        "is_operator": is_operator,
+        "is_director": is_director,
     })
 
 

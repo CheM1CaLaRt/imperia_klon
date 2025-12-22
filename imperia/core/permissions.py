@@ -19,10 +19,12 @@ def user_in_groups(user, *groups):
 
 def require_groups(*groups):
     def decorator(view):
+        @wraps(view)
+        @login_required
         def _wrapped(request, *args, **kwargs):
-            # директор всегда допускается
-            if user_in_groups(request.user, *groups, "director"):
-                return view(request, *args, **kwargs)
-            return HttpResponseForbidden("Недостаточно прав")
+            # Проверяем права доступа
+            if not user_in_groups(request.user, *groups, "director"):
+                return HttpResponseForbidden("Недостаточно прав")
+            return view(request, *args, **kwargs)
         return _wrapped
     return decorator

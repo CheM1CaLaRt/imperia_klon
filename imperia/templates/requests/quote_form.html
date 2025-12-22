@@ -54,7 +54,7 @@
               <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); min-width: 250px;">Наименование</th>
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 130px;">Количество</th>
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена за единицу</th>
-              {% if is_operator or is_director %}
+              {% if is_operator|default:False or is_director|default:False %}
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 120px;">Наценка %</th>
               {% endif %}
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Итого</th>
@@ -98,7 +98,7 @@
                   </div>
                   {% if form.price.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.price.errors }}</div>{% endif %}
                 </td>
-                {% if is_operator or is_director %}
+                {% if is_operator|default:False or is_director|default:False %}
                 <td style="padding: 16px 12px; vertical-align: top;">
                   <div style="display: flex; align-items: center; gap: 4px;">
                     {{ form.markup_percent }}
@@ -122,14 +122,14 @@
               </tr>
               {% if form.non_field_errors %}
                 <tr>
-                  <td colspan="{% if is_operator or is_director %}10{% else %}9{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
+                  <td colspan="{% if is_operator|default:False or is_director|default:False %}10{% else %}9{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
                     {{ form.non_field_errors }}
                   </td>
                 </tr>
               {% endif %}
             {% empty %}
               <tr>
-                <td colspan="{% if is_operator or is_director %}10{% else %}9{% endif %}" style="padding: 48px; text-align: center; color: var(--muted);">
+                <td colspan="{% if is_operator|default:False or is_director|default:False %}10{% else %}9{% endif %}" style="padding: 48px; text-align: center; color: var(--muted);">
                   <div style="font-size: 16px; margin-bottom: 8px;">Нет товаров для добавления в КП</div>
                   <button type="button" id="addFirstRowBtn" class="btn btn-primary" style="margin-top: 12px; padding: 10px 20px; border-radius: 8px;">
                     + Добавить строку
@@ -140,10 +140,10 @@
           </tbody>
           <tfoot>
             <tr style="border-top: 2px solid var(--border); background: var(--bg);">
-              <td colspan="{% if is_operator or is_director %}6{% else %}5{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 18px; font-weight: 600; color: var(--text);">
+              <td colspan="{% if is_operator|default:False or is_director|default:False %}6{% else %}5{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 18px; font-weight: 600; color: var(--text);">
                 Итого:
               </td>
-              <td colspan="{% if is_operator or is_director %}4{% else %}4{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 24px; font-weight: 700; color: var(--primary);">
+              <td colspan="{% if is_operator|default:False or is_director|default:False %}4{% else %}4{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 24px; font-weight: 700; color: var(--primary);">
                 <span id="grandTotal">0.00</span> <span style="font-size: 18px; font-weight: 600;">₽</span>
               </td>
             </tr>
@@ -238,7 +238,7 @@ body.modal-open {
   let autocompleteList = null;
   let articleSearchTimeout = null;
   
-  const isOperatorOrDirector = {% if is_operator or is_director %}true{% else %}false{% endif %};
+  const isOperatorOrDirector = {% if is_operator|default:False or is_director|default:False %}true{% else %}false{% endif %};
   
   // Преобразуем products_data в JavaScript объект
   const productsDataMap = {};
@@ -641,7 +641,7 @@ body.modal-open {
             <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none;">₽</span>
           </div>
         </td>
-        {% if is_operator or is_director %}
+        {% if is_operator|default:False or is_director|default:False %}
         <td style="padding: 16px 12px; vertical-align: top;">
           <div style="display: flex; align-items: center; gap: 4px;">
             <input type="number" name="quote_items-${rowIndex}-markup_percent" class="input" step="0.1" placeholder="Наценка %">
