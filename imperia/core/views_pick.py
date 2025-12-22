@@ -44,6 +44,10 @@ def stock_lookup(request):
     location = inv.bin.code if inv and inv.bin else ""
     unit = "шт"
 
+    # Получаем цену закупки для расчета наценки
+    from .views import _price_for
+    purchase_price = _price_for(product, ["contracts", "contract"])
+    
     return JsonResponse({
         "ok": True,
         "id": product.id,
@@ -51,7 +55,8 @@ def stock_lookup(request):
         "barcode": product.barcode or "",
         "sku": product.sku or "",
         "location": location,
-        "unit": unit
+        "unit": unit,
+        "purchase_price": float(purchase_price) if purchase_price else None,  # Цена закупки для расчета наценки
     })
 
 
@@ -125,6 +130,10 @@ def stock_lookup_by_sku(request):
         # Fallback: используем то, что есть
         article_value = product.sku or product.vendor_code or ""
     
+    # Получаем цену закупки для расчета наценки
+    from .views import _price_for
+    purchase_price = _price_for(product, ["contracts", "contract"])
+    
     return JsonResponse({
         "ok": True,
         "id": product.id,
@@ -133,6 +142,7 @@ def stock_lookup_by_sku(request):
         "sku": article_value,  # Возвращаем артикул, по которому нашли товар
         "location": location,
         "unit": unit,
+        "purchase_price": float(purchase_price) if purchase_price else None,  # Цена закупки для расчета наценки
     })
 
 

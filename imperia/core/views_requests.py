@@ -875,34 +875,57 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
             for form in formset:
                 if form.cleaned_data and not form.cleaned_data.get("DELETE"):
                     request_item_id = form.cleaned_data.get("request_item_id")
+                    product_id = form.cleaned_data.get("product_id")
+                    
+                    # Получаем и валидируем данные
+                    title = form.cleaned_data.get("title", "").strip()
+                    if not title:
+                        continue  # Пропускаем строки без названия
+                    
+                    quantity = form.cleaned_data.get("quantity")
+                    if quantity is None or quantity <= 0:
+                        quantity = Decimal("1")
+                    
+                    price = form.cleaned_data.get("price")
+                    if price is None:
+                        price = Decimal("0")
+                    
+                    # Получаем товар, если указан product_id
+                    product = None
+                    if product_id:
+                        try:
+                            from .models import Product
+                            product = Product.objects.get(id=product_id)
+                        except Product.DoesNotExist:
+                            pass
+                    
+                    # Получаем request_item, если указан request_item_id
+                    request_item = None
                     if request_item_id:
                         try:
                             request_item = RequestItem.objects.get(id=request_item_id, request=obj)
-                            # Получаем и валидируем данные
-                            title = form.cleaned_data.get("title") or request_item.title or ""
-                            quantity = form.cleaned_data.get("quantity")
-                            if quantity is None:
-                                quantity = request_item.quantity or Decimal("1")
-                            price = form.cleaned_data.get("price")
-                            if price is None:
-                                price = Decimal("0")
-                            
-                            # Создаем позицию КП (total будет автоматически рассчитан в save())
-                            RequestQuoteItem.objects.create(
-                                quote=quote,
-                                request_item=request_item,
-                                product=request_item.product,
-                                title=title,
-                                quantity=quantity,
-                                price=price,
-                                note=form.cleaned_data.get("note", ""),
-                            )
-                        except (RequestItem.DoesNotExist, ValueError, InvalidOperation) as e:
-                            # Логируем ошибку, но продолжаем обработку остальных позиций
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.error(f"Ошибка при создании позиции КП: {e}")
+                            # Если товар не указан, берем из request_item
+                            if not product and request_item.product:
+                                product = request_item.product
+                            # Если название не указано, берем из request_item
+                            if not title and request_item.title:
+                                title = request_item.title
+                            # Если количество не указано, берем из request_item
+                            if quantity == Decimal("1") and request_item.quantity:
+                                quantity = request_item.quantity
+                        except RequestItem.DoesNotExist:
                             pass
+                    
+                    # Создаем позицию КП (total будет автоматически рассчитан в save())
+                    RequestQuoteItem.objects.create(
+                        quote=quote,
+                        request_item=request_item,
+                        product=product,
+                        title=title,
+                        quantity=quantity,
+                        price=price,
+                        note=form.cleaned_data.get("note", "").strip(),
+                    )
             
             # Обновляем статус заявки
             action = request.POST.get("action")
@@ -937,12 +960,18 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
             for item in quote.items.select_related("request_item", "product").all():
                 product_id = item.product_id if item.product else None
                 purchase_price = None
-                if product_id:
+                barcode = ""
+                article = ""
+                if item.product:
                     purchase_price = _price_for(item.product, ["contracts", "contract"])
+                    barcode = item.product.barcode or ""
+                    article = item.product.sku or item.product.vendor_code or ""
                 
                 initial_data.append({
                     "request_item_id": item.request_item_id,
                     "product_id": product_id,
+                    "barcode": barcode,
+                    "article": article,
                     "title": item.title,
                     "quantity": item.quantity,
                     "price": item.price,
@@ -960,12 +989,18 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
             for item in request_items.select_related("product").all():
                 product_id = item.product_id if item.product else None
                 purchase_price = None
-                if product_id:
+                barcode = ""
+                article = ""
+                if item.product:
                     purchase_price = _price_for(item.product, ["contracts", "contract"])
+                    barcode = item.product.barcode or ""
+                    article = item.product.sku or item.product.vendor_code or ""
                 
                 initial_data.append({
                     "request_item_id": item.id,
                     "product_id": product_id,
+                    "barcode": barcode,
+                    "article": article,
                     "title": item.title,
                     "quantity": item.quantity,
                     "price": Decimal("0"),

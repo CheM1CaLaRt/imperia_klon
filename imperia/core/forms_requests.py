@@ -268,8 +268,27 @@ class RequestQuoteForm(forms.ModelForm):
 
 class RequestQuoteItemForm(forms.Form):
     """Форма для позиции в коммерческом предложении"""
-    request_item_id = forms.IntegerField(widget=forms.HiddenInput())
+    request_item_id = forms.IntegerField(widget=forms.HiddenInput(), required=False)
     product_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    barcode = forms.CharField(
+        required=False,
+        label="Штрихкод",
+        widget=forms.TextInput(attrs={
+            "class": "input quote-barcode",
+            "placeholder": "Штрихкод",
+            "autocomplete": "off",
+            "inputmode": "numeric",
+        })
+    )
+    article = forms.CharField(
+        required=False,
+        label="Артикул",
+        widget=forms.TextInput(attrs={
+            "class": "input quote-article",
+            "placeholder": "Артикул",
+            "autocomplete": "off",
+        })
+    )
     title = forms.CharField(
         max_length=255,
         widget=forms.TextInput(attrs={

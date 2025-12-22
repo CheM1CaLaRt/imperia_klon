@@ -34,8 +34,11 @@
     <div class="card" style="padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
         <h2 style="margin: 0; font-size: 22px; font-weight: 600; color: var(--text);">Товары и цены</h2>
-        <button type="button" id="addProductBtn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
-          + Добавить товар
+        <button type="button" id="createProductBtn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+          + Создать товар
+        </button>
+        <button type="button" id="addRowBtn" class="btn" style="padding: 8px 16px; font-size: 14px; background: var(--bg); border: 1px solid var(--border); margin-left: 8px;">
+          + Добавить строку
         </button>
       </div>
       
@@ -44,7 +47,9 @@
           <thead>
             <tr style="border-bottom: 2px solid var(--border); background: var(--bg);">
               <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 50px;">№</th>
-              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); min-width: 300px;">Наименование</th>
+              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 120px;">Штрихкод</th>
+              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 120px;">Артикул</th>
+              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); min-width: 250px;">Наименование</th>
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 130px;">Количество</th>
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена за единицу</th>
               {% if is_operator or is_director %}
@@ -60,9 +65,17 @@
               <tr class="quote-item-row" data-row-index="{{ forloop.counter0 }}" style="border-bottom: 1px solid var(--border);">
                 <td style="padding: 16px 12px; font-size: 14px; color: var(--muted); vertical-align: top; padding-top: 20px;">{{ forloop.counter }}</td>
                 <td style="padding: 16px 12px; vertical-align: top;">
+                  {{ form.request_item_id }}
+                  {{ form.product_id }}
+                  {{ form.barcode }}
+                  {% if form.barcode.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.barcode.errors }}</div>{% endif %}
+                </td>
+                <td style="padding: 16px 12px; vertical-align: top;">
+                  {{ form.article }}
+                  {% if form.article.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.article.errors }}</div>{% endif %}
+                </td>
+                <td style="padding: 16px 12px; vertical-align: top;">
                   <div style="position: relative;">
-                    {{ form.request_item_id }}
-                    {{ form.product_id }}
                     <div class="product-search-wrapper" style="position: relative;">
                       {{ form.title }}
                       <div class="product-autocomplete" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 300px; overflow-y: auto; margin-top: 4px;"></div>
@@ -104,17 +117,17 @@
               </tr>
               {% if form.non_field_errors %}
                 <tr>
-                  <td colspan="{% if is_operator or is_director %}8{% else %}7{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
+                  <td colspan="{% if is_operator or is_director %}10{% else %}9{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
                     {{ form.non_field_errors }}
                   </td>
                 </tr>
               {% endif %}
             {% empty %}
               <tr>
-                <td colspan="{% if is_operator or is_director %}8{% else %}7{% endif %}" style="padding: 48px; text-align: center; color: var(--muted);">
+                <td colspan="{% if is_operator or is_director %}10{% else %}9{% endif %}" style="padding: 48px; text-align: center; color: var(--muted);">
                   <div style="font-size: 16px; margin-bottom: 8px;">Нет товаров для добавления в КП</div>
-                  <button type="button" id="addFirstProductBtn" class="btn btn-primary" style="margin-top: 12px;">
-                    + Добавить первый товар
+                  <button type="button" id="addFirstRowBtn" class="btn btn-primary" style="margin-top: 12px;">
+                    + Добавить строку
                   </button>
                 </td>
               </tr>
@@ -122,7 +135,7 @@
           </tbody>
           <tfoot>
             <tr style="border-top: 2px solid var(--border); background: var(--bg);">
-              <td colspan="{% if is_operator or is_director %}4{% else %}3{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 18px; font-weight: 600; color: var(--text);">
+              <td colspan="{% if is_operator or is_director %}6{% else %}5{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 18px; font-weight: 600; color: var(--text);">
                 Итого:
               </td>
               <td colspan="{% if is_operator or is_director %}4{% else %}4{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 24px; font-weight: 700; color: var(--primary);">
@@ -396,29 +409,36 @@
     
     // Выбор товара из автодополнения
     function selectProduct(row, product) {
-    const titleInput = row.querySelector('input[name*="-title"]');
-    const productIdInput = row.querySelector('input[name*="-product_id"]');
-    const priceInput = row.querySelector('input[name*="-price"]');
-    const quantityInput = row.querySelector('input[name*="-quantity"]');
-    const markupSpan = row.querySelector('.markup-percent');
-    const createBtn = row.querySelector('.btn-create-product');
-    
-    if (titleInput) titleInput.value = product.name || '';
-    if (productIdInput) productIdInput.value = product.id || '';
-    
-    // Устанавливаем цену закупки для расчета наценки
-    if (markupSpan) {
-      const productId = product.id;
-      const purchasePrice = productsDataMap[productId]?.purchase_price || product.purchase_price || '';
-      markupSpan.setAttribute('data-purchase-price', purchasePrice);
-      calculateMarkup(row);
-    }
-    
-    // Показываем кнопку создания, если товар не найден
-    if (createBtn) {
-      createBtn.style.display = product.id ? 'none' : 'block';
-    }
-    
+      const set = (sel, v) => {
+        const el = row.querySelector(sel);
+        if (el) el.value = v || '';
+      };
+      
+      set('input[name*="-title"]', product.name || '');
+      set('input[name*="-barcode"]', product.barcode || '');
+      // Артикул может быть в sku (для samson) или в vendor_code (для relef)
+      if (product.sku) set('input[name*="-article"]', product.sku);
+      set('input[name*="-product_id"]', product.id || '');
+      
+      const quantityInput = row.querySelector('input[name*="-quantity"]');
+      if (quantityInput && !quantityInput.value) quantityInput.value = 1;
+      
+      // Устанавливаем цену закупки для расчета наценки
+      const markupSpan = row.querySelector('.markup-percent');
+      if (markupSpan && product.id) {
+        const productId = product.id;
+        const purchasePrice = productsDataMap[productId]?.purchase_price || product.purchase_price || '';
+        markupSpan.setAttribute('data-purchase-price', purchasePrice);
+        calculateMarkup(row);
+      }
+      
+      // Показываем кнопку создания, если товар не найден
+      const createBtn = row.querySelector('.btn-create-product');
+      if (createBtn) {
+        createBtn.style.display = product.id ? 'none' : 'block';
+      }
+      
+      row.removeAttribute('data-notfound');
       hideAutocomplete();
       calculateTotal(row);
       calculateGrandTotal();
@@ -570,13 +590,81 @@
       
       console.log('Найдено строк:', existingRows.length);
       
+      // Если нет строк, создаем первую пустую строку
       if (existingRows.length === 0) {
-        // Если нет строк, открываем модальное окно для создания товара
-        openCreateProductModal('', null);
+        // Создаем базовую структуру строки
+        const tbody = document.getElementById('quoteItemsBody');
+        const templateRow = document.createElement('tr');
+        templateRow.className = 'quote-item-row';
+        templateRow.setAttribute('data-row-index', '0');
+        templateRow.innerHTML = `
+          <td style="padding: 16px 12px; font-size: 14px; color: var(--muted); vertical-align: top; padding-top: 20px;">1</td>
+          <td style="padding: 16px 12px; vertical-align: top;">
+            <input type="hidden" name="quote_items-0-request_item_id" value="">
+            <input type="hidden" name="quote_items-0-product_id" value="">
+            <input type="text" name="quote_items-0-barcode" class="input quote-barcode" placeholder="Штрихкод" autocomplete="off" inputmode="numeric">
+          </td>
+          <td style="padding: 16px 12px; vertical-align: top;">
+            <input type="text" name="quote_items-0-article" class="input quote-article" placeholder="Артикул" autocomplete="off">
+          </td>
+          <td style="padding: 16px 12px; vertical-align: top;">
+            <div style="position: relative;">
+              <div class="product-search-wrapper" style="position: relative;">
+                <input type="text" name="quote_items-0-title" class="input quote-product-name" placeholder="Наименование товара" autocomplete="off">
+                <div class="product-autocomplete" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 300px; overflow-y: auto; margin-top: 4px;"></div>
+                <button type="button" class="btn-create-product" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--primary); cursor: pointer; font-size: 12px; padding: 4px 8px; display: none;" title="Создать новый товар">+ Новый</button>
+              </div>
+            </div>
+          </td>
+          <td style="padding: 16px 12px; vertical-align: top;">
+            <input type="number" name="quote_items-0-quantity" class="input" step="0.001" min="0" placeholder="Количество">
+          </td>
+          <td style="padding: 16px 12px; vertical-align: top;">
+            <div style="position: relative;">
+              <input type="number" name="quote_items-0-price" class="input" step="0.01" min="0" placeholder="Цена за единицу" required>
+              <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none;">₽</span>
+            </div>
+          </td>
+          {% if is_operator or is_director %}
+          <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
+            <span class="markup-percent" data-purchase-price="">—</span>
+          </td>
+          {% endif %}
+          <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
+            <span class="item-total" style="font-size: 16px; font-weight: 600; color: var(--text);">0.00</span> <span style="color: var(--muted);">₽</span>
+          </td>
+          <td style="padding: 16px 12px; vertical-align: top;">
+            <input type="text" name="quote_items-0-note" class="input" placeholder="Примечание">
+          </td>
+          <td style="padding: 16px 12px; text-align: center; vertical-align: top; padding-top: 20px;">
+            <button type="button" class="btn-remove-row" style="background: transparent; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 4px 8px; opacity: 0.6; transition: opacity 0.2s;" title="Удалить строку">×</button>
+          </td>
+        `;
+        tbody.appendChild(templateRow);
+        
+        // Обновляем TOTAL_FORMS
+        if (totalFormsInput) {
+          totalFormsInput.value = '1';
+        }
+        
+        // Инициализируем обработчики для новой строки
+        initRowHandlers(templateRow);
+        
+        // Обновляем rows
+        const form = document.getElementById('quoteForm');
+        if (form) {
+          rows = form.querySelectorAll('.quote-item-row');
+        }
+        
+        // Фокусируемся на поле штрихкода
+        const barcodeInput = templateRow.querySelector('input[name*="-barcode"]');
+        if (barcodeInput) {
+          setTimeout(() => barcodeInput.focus(), 100);
+        }
         return;
       }
     
-    // Клонируем последнюю строку
+      // Клонируем последнюю строку
     const lastRow = existingRows[existingRows.length - 1];
     const newRow = lastRow.cloneNode(true);
     
@@ -669,6 +757,8 @@
     row.dataset.handlersInitialized = 'true';
     
     const titleInput = row.querySelector('input[name*="-title"]');
+    const barcodeInput = row.querySelector('input[name*="-barcode"]');
+    const articleInput = row.querySelector('input[name*="-article"]');
     const quantityInput = row.querySelector('input[name*="-quantity"]');
     const priceInput = row.querySelector('input[name*="-price"]');
     const removeBtn = row.querySelector('.btn-remove-row');
@@ -694,6 +784,75 @@
       
       titleInput.addEventListener('blur', function() {
         setTimeout(hideAutocomplete, 200);
+      });
+    }
+    
+    // Поиск по штрихкоду
+    if (barcodeInput) {
+      let barcodeTimeout = null;
+      barcodeInput.addEventListener('input', async function() {
+        const bc = this.value.trim();
+        row.removeAttribute('data-notfound');
+        
+        if (barcodeTimeout) {
+          clearTimeout(barcodeTimeout);
+        }
+        
+        if (bc.length < 6) return;
+        
+        barcodeTimeout = setTimeout(async () => {
+          try {
+            const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
+            if (!resp.ok) {
+              row.setAttribute('data-notfound', '1');
+              return;
+            }
+            const data = await resp.json();
+            if (!data.ok) {
+              row.setAttribute('data-notfound', '1');
+              return;
+            }
+            
+            selectProduct(row, data);
+          } catch (_) {
+            row.setAttribute('data-notfound', '1');
+          }
+        }, 500);
+      });
+    }
+    
+    // Поиск по артикулу
+    if (articleInput) {
+      let articleTimeout = null;
+      articleInput.addEventListener('input', async function() {
+        const article = this.value.trim();
+        row.removeAttribute('data-notfound');
+        
+        if (articleTimeout) {
+          clearTimeout(articleTimeout);
+        }
+        
+        if (article.length < 2) return;
+        
+        articleTimeout = setTimeout(async () => {
+          try {
+            const resp = await fetch(`{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`);
+            if (!resp.ok) {
+              row.setAttribute('data-notfound', '1');
+              return;
+            }
+            const data = await resp.json();
+            if (!data.ok) {
+              row.setAttribute('data-notfound', '1');
+              return;
+            }
+            
+            selectProduct(row, data);
+          } catch (err) {
+            console.error('Ошибка поиска по артикулу:', err);
+            row.setAttribute('data-notfound', '1');
+          }
+        }, 500);
       });
     }
     
@@ -764,18 +923,24 @@
     }
   }
   
-    // Кнопка добавления товара
-    const addProductBtn = document.getElementById('addProductBtn') || document.getElementById('addFirstProductBtn');
-    if (addProductBtn) {
-      console.log('Кнопка добавления товара найдена');
-      addProductBtn.addEventListener('click', function(e) {
+    // Кнопка создания товара (открывает модальное окно)
+    const createProductBtn = document.getElementById('createProductBtn');
+    if (createProductBtn) {
+      createProductBtn.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Кнопка нажата, вызываем addNewRow');
+        openCreateProductModal('', null);
+      });
+    }
+    
+    // Кнопка добавления строки
+    const addRowBtn = document.getElementById('addRowBtn') || document.getElementById('addFirstRowBtn');
+    if (addRowBtn) {
+      addRowBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         addNewRow();
       });
-    } else {
-      console.error('Кнопка добавления товара не найдена!');
     }
   
     // Обработка успешного создания товара - перехватываем ответ от формы создания
