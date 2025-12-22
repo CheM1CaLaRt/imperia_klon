@@ -185,6 +185,10 @@ def stock_lookup_by_name(request):
         # Определяем артикул: для relef в vendor_code, для других в sku
         article_value = product.sku or product.vendor_code or ""
         
+        # Получаем цену закупки для расчета наценки
+        from .views import _price_for
+        purchase_price = _price_for(product, ["contracts", "contract"])
+        
         result.append({
             "id": product.id,
             "name": product.name,
@@ -194,6 +198,7 @@ def stock_lookup_by_name(request):
             "unit": "шт",
             "qty_on_hand": qty_on_hand,
             "has_stock": qty_on_hand > 0,  # Флаг наличия на складе
+            "purchase_price": float(purchase_price) if purchase_price else None,  # Цена закупки для расчета наценки
         })
 
     return JsonResponse({"ok": True, "products": result})

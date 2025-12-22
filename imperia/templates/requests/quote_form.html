@@ -5,123 +5,174 @@
 
 {% block content %}
 <div class="wrap">
-  <header style="margin-bottom: 24px;">
+  <header style="margin-bottom: 32px;">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
       <div>
-        <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text);">
+        <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: var(--text);">
           {% if quote %}Редактирование коммерческого предложения{% else %}Создание коммерческого предложения{% endif %}
         </h1>
-        <div style="margin-top: 8px; display: flex; align-items: center; gap: 16px; font-size: 14px; color: var(--muted);">
-          <span>Заявка <strong>#{{ request.number }}</strong></span>
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 20px; font-size: 14px; color: var(--muted);">
+          <span>Заявка <strong style="color: var(--text);">#{{ request.number }}</strong></span>
+          <span style="padding: 0 8px;">•</span>
           <span>{{ request.title }}</span>
           {% if request.counterparty %}
-            <span>Контрагент: <strong>{{ request.counterparty.name }}</strong></span>
+            <span style="padding: 0 8px;">•</span>
+            <span>Контрагент: <strong style="color: var(--text);">{{ request.counterparty.name }}</strong></span>
           {% endif %}
         </div>
       </div>
-      <a href="{% url 'core:request_detail' request.pk %}" class="btn" style="background: var(--bg); border: 1px solid var(--border);">
+      <a href="{% url 'core:request_detail' request.pk %}" class="btn" style="background: var(--bg); border: 1px solid var(--border); padding: 10px 20px;">
         ← Назад к заявке
       </a>
     </div>
   </header>
 
-  <form method="post" id="quoteForm" style="max-width: 1200px;">
+  <form method="post" id="quoteForm" style="max-width: 1400px;">
     {% csrf_token %}
     {{ formset.management_form }}
 
-    <div class="card" style="padding: 24px; margin-bottom: 24px;">
-      <h2 style="margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">Товары и цены</h2>
+    <div class="card" style="padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 22px; font-weight: 600; color: var(--text);">Товары и цены</h2>
+        <button type="button" id="addProductBtn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+          + Добавить товар
+        </button>
+      </div>
       
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr style="border-bottom: 2px solid var(--border);">
-            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);">№</th>
-            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted);">Наименование</th>
-            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 120px;">Количество</th>
-            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена за единицу</th>
-            <th style="padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Итого</th>
-            <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 200px;">Примечание</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for form in formset %}
-            <tr class="quote-item-row" style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 16px 12px; font-size: 14px; color: var(--muted);">{{ forloop.counter }}</td>
-              <td style="padding: 16px 12px;">
-                {{ form.request_item_id }}
-                {{ form.product_id }}
-                {{ form.title }}
-                {% if form.title.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.title.errors }}</div>{% endif %}
-              </td>
-              <td style="padding: 16px 12px;">
-                {{ form.quantity }}
-                {% if form.quantity.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.quantity.errors }}</div>{% endif %}
-              </td>
-              <td style="padding: 16px 12px;">
-                <div style="position: relative;">
-                  {{ form.price }}
-                  <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px;">₽</span>
-                </div>
-                {% if form.price.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.price.errors }}</div>{% endif %}
-              </td>
-              <td style="padding: 16px 12px; text-align: right; font-size: 16px; font-weight: 600;">
-                <span class="item-total">0.00</span> ₽
-              </td>
-              <td style="padding: 16px 12px;">
-                {{ form.note }}
-                {% if form.note.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.note.errors }}</div>{% endif %}
-              </td>
+      <div style="overflow-x: auto;">
+        <table id="quoteTable" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border); background: var(--bg);">
+              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 50px;">№</th>
+              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); min-width: 300px;">Наименование</th>
+              <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 130px;">Количество</th>
+              <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена за единицу</th>
+              {% if is_operator or is_director %}
+              <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 120px;">Наценка</th>
+              {% endif %}
+              <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Итого</th>
+              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 200px;">Примечание</th>
+              <th style="padding: 14px 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); width: 60px;"></th>
             </tr>
-            {% if form.non_field_errors %}
-              <tr>
-                <td colspan="6" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
-                  {{ form.non_field_errors }}
+          </thead>
+          <tbody id="quoteItemsBody">
+            {% for form in formset %}
+              <tr class="quote-item-row" data-row-index="{{ forloop.counter0 }}" style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 16px 12px; font-size: 14px; color: var(--muted); vertical-align: top; padding-top: 20px;">{{ forloop.counter }}</td>
+                <td style="padding: 16px 12px; vertical-align: top;">
+                  <div style="position: relative;">
+                    {{ form.request_item_id }}
+                    {{ form.product_id }}
+                    <div class="product-search-wrapper" style="position: relative;">
+                      {{ form.title }}
+                      <div class="product-autocomplete" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 300px; overflow-y: auto; margin-top: 4px;"></div>
+                      <button type="button" class="btn-create-product" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--primary); cursor: pointer; font-size: 12px; padding: 4px 8px; display: none;" title="Создать новый товар">
+                        + Новый
+                      </button>
+                    </div>
+                    {% if form.title.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.title.errors }}</div>{% endif %}
+                  </div>
+                </td>
+                <td style="padding: 16px 12px; vertical-align: top;">
+                  {{ form.quantity }}
+                  {% if form.quantity.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.quantity.errors }}</div>{% endif %}
+                </td>
+                <td style="padding: 16px 12px; vertical-align: top;">
+                  <div style="position: relative;">
+                    {{ form.price }}
+                    <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none;">₽</span>
+                  </div>
+                  {% if form.price.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.price.errors }}</div>{% endif %}
+                </td>
+                {% if is_operator or is_director %}
+                <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
+                  <span class="markup-percent" data-purchase-price="">—</span>
+                </td>
+                {% endif %}
+                <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
+                  <span class="item-total" style="font-size: 16px; font-weight: 600; color: var(--text);">0.00</span> <span style="color: var(--muted);">₽</span>
+                </td>
+                <td style="padding: 16px 12px; vertical-align: top;">
+                  {{ form.note }}
+                  {% if form.note.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.note.errors }}</div>{% endif %}
+                </td>
+                <td style="padding: 16px 12px; text-align: center; vertical-align: top; padding-top: 20px;">
+                  <button type="button" class="btn-remove-row" style="background: transparent; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 4px 8px; opacity: 0.6; transition: opacity 0.2s;" title="Удалить строку">
+                    ×
+                  </button>
                 </td>
               </tr>
-            {% endif %}
-          {% empty %}
-            <tr>
-              <td colspan="6" style="padding: 32px; text-align: center; color: var(--muted);">
-                Нет товаров для добавления в КП
+              {% if form.non_field_errors %}
+                <tr>
+                  <td colspan="{% if is_operator or is_director %}8{% else %}7{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
+                    {{ form.non_field_errors }}
+                  </td>
+                </tr>
+              {% endif %}
+            {% empty %}
+              <tr>
+                <td colspan="{% if is_operator or is_director %}8{% else %}7{% endif %}" style="padding: 48px; text-align: center; color: var(--muted);">
+                  <div style="font-size: 16px; margin-bottom: 8px;">Нет товаров для добавления в КП</div>
+                  <button type="button" id="addFirstProductBtn" class="btn btn-primary" style="margin-top: 12px;">
+                    + Добавить первый товар
+                  </button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="border-top: 2px solid var(--border); background: var(--bg);">
+              <td colspan="{% if is_operator or is_director %}4{% else %}3{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 18px; font-weight: 600; color: var(--text);">
+                Итого:
+              </td>
+              <td colspan="{% if is_operator or is_director %}4{% else %}4{% endif %}" style="padding: 24px 12px; text-align: right; font-size: 24px; font-weight: 700; color: var(--primary);">
+                <span id="grandTotal">0.00</span> <span style="font-size: 18px; font-weight: 600;">₽</span>
               </td>
             </tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr style="border-top: 2px solid var(--border); background: var(--bg);">
-            <td colspan="4" style="padding: 20px 12px; text-align: right; font-size: 16px; font-weight: 600;">
-              Итого:
-            </td>
-            <td colspan="2" style="padding: 20px 12px; text-align: right; font-size: 20px; font-weight: 700; color: var(--primary);">
-              <span id="grandTotal">0.00</span> ₽
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+          </tfoot>
+        </table>
+      </div>
     </div>
 
     {% if formset.non_form_errors %}
-      <div class="card" style="padding: 16px; margin-bottom: 24px; background: #fef2f2; border: 1px solid #fecaca;">
+      <div class="card" style="padding: 16px; margin-bottom: 24px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
         <div style="color: #991b1b; font-size: 14px;">
           {{ formset.non_form_errors }}
         </div>
       </div>
     {% endif %}
 
-    <div class="card" style="padding: 20px; display: flex; gap: 12px; justify-content: flex-end;">
-      <button type="submit" name="action" value="save" class="btn" style="background: var(--bg); border: 1px solid var(--border);">
+    <div class="card" style="padding: 24px; display: flex; gap: 12px; justify-content: flex-end; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+      <button type="submit" name="action" value="save" class="btn" style="background: var(--bg); border: 1px solid var(--border); padding: 12px 24px; font-size: 15px;">
         Сохранить как черновик
       </button>
-      <button type="submit" name="action" value="submit_for_approval" class="btn btn-primary">
+      <button type="submit" name="action" value="submit_for_approval" class="btn btn-primary" style="padding: 12px 24px; font-size: 15px;">
         Отправить на согласование
       </button>
     </div>
   </form>
 </div>
 
+<!-- Модальное окно для создания нового товара -->
+<div id="createProductModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+  <div style="background: white; border-radius: 12px; padding: 32px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+      <h3 style="margin: 0; font-size: 20px; font-weight: 600;">Создать новый товар</h3>
+      <button type="button" id="closeCreateProductModal" style="background: transparent; border: none; font-size: 24px; cursor: pointer; color: var(--muted); padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">×</button>
+    </div>
+    <div id="createProductContent">
+      <div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>
+    </div>
+  </div>
+</div>
+
 <style>
   .quote-item-row:hover {
     background: var(--bg);
+  }
+
+  .quote-item-row:hover .btn-remove-row {
+    opacity: 1 !important;
   }
 
   .quote-item-row input[type="number"],
@@ -132,25 +183,76 @@
     border-radius: 8px;
     font-size: 14px;
     transition: border-color 0.15s, box-shadow 0.15s;
+    background: white;
   }
 
   .quote-item-row input[type="number"]:focus,
   .quote-item-row input[type="text"]:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 4px var(--ring);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
 
-  .quote-item-row input[readonly] {
+  .quote-item-row input[type="number"]:disabled,
+  .quote-item-row input[type="text"]:disabled {
     background: var(--bg);
     cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .product-autocomplete {
+    font-size: 14px;
+  }
+
+  .product-autocomplete-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.15s;
+  }
+
+  .product-autocomplete-item:hover {
+    background-color: #f5f5f5;
+  }
+
+  .product-autocomplete-item:last-child {
+    border-bottom: none;
+  }
+
+  .product-autocomplete-item-name {
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .product-autocomplete-item-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .markup-percent {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .markup-percent.positive {
+    color: #10b981;
+  }
+
+  .markup-percent.negative {
+    color: #ef4444;
   }
 
   table {
     font-size: 14px;
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 1024px) {
+    .wrap {
+      padding: 16px;
+    }
+    
     table {
       font-size: 12px;
     }
@@ -160,7 +262,7 @@
     }
     
     .card {
-      padding: 16px !important;
+      padding: 20px !important;
     }
   }
 </style>
@@ -168,8 +270,41 @@
 <script>
 (function() {
   const form = document.getElementById('quoteForm');
-  const rows = form.querySelectorAll('.quote-item-row');
+  const rows = form ? form.querySelectorAll('.quote-item-row') : [];
+  let autocompleteTimeout = null;
+  let currentAutocompleteRow = null;
+  const productsData = {{ products_data|safe|default:"{}" }};
+  const isOperatorOrDirector = {% if is_operator or is_director %}true{% else %}false{% endif %};
   
+  // Преобразуем products_data в JavaScript объект
+  const productsDataMap = {};
+  {% if products_data %}
+    {% for pid, data in products_data.items %}
+    productsDataMap[{{ pid }}] = { purchase_price: {% if data.purchase_price %}{{ data.purchase_price }}{% else %}null{% endif %} };
+    {% endfor %}
+  {% endif %}
+  
+  // Инициализация цен закупки для существующих товаров
+  document.addEventListener('DOMContentLoaded', function() {
+    rows.forEach(row => {
+      const productIdInput = row.querySelector('input[name*="-product_id"]');
+      const markupSpan = row.querySelector('.markup-percent');
+      if (productIdInput && markupSpan && productIdInput.value) {
+        const productId = parseInt(productIdInput.value);
+        if (productsDataMap[productId]) {
+          markupSpan.setAttribute('data-purchase-price', productsDataMap[productId].purchase_price || '');
+          calculateMarkup(row);
+        }
+      }
+    });
+  });
+  
+  // Функция для форматирования чисел
+  function formatNumber(num) {
+    return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+  
+  // Расчет итога по строке
   function calculateTotal(row) {
     const quantityInput = row.querySelector('input[name*="-quantity"]');
     const priceInput = row.querySelector('input[name*="-price"]');
@@ -179,11 +314,37 @@
     
     const quantity = parseFloat(quantityInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
-    const total = (quantity * price).toFixed(2);
+    const total = quantity * price;
     
-    totalSpan.textContent = total.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    totalSpan.textContent = formatNumber(total);
+    
+    // Расчет наценки
+    if (isOperatorOrDirector) {
+      calculateMarkup(row);
+    }
   }
   
+  // Расчет наценки
+  function calculateMarkup(row) {
+    const priceInput = row.querySelector('input[name*="-price"]');
+    const markupSpan = row.querySelector('.markup-percent');
+    const purchasePrice = parseFloat(markupSpan?.getAttribute('data-purchase-price') || 0);
+    
+    if (!markupSpan || !priceInput) return;
+    
+    const price = parseFloat(priceInput.value) || 0;
+    
+    if (purchasePrice > 0 && price > 0) {
+      const markup = ((price - purchasePrice) / purchasePrice) * 100;
+      markupSpan.textContent = markup.toFixed(1) + '%';
+      markupSpan.className = 'markup-percent ' + (markup >= 0 ? 'positive' : 'negative');
+    } else {
+      markupSpan.textContent = '—';
+      markupSpan.className = 'markup-percent';
+    }
+  }
+  
+  // Расчет общего итога
   function calculateGrandTotal() {
     let grandTotal = 0;
     rows.forEach(row => {
@@ -199,15 +360,156 @@
     
     const grandTotalSpan = document.getElementById('grandTotal');
     if (grandTotalSpan) {
-      grandTotalSpan.textContent = grandTotal.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      grandTotalSpan.textContent = formatNumber(grandTotal);
     }
   }
   
-  // Обработчики для расчета
-  rows.forEach(row => {
+  // Создание списка автодополнения
+  function createAutocompleteList(row) {
+    let list = row.querySelector('.product-autocomplete');
+    if (!list) {
+      const wrapper = row.querySelector('.product-search-wrapper');
+      if (wrapper) {
+        list = document.createElement('div');
+        list.className = 'product-autocomplete';
+        wrapper.appendChild(list);
+      }
+    }
+    return list;
+  }
+  
+  // Скрытие автодополнения
+  function hideAutocomplete() {
+    document.querySelectorAll('.product-autocomplete').forEach(el => {
+      el.style.display = 'none';
+      el.innerHTML = '';
+    });
+    currentAutocompleteRow = null;
+  }
+  
+  // Выбор товара из автодополнения
+  function selectProduct(row, product) {
+    const titleInput = row.querySelector('input[name*="-title"]');
+    const productIdInput = row.querySelector('input[name*="-product_id"]');
+    const priceInput = row.querySelector('input[name*="-price"]');
+    const quantityInput = row.querySelector('input[name*="-quantity"]');
+    const markupSpan = row.querySelector('.markup-percent');
+    const createBtn = row.querySelector('.btn-create-product');
+    
+    if (titleInput) titleInput.value = product.name || '';
+    if (productIdInput) productIdInput.value = product.id || '';
+    
+    // Устанавливаем цену закупки для расчета наценки
+    if (markupSpan) {
+      const productId = product.id;
+      const purchasePrice = productsDataMap[productId]?.purchase_price || product.purchase_price || '';
+      markupSpan.setAttribute('data-purchase-price', purchasePrice);
+      calculateMarkup(row);
+    }
+    
+    // Показываем кнопку создания, если товар не найден
+    if (createBtn) {
+      createBtn.style.display = product.id ? 'none' : 'block';
+    }
+    
+    hideAutocomplete();
+    calculateTotal(row);
+    calculateGrandTotal();
+  }
+  
+  // Поиск товаров по названию
+  async function searchProducts(query, row) {
+    if (query.length < 3) {
+      hideAutocomplete();
+      return;
+    }
+    
+    try {
+      const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        hideAutocomplete();
+        return;
+      }
+      
+      const data = await resp.json();
+      if (!data.ok || !data.products || data.products.length === 0) {
+        // Показываем кнопку создания нового товара
+        const createBtn = row.querySelector('.btn-create-product');
+        if (createBtn) createBtn.style.display = 'block';
+        hideAutocomplete();
+        return;
+      }
+    
+      currentAutocompleteRow = row;
+      const list = createAutocompleteList(row);
+      if (!list) return;
+      
+      list.innerHTML = '';
+      data.products.forEach(product => {
+        const item = document.createElement('div');
+        item.className = 'product-autocomplete-item';
+        item.innerHTML = `
+          <div class="product-autocomplete-item-name">${product.name || ''}</div>
+          <div class="product-autocomplete-item-meta">
+            ${product.sku ? 'Артикул: ' + product.sku : ''} 
+            ${product.barcode ? ' • ШК: ' + product.barcode : ''}
+            ${product.has_stock ? ' • В наличии' : ' • Нет на складе'}
+          </div>
+        `;
+        item.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectProduct(row, product);
+        };
+        list.appendChild(item);
+      });
+      
+      list.style.display = 'block';
+      
+      // Если только один результат - автоматически выбираем его
+      if (data.products.length === 1) {
+        selectProduct(row, data.products[0]);
+      }
+    } catch (err) {
+      console.error('Ошибка при поиске:', err);
+      hideAutocomplete();
+    }
+  }
+  
+  // Обработчики событий для строк
+  rows.forEach((row, index) => {
+    const titleInput = row.querySelector('input[name*="-title"]');
     const quantityInput = row.querySelector('input[name*="-quantity"]');
     const priceInput = row.querySelector('input[name*="-price"]');
+    const removeBtn = row.querySelector('.btn-remove-row');
+    const createBtn = row.querySelector('.btn-create-product');
     
+    // Поиск по названию
+    if (titleInput) {
+      titleInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (autocompleteTimeout) {
+          clearTimeout(autocompleteTimeout);
+        }
+        
+        if (currentAutocompleteRow && currentAutocompleteRow !== row) {
+          hideAutocomplete();
+        }
+        
+        autocompleteTimeout = setTimeout(() => {
+          searchProducts(query, row);
+        }, 300);
+      });
+      
+      titleInput.addEventListener('blur', function() {
+        // Закрываем автодополнение с задержкой, чтобы клик по элементу успел сработать
+        setTimeout(hideAutocomplete, 200);
+      });
+    }
+    
+    // Расчет при изменении количества или цены
     if (quantityInput) {
       quantityInput.addEventListener('input', () => {
         calculateTotal(row);
@@ -221,12 +523,124 @@
         calculateGrandTotal();
       });
     }
+    
+    // Удаление строки
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function() {
+        if (confirm('Удалить эту позицию?')) {
+          row.remove();
+          calculateGrandTotal();
+        }
+      });
+    }
+    
+    // Создание нового товара
+    if (createBtn) {
+      createBtn.addEventListener('click', function() {
+        const titleValue = titleInput?.value.trim() || '';
+        openCreateProductModal(titleValue, row);
+      });
+    }
+    
+    // Инициализация наценки
+    if (isOperatorOrDirector) {
+      calculateMarkup(row);
+    }
   });
   
   // Первоначальный расчет
   rows.forEach(row => calculateTotal(row));
   calculateGrandTotal();
+  
+  // Модальное окно создания товара
+  function openCreateProductModal(productName, row) {
+    const modal = document.getElementById('createProductModal');
+    const content = document.getElementById('createProductContent');
+    
+    if (!modal || !content) return;
+    
+    content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    // Загружаем форму создания товара
+    fetch('/ajax/product-create-inline/', {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.text())
+    .then(html => {
+      content.innerHTML = html;
+      // Устанавливаем название товара, если оно было введено
+      const nameInput = content.querySelector('input[name="name"]');
+      if (nameInput && productName) {
+        nameInput.value = productName;
+      }
+      // Инициализируем форму
+      if (window.initCreateProductForm) {
+        window.initCreateProductForm();
+      }
+    })
+    .catch(error => {
+      console.error('Ошибка загрузки формы:', error);
+      content.innerHTML = '<div style="color: #ef4444; padding: 20px;">Ошибка загрузки формы создания товара</div>';
+    });
+  }
+  
+  // Закрытие модального окна
+  function closeCreateProductModal() {
+    const modal = document.getElementById('createProductModal');
+    if (modal) {
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+  }
+  
+  window.closeCreateProductModal = closeCreateProductModal;
+  
+  // Обработчики закрытия модального окна
+  const closeBtn = document.getElementById('closeCreateProductModal');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeCreateProductModal);
+  }
+  
+  const modal = document.getElementById('createProductModal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeCreateProductModal();
+      }
+    });
+  }
+  
+  // Кнопка добавления товара
+  const addProductBtn = document.getElementById('addProductBtn') || document.getElementById('addFirstProductBtn');
+  if (addProductBtn) {
+    addProductBtn.addEventListener('click', function() {
+      openCreateProductModal('', null);
+    });
+  }
+  
+  // Обработка успешного создания товара - перехватываем ответ от формы создания
+  document.addEventListener('DOMContentLoaded', function() {
+    // Переопределяем обработчик успешного создания товара из product_create_inline.html
+    const originalInit = window.initCreateProductForm;
+    if (originalInit) {
+      window.initCreateProductForm = function() {
+        originalInit();
+        const form = document.getElementById('createProductForm');
+        if (form) {
+          form.addEventListener('submit', function(e) {
+            // Обработка уже есть в product_create_inline.html, но мы можем добавить дополнительную логику
+            // После успешного создания товара страница перезагрузится, и новый товар будет доступен
+          });
+        }
+      };
+    }
+  });
 })();
 </script>
-{% endblock %}
 
+{% endblock %}

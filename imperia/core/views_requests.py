@@ -927,31 +927,54 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
             messages.error(request, "Проверьте корректность заполнения цен")
     else:
         # GET запрос - показываем форму
+        from .views import _price_for
+        from .models import ProductPrice
+        
         if quote:
             # Загружаем существующие позиции
             initial_data = []
+            products_data = {}  # Для хранения информации о товарах (цена закупки)
             for item in quote.items.select_related("request_item", "product").all():
+                product_id = item.product_id if item.product else None
+                purchase_price = None
+                if product_id:
+                    purchase_price = _price_for(item.product, ["contracts", "contract"])
+                
                 initial_data.append({
                     "request_item_id": item.request_item_id,
-                    "product_id": item.product_id,
+                    "product_id": product_id,
                     "title": item.title,
                     "quantity": item.quantity,
                     "price": item.price,
                     "note": item.note,
                 })
+                if product_id:
+                    products_data[product_id] = {
+                        "purchase_price": float(purchase_price) if purchase_price else None,
+                    }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
         else:
             # Создаем пустой формсет
             initial_data = []
+            products_data = {}
             for item in request_items.select_related("product").all():
+                product_id = item.product_id if item.product else None
+                purchase_price = None
+                if product_id:
+                    purchase_price = _price_for(item.product, ["contracts", "contract"])
+                
                 initial_data.append({
                     "request_item_id": item.id,
-                    "product_id": item.product_id if item.product else None,
+                    "product_id": product_id,
                     "title": item.title,
                     "quantity": item.quantity,
                     "price": Decimal("0"),
                     "note": item.note,
                 })
+                if product_id:
+                    products_data[product_id] = {
+                        "purchase_price": float(purchase_price) if purchase_price else None,
+                    }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
     
     return render(request, "requests/quote_form.html", {
@@ -959,6 +982,7 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
         "quote": quote,
         "formset": formset,
         "request_items": request_items,
+        "products_data": products_data,  # Данные о товарах для расчета наценки
     })
 
 

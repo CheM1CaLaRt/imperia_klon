@@ -273,10 +273,9 @@ class RequestQuoteItemForm(forms.Form):
     title = forms.CharField(
         max_length=255,
         widget=forms.TextInput(attrs={
-            "class": "input",
-            "placeholder": "Наименование",
-            "readonly": True,
-            "style": "background-color: #f5f5f5;",
+            "class": "input quote-product-name",
+            "placeholder": "Наименование товара",
+            "autocomplete": "off",
         })
     )
     quantity = forms.DecimalField(
