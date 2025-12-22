@@ -59,7 +59,6 @@
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Цена с наценкой</th>
               {% endif %}
               <th style="padding: 14px 12px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); width: 150px;">Итого</th>
-              <th style="padding: 14px 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); width: 200px;">Примечание</th>
               <th style="padding: 14px 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); width: 60px;"></th>
             </tr>
           </thead>
@@ -114,10 +113,6 @@
                 <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
                   <span class="item-total" style="font-size: 16px; font-weight: 600; color: var(--text);">0.00</span> <span style="color: var(--muted);">₽</span>
                 </td>
-                <td style="padding: 16px 12px; vertical-align: top;">
-                  {{ form.note }}
-                  {% if form.note.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.note.errors }}</div>{% endif %}
-                </td>
                 <td style="padding: 16px 12px; text-align: center; vertical-align: top; padding-top: 20px;">
                   <button type="button" class="btn-remove-row" data-remove style="background: transparent; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 4px 8px; opacity: 0.6; transition: opacity 0.2s; border-radius: 4px;" title="Удалить строку" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
                     ×
@@ -126,7 +121,7 @@
               </tr>
               {% if form.non_field_errors %}
                 <tr>
-                  <td colspan="{% if is_operator|default:False or is_director|default:False %}11{% else %}9{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
+                  <td colspan="{% if is_operator|default:False or is_director|default:False %}10{% else %}8{% endif %}" style="padding: 8px 12px; color: #ef4444; font-size: 13px;">
                     {{ form.non_field_errors }}
                   </td>
                 </tr>
@@ -272,7 +267,6 @@ body.modal-open {
       
       if (!priceInput || !priceWithMarkupSpan) return;
       
-      const currentPrice = parseFloat(priceInput.value) || 0;
       const productId = productIdInput ? parseInt(productIdInput.value) : null;
       const purchasePrice = productId && productsDataMap[productId] ? productsDataMap[productId].purchase_price : null;
       
@@ -280,12 +274,9 @@ body.modal-open {
         const markup = parseFloat(markupInput.value) || 0;
         const priceWithMarkup = purchasePrice * (1 + markup / 100);
         priceWithMarkupSpan.textContent = formatNumber(priceWithMarkup);
-        // Обновляем цену в поле, если наценка указана
-        if (markup !== 0) {
-          priceInput.value = priceWithMarkup.toFixed(2);
-        }
       } else {
-        // Если нет purchase_price, показываем текущую цену
+        // Если нет purchase_price, показываем цену за единицу
+        const currentPrice = parseFloat(priceInput.value) || 0;
         priceWithMarkupSpan.textContent = formatNumber(currentPrice);
       }
     }
@@ -295,13 +286,31 @@ body.modal-open {
       const quantityInput = row.querySelector('input[name*="-quantity"]');
       const priceInput = row.querySelector('input[name*="-price"]');
       const totalSpan = row.querySelector('.item-total');
+      const priceWithMarkupSpan = row.querySelector('.price-with-markup');
       
       if (!quantityInput || !priceInput || !totalSpan) return;
       
       const quantity = parseFloat(quantityInput.value) || 0;
-      const price = parseFloat(priceInput.value) || 0;
-      const total = quantity * price;
+      const productIdInput = row.querySelector('input[name*="-product_id"]');
+      const productId = productIdInput ? parseInt(productIdInput.value) : null;
+      const purchasePrice = productId && productsDataMap[productId] ? productsDataMap[productId].purchase_price : null;
       
+      let priceToUse = parseFloat(priceInput.value) || 0;
+      
+      // Если есть наценка и purchase_price, используем цену с наценкой для расчета итога
+      if (isOperatorOrDirector && purchasePrice && purchasePrice > 0 && priceWithMarkupSpan) {
+        const markupInput = row.querySelector('input[name*="-markup_percent"]');
+        if (markupInput) {
+          const markup = parseFloat(markupInput.value) || 0;
+          if (markup !== 0) {
+            priceToUse = purchasePrice * (1 + markup / 100);
+          } else {
+            priceToUse = purchasePrice;
+          }
+        }
+      }
+      
+      const total = quantity * priceToUse;
       totalSpan.textContent = formatNumber(total);
       
       updatePriceWithMarkup(row);
@@ -313,10 +322,9 @@ body.modal-open {
       if (!isOperatorOrDirector) return;
       
       const markupInput = row.querySelector('input[name*="-markup_percent"]');
-      const priceInput = row.querySelector('input[name*="-price"]');
       const productIdInput = row.querySelector('input[name*="-product_id"]');
       
-      if (!markupInput || !priceInput || !productIdInput) return;
+      if (!markupInput || !productIdInput) return;
       
       const productId = parseInt(productIdInput.value);
       if (!productId) return;
@@ -329,38 +337,9 @@ body.modal-open {
         return;
       }
       
-      const markup = parseFloat(markupInput.value) || 0;
-      
-      // Рассчитываем цену: цена = закупочная_цена * (1 + наценка / 100)
-      const newPrice = purchasePrice * (1 + markup / 100);
-      priceInput.value = newPrice.toFixed(2);
+      // Наценка меняет только цену с наценкой и итог, но не меняет цену за единицу
       updatePriceWithMarkup(row);
       calculateTotal(row);
-    }
-    
-    // Расчет наценки на основе цены (обратный расчет)
-    function calculateMarkupFromPrice(row) {
-      if (!isOperatorOrDirector) return;
-      
-      const priceInput = row.querySelector('input[name*="-price"]');
-      const markupInput = row.querySelector('input[name*="-markup_percent"]');
-      const productIdInput = row.querySelector('input[name*="-product_id"]');
-      
-      if (!priceInput || !markupInput || !productIdInput) return;
-      
-      const productId = parseInt(productIdInput.value);
-      if (!productId) return;
-      
-      const purchasePrice = productsDataMap[productId]?.purchase_price;
-      if (!purchasePrice || purchasePrice <= 0) return;
-      
-      const currentPrice = parseFloat(priceInput.value) || 0;
-      if (currentPrice <= 0) return;
-      
-      // Рассчитываем наценку: наценка = ((цена - закупочная_цена) / закупочная_цена) * 100
-      const markup = ((currentPrice - purchasePrice) / purchasePrice) * 100;
-      markupInput.value = markup.toFixed(1);
-      updatePriceWithMarkup(row);
     }
     
     // Расчет общего итога
@@ -371,11 +350,30 @@ body.modal-open {
       rows.forEach(row => {
         const quantityInput = row.querySelector('input[name*="-quantity"]');
         const priceInput = row.querySelector('input[name*="-price"]');
+        const productIdInput = row.querySelector('input[name*="-product_id"]');
+        const priceWithMarkupSpan = row.querySelector('.price-with-markup');
         
         if (quantityInput && priceInput) {
           const quantity = parseFloat(quantityInput.value) || 0;
-          const price = parseFloat(priceInput.value) || 0;
-          grandTotal += quantity * price;
+          const productId = productIdInput ? parseInt(productIdInput.value) : null;
+          const purchasePrice = productId && productsDataMap[productId] ? productsDataMap[productId].purchase_price : null;
+          
+          let priceToUse = parseFloat(priceInput.value) || 0;
+          
+          // Если есть наценка и purchase_price, используем цену с наценкой для расчета итога
+          if (isOperatorOrDirector && purchasePrice && purchasePrice > 0 && priceWithMarkupSpan) {
+            const markupInput = row.querySelector('input[name*="-markup_percent"]');
+            if (markupInput) {
+              const markup = parseFloat(markupInput.value) || 0;
+              if (markup !== 0) {
+                priceToUse = purchasePrice * (1 + markup / 100);
+              } else {
+                priceToUse = purchasePrice;
+              }
+            }
+          }
+          
+          grandTotal += quantity * priceToUse;
         }
       });
       
@@ -445,11 +443,11 @@ body.modal-open {
         };
       }
       
-      // Если есть purchase_price, проставляем цену автоматически
+      // Если есть purchase_price, проставляем цену закупки как константу
       const priceInput = row.querySelector('[name$="-price"]');
       const purchasePrice = product.purchase_price ? parseFloat(product.purchase_price) : null;
       if (priceInput && purchasePrice && purchasePrice > 0) {
-        // Проставляем цену закупки как начальную цену
+        // Проставляем цену закупки как константу (не меняется при изменении наценки)
         priceInput.value = purchasePrice.toFixed(2);
       }
       
@@ -571,7 +569,7 @@ body.modal-open {
               };
             }
             
-            // Если есть purchase_price, проставляем цену автоматически
+            // Если есть purchase_price, проставляем цену закупки как константу
             const priceInput = row.querySelector('[name$="-price"]');
             if (priceInput && data.purchase_price && parseFloat(data.purchase_price) > 0) {
               priceInput.value = parseFloat(data.purchase_price).toFixed(2);
@@ -629,7 +627,7 @@ body.modal-open {
                 };
               }
               
-              // Если есть purchase_price, проставляем цену автоматически
+              // Если есть purchase_price, проставляем цену закупки как константу
               const priceInput = row.querySelector('[name$="-price"]');
               if (priceInput && data.purchase_price && parseFloat(data.purchase_price) > 0) {
                 priceInput.value = parseFloat(data.purchase_price).toFixed(2);
@@ -650,10 +648,6 @@ body.modal-open {
     
         // Расчет при изменении количества или цены
         if (el.name && (el.name.endsWith('-quantity') || el.name.endsWith('-price'))) {
-          if (isOperatorOrDirector && el.name.endsWith('-price')) {
-            // При изменении цены пересчитываем наценку
-            calculateMarkupFromPrice(row);
-          }
           calculateTotal(row);
         }
         
@@ -773,9 +767,6 @@ body.modal-open {
         {% endif %}
         <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
           <span class="item-total" style="font-size: 16px; font-weight: 600; color: var(--text);">0.00</span> <span style="color: var(--muted);">₽</span>
-        </td>
-        <td style="padding: 16px 12px; vertical-align: top;">
-          <input type="text" name="quote_items-${rowIndex}-note" class="input" placeholder="Примечание">
         </td>
         <td style="padding: 16px 12px; text-align: center; vertical-align: top; padding-top: 20px;">
           <button type="button" class="btn-remove-row" data-remove style="background: transparent; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 4px 8px; opacity: 0.6; transition: opacity 0.2s; border-radius: 4px;" title="Удалить строку" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">×</button>
