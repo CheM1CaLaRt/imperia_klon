@@ -24,7 +24,20 @@ def require_groups(*groups):
         def _wrapped(request, *args, **kwargs):
             # Проверяем права доступа
             if not user_in_groups(request.user, *groups, "director"):
-                return HttpResponseForbidden("Недостаточно прав")
+                from django.contrib import messages
+                from django.shortcuts import redirect
+                messages.error(request, "У вас нет прав для доступа к этой странице")
+                # Редиректим на страницу заявки или главную
+                if hasattr(request, 'resolver_match') and request.resolver_match:
+                    # Пытаемся получить pk из kwargs для редиректа на заявку
+                    pk = kwargs.get('pk')
+                    if pk:
+                        from django.urls import reverse
+                        try:
+                            return redirect(reverse('core:request_detail', kwargs={'pk': pk}))
+                        except:
+                            pass
+                return redirect('post_login_router')
             return view(request, *args, **kwargs)
         return _wrapped
     return decorator

@@ -830,7 +830,6 @@ def request_toggle_payment(request, pk: int):
 
 
 # ---------- Создать/редактировать КП с товарами ----------
-@login_required
 @require_groups("operator", "director")
 def request_quote_create_edit(request, pk: int, quote_id: int = None):
     """Создание или редактирование коммерческого предложения с товарами и ценами"""
