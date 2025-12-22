@@ -1015,11 +1015,6 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                         "purchase_price": float(purchase_price) if purchase_price else None,
                     }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
-        else:
-            # Если quote_id был передан, но quote не найден, создаем пустой формсет
-            formset = RequestQuoteItemFormSet(prefix="quote_items", initial=[])
-            if 'products_data' not in locals():
-                products_data = {}
     
     # Убеждаемся, что products_data всегда определена
     if 'products_data' not in locals():
