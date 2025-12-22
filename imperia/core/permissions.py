@@ -18,17 +18,15 @@ def user_in_groups(user, *groups):
     return user.is_superuser or user.groups.filter(name__in=groups).exists()
 
 def require_groups(*groups):
+    """
+    Декоратор для проверки принадлежности пользователя к указанным группам.
+    Использует стандартный @login_required для правильной обработки сессии.
+    """
     def decorator(view):
         @wraps(view)
+        @login_required
         def _wrapped(request, *args, **kwargs):
-            # Сначала проверяем аутентификацию
-            if not request.user.is_authenticated:
-                from django.contrib.auth.views import redirect_to_login
-                from django.conf import settings
-                login_url = getattr(settings, 'LOGIN_URL', '/login/')
-                return redirect_to_login(request.get_full_path(), login_url)
-            
-            # Затем проверяем права доступа
+            # Проверяем права доступа (пользователь уже аутентифицирован благодаря @login_required)
             if not user_in_groups(request.user, *groups, "director"):
                 from django.contrib import messages
                 from django.shortcuts import redirect

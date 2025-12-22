@@ -1020,8 +1020,12 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
         products_data = {}
     
     # Проверяем права пользователя для передачи в шаблон
-    is_operator = request.user.groups.filter(name="operator").exists()
-    is_director = request.user.groups.filter(name="director").exists()
+    # Безопасная проверка - убеждаемся, что пользователь аутентифицирован
+    is_operator = False
+    is_director = False
+    if request.user.is_authenticated:
+        is_operator = request.user.groups.filter(name="operator").exists()
+        is_director = request.user.groups.filter(name="director").exists()
     
     return render(request, "requests/quote_form.html", {
         "request": obj,
