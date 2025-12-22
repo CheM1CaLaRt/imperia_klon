@@ -283,7 +283,16 @@
 <script>
 (function() {
   // Ждем загрузки DOM
+  let initialized = false;
   function init() {
+    if (initialized) {
+      console.log('Инициализация уже выполнена, пропускаем');
+      return;
+    }
+    initialized = true;
+    
+    console.log('Инициализация формы КП...');
+    
     const form = document.getElementById('quoteForm');
     if (!form) {
       console.error('Форма quoteForm не найдена');
@@ -514,11 +523,15 @@
     calculateGrandTotal();
     
     // Модальное окно создания товара
-    function openCreateProductModal(productName, row) {
+    window.openCreateProductModal = function(productName, row) {
+      console.log('openCreateProductModal вызвана');
       const modal = document.getElementById('createProductModal');
-    const content = document.getElementById('createProductContent');
-    
-    if (!modal || !content) return;
+      const content = document.getElementById('createProductContent');
+      
+      if (!modal || !content) {
+        console.error('Модальное окно не найдено');
+        return;
+      }
     
       content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>';
       modal.style.display = 'flex';
@@ -577,7 +590,7 @@
     }
     
     // Функция для добавления новой строки в формсет
-    function addNewRow() {
+    window.addNewRow = function() {
       console.log('addNewRow вызвана');
       const tbody = document.getElementById('quoteItemsBody');
       if (!tbody) {
@@ -913,7 +926,11 @@
     if (createBtn) {
       createBtn.addEventListener('click', function() {
         const titleValue = titleInput?.value.trim() || '';
-        openCreateProductModal(titleValue, row);
+        if (window.openCreateProductModal) {
+          window.openCreateProductModal(titleValue, row);
+        } else {
+          console.error('Функция openCreateProductModal не найдена');
+        }
       });
     }
     
@@ -923,24 +940,60 @@
     }
   }
   
-    // Кнопка создания товара (открывает модальное окно)
+    // Инициализируем обработчики кнопок ПОСЛЕ определения всех функций
+    console.log('Проверка функций:', {
+      openCreateProductModal: typeof window.openCreateProductModal,
+      addNewRow: typeof window.addNewRow
+    });
+    
     const createProductBtn = document.getElementById('createProductBtn');
     if (createProductBtn) {
-      createProductBtn.addEventListener('click', function(e) {
+      console.log('Кнопка создания товара найдена');
+      // Используем onclick для надежности
+      createProductBtn.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
-        openCreateProductModal('', null);
-      });
+        console.log('Кнопка создания товара нажата');
+        if (window.openCreateProductModal) {
+          window.openCreateProductModal('', null);
+        } else {
+          console.error('Функция openCreateProductModal не найдена');
+        }
+      };
+    } else {
+      console.warn('Кнопка создания товара не найдена!');
     }
     
-    // Кнопка добавления строки
-    const addRowBtn = document.getElementById('addRowBtn') || document.getElementById('addFirstRowBtn');
+    const addRowBtn = document.getElementById('addRowBtn');
+    const addFirstRowBtn = document.getElementById('addFirstRowBtn');
     if (addRowBtn) {
-      addRowBtn.addEventListener('click', function(e) {
+      console.log('Кнопка добавления строки найдена');
+      addRowBtn.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
-        addNewRow();
-      });
+        console.log('Кнопка добавления строки нажата');
+        if (window.addNewRow) {
+          window.addNewRow();
+        } else {
+          console.error('Функция addNewRow не найдена');
+        }
+      };
+    }
+    if (addFirstRowBtn) {
+      console.log('Кнопка добавления первой строки найдена');
+      addFirstRowBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Кнопка добавления первой строки нажата');
+        if (window.addNewRow) {
+          window.addNewRow();
+        } else {
+          console.error('Функция addNewRow не найдена');
+        }
+      };
+    }
+    if (!addRowBtn && !addFirstRowBtn) {
+      console.warn('Кнопка добавления строки не найдена!');
     }
   
     // Обработка успешного создания товара - перехватываем ответ от формы создания
