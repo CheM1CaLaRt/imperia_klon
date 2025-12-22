@@ -246,7 +246,11 @@ body.modal-open {
     {% if products_data %}
       {% for pid, data in products_data.items %}
       try {
-        productsDataMap[{{ pid }}] = { purchase_price: {% if data.purchase_price %}{{ data.purchase_price|floatformat:2 }}{% else %}null{% endif %} };
+        {% if data.purchase_price %}
+        productsDataMap[{{ pid }}] = { purchase_price: {{ data.purchase_price }} };
+        {% else %}
+        productsDataMap[{{ pid }}] = { purchase_price: null };
+        {% endif %}
       } catch (e) {
         console.error('Ошибка при добавлении товара в productsDataMap:', e);
       }
