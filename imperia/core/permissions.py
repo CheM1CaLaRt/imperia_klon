@@ -20,23 +20,27 @@ def user_in_groups(user, *groups):
 def require_groups(*groups):
     def decorator(view):
         @wraps(view)
-        @login_required
         def _wrapped(request, *args, **kwargs):
-            # Проверяем права доступа
+            # Сначала проверяем аутентификацию
+            if not request.user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
+                from django.conf import settings
+                login_url = getattr(settings, 'LOGIN_URL', '/login/')
+                return redirect_to_login(request.get_full_path(), login_url)
+            
+            # Затем проверяем права доступа
             if not user_in_groups(request.user, *groups, "director"):
                 from django.contrib import messages
                 from django.shortcuts import redirect
                 messages.error(request, "У вас нет прав для доступа к этой странице")
                 # Редиректим на страницу заявки или главную
-                if hasattr(request, 'resolver_match') and request.resolver_match:
-                    # Пытаемся получить pk из kwargs для редиректа на заявку
-                    pk = kwargs.get('pk')
-                    if pk:
-                        from django.urls import reverse
-                        try:
-                            return redirect(reverse('core:request_detail', kwargs={'pk': pk}))
-                        except:
-                            pass
+                pk = kwargs.get('pk')
+                if pk:
+                    from django.urls import reverse
+                    try:
+                        return redirect(reverse('core:request_detail', kwargs={'pk': pk}))
+                    except Exception:
+                        pass
                 return redirect('post_login_router')
             return view(request, *args, **kwargs)
         return _wrapped
