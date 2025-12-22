@@ -269,12 +269,19 @@
 
 <script>
 (function() {
-  const form = document.getElementById('quoteForm');
-  const rows = form ? form.querySelectorAll('.quote-item-row') : [];
-  let autocompleteTimeout = null;
-  let currentAutocompleteRow = null;
-  const productsData = {{ products_data|safe|default:"{}" }};
-  const isOperatorOrDirector = {% if is_operator or is_director %}true{% else %}false{% endif %};
+  // Ждем загрузки DOM
+  function init() {
+    const form = document.getElementById('quoteForm');
+    if (!form) {
+      console.error('Форма quoteForm не найдена');
+      return;
+    }
+    
+    let rows = form.querySelectorAll('.quote-item-row');
+    let autocompleteTimeout = null;
+    let currentAutocompleteRow = null;
+    const productsData = {{ products_data|safe|default:"{}" }};
+    const isOperatorOrDirector = {% if is_operator or is_director %}true{% else %}false{% endif %};
   
   // Преобразуем products_data в JavaScript объект
   const productsDataMap = {};
@@ -299,13 +306,13 @@
     });
   });
   
-  // Функция для форматирования чисел
-  function formatNumber(num) {
-    return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  }
-  
-  // Расчет итога по строке
-  function calculateTotal(row) {
+    // Функция для форматирования чисел
+    function formatNumber(num) {
+      return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+    
+    // Расчет итога по строке
+    function calculateTotal(row) {
     const quantityInput = row.querySelector('input[name*="-quantity"]');
     const priceInput = row.querySelector('input[name*="-price"]');
     const totalSpan = row.querySelector('.item-total');
@@ -316,79 +323,79 @@
     const price = parseFloat(priceInput.value) || 0;
     const total = quantity * price;
     
-    totalSpan.textContent = formatNumber(total);
+      totalSpan.textContent = formatNumber(total);
+      
+      // Расчет наценки
+      if (isOperatorOrDirector) {
+        calculateMarkup(row);
+      }
+    }
     
     // Расчет наценки
-    if (isOperatorOrDirector) {
-      calculateMarkup(row);
-    }
-  }
-  
-  // Расчет наценки
-  function calculateMarkup(row) {
+    function calculateMarkup(row) {
     const priceInput = row.querySelector('input[name*="-price"]');
     const markupSpan = row.querySelector('.markup-percent');
     const purchasePrice = parseFloat(markupSpan?.getAttribute('data-purchase-price') || 0);
     
     if (!markupSpan || !priceInput) return;
     
-    const price = parseFloat(priceInput.value) || 0;
-    
-    if (purchasePrice > 0 && price > 0) {
-      const markup = ((price - purchasePrice) / purchasePrice) * 100;
-      markupSpan.textContent = markup.toFixed(1) + '%';
-      markupSpan.className = 'markup-percent ' + (markup >= 0 ? 'positive' : 'negative');
-    } else {
-      markupSpan.textContent = '—';
-      markupSpan.className = 'markup-percent';
-    }
-  }
-  
-  // Расчет общего итога
-  function calculateGrandTotal() {
-    let grandTotal = 0;
-    rows.forEach(row => {
-      const quantityInput = row.querySelector('input[name*="-quantity"]');
-      const priceInput = row.querySelector('input[name*="-price"]');
+      const price = parseFloat(priceInput.value) || 0;
       
-      if (quantityInput && priceInput) {
-        const quantity = parseFloat(quantityInput.value) || 0;
-        const price = parseFloat(priceInput.value) || 0;
-        grandTotal += quantity * price;
+      if (purchasePrice > 0 && price > 0) {
+        const markup = ((price - purchasePrice) / purchasePrice) * 100;
+        markupSpan.textContent = markup.toFixed(1) + '%';
+        markupSpan.className = 'markup-percent ' + (markup >= 0 ? 'positive' : 'negative');
+      } else {
+        markupSpan.textContent = '—';
+        markupSpan.className = 'markup-percent';
       }
-    });
+    }
     
-    const grandTotalSpan = document.getElementById('grandTotal');
-    if (grandTotalSpan) {
-      grandTotalSpan.textContent = formatNumber(grandTotal);
-    }
-  }
-  
-  // Создание списка автодополнения
-  function createAutocompleteList(row) {
-    let list = row.querySelector('.product-autocomplete');
-    if (!list) {
-      const wrapper = row.querySelector('.product-search-wrapper');
-      if (wrapper) {
-        list = document.createElement('div');
-        list.className = 'product-autocomplete';
-        wrapper.appendChild(list);
+    // Расчет общего итога
+    function calculateGrandTotal() {
+      let grandTotal = 0;
+      rows.forEach(row => {
+        const quantityInput = row.querySelector('input[name*="-quantity"]');
+        const priceInput = row.querySelector('input[name*="-price"]');
+        
+        if (quantityInput && priceInput) {
+          const quantity = parseFloat(quantityInput.value) || 0;
+          const price = parseFloat(priceInput.value) || 0;
+          grandTotal += quantity * price;
+        }
+      });
+      
+      const grandTotalSpan = document.getElementById('grandTotal');
+      if (grandTotalSpan) {
+        grandTotalSpan.textContent = formatNumber(grandTotal);
       }
     }
-    return list;
-  }
-  
-  // Скрытие автодополнения
-  function hideAutocomplete() {
-    document.querySelectorAll('.product-autocomplete').forEach(el => {
-      el.style.display = 'none';
-      el.innerHTML = '';
-    });
-    currentAutocompleteRow = null;
-  }
-  
-  // Выбор товара из автодополнения
-  function selectProduct(row, product) {
+    
+    // Создание списка автодополнения
+    function createAutocompleteList(row) {
+      let list = row.querySelector('.product-autocomplete');
+      if (!list) {
+        const wrapper = row.querySelector('.product-search-wrapper');
+        if (wrapper) {
+          list = document.createElement('div');
+          list.className = 'product-autocomplete';
+          wrapper.appendChild(list);
+        }
+      }
+      return list;
+    }
+    
+    // Скрытие автодополнения
+    function hideAutocomplete() {
+      document.querySelectorAll('.product-autocomplete').forEach(el => {
+        el.style.display = 'none';
+        el.innerHTML = '';
+      });
+      currentAutocompleteRow = null;
+    }
+    
+    // Выбор товара из автодополнения
+    function selectProduct(row, product) {
     const titleInput = row.querySelector('input[name*="-title"]');
     const productIdInput = row.querySelector('input[name*="-product_id"]');
     const priceInput = row.querySelector('input[name*="-price"]');
@@ -412,13 +419,13 @@
       createBtn.style.display = product.id ? 'none' : 'block';
     }
     
-    hideAutocomplete();
-    calculateTotal(row);
-    calculateGrandTotal();
-  }
-  
-  // Поиск товаров по названию
-  async function searchProducts(query, row) {
+      hideAutocomplete();
+      calculateTotal(row);
+      calculateGrandTotal();
+    }
+    
+    // Поиск товаров по названию
+    async function searchProducts(query, row) {
     if (query.length < 3) {
       hideAutocomplete();
       return;
@@ -471,95 +478,103 @@
       if (data.products.length === 1) {
         selectProduct(row, data.products[0]);
       }
-    } catch (err) {
-      console.error('Ошибка при поиске:', err);
-      hideAutocomplete();
+      } catch (err) {
+        console.error('Ошибка при поиске:', err);
+        hideAutocomplete();
+      }
     }
-  }
-  
-  // Обработчики событий для строк - используем функцию initRowHandlers
-  rows.forEach((row, index) => {
-    initRowHandlers(row);
-  });
-  
-  // Первоначальный расчет
-  rows.forEach(row => calculateTotal(row));
-  calculateGrandTotal();
-  
-  // Модальное окно создания товара
-  function openCreateProductModal(productName, row) {
-    const modal = document.getElementById('createProductModal');
+    
+    // Обработчики событий для строк - используем функцию initRowHandlers
+    rows.forEach((row, index) => {
+      initRowHandlers(row);
+    });
+    
+    // Первоначальный расчет
+    rows.forEach(row => calculateTotal(row));
+    calculateGrandTotal();
+    
+    // Модальное окно создания товара
+    function openCreateProductModal(productName, row) {
+      const modal = document.getElementById('createProductModal');
     const content = document.getElementById('createProductContent');
     
     if (!modal || !content) return;
     
-    content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>';
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    
-    // Загружаем форму создания товара
-    fetch('/ajax/product-create-inline/', {
-      method: 'GET',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    })
-    .then(response => response.text())
-    .then(html => {
-      content.innerHTML = html;
-      // Устанавливаем название товара, если оно было введено
-      const nameInput = content.querySelector('input[name="name"]');
-      if (nameInput && productName) {
-        nameInput.value = productName;
-      }
-      // Инициализируем форму
-      if (window.initCreateProductForm) {
-        window.initCreateProductForm();
-      }
-    })
-    .catch(error => {
-      console.error('Ошибка загрузки формы:', error);
-      content.innerHTML = '<div style="color: #ef4444; padding: 20px;">Ошибка загрузки формы создания товара</div>';
-    });
-  }
+      content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>';
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      
+      // Загружаем форму создания товара
+      fetch('/ajax/product-create-inline/', {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.text())
+      .then(html => {
+        content.innerHTML = html;
+        // Устанавливаем название товара, если оно было введено
+        const nameInput = content.querySelector('input[name="name"]');
+        if (nameInput && productName) {
+          nameInput.value = productName;
+        }
+        // Инициализируем форму
+        if (window.initCreateProductForm) {
+          window.initCreateProductForm();
+        }
+      })
+      .catch(error => {
+        console.error('Ошибка загрузки формы:', error);
+        content.innerHTML = '<div style="color: #ef4444; padding: 20px;">Ошибка загрузки формы создания товара</div>';
+      });
+    }
   
-  // Закрытие модального окна
-  function closeCreateProductModal() {
+    // Закрытие модального окна
+    function closeCreateProductModal() {
+      const modal = document.getElementById('createProductModal');
+      if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+    }
+    
+    window.closeCreateProductModal = closeCreateProductModal;
+    
+    // Обработчики закрытия модального окна
+    const closeBtn = document.getElementById('closeCreateProductModal');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeCreateProductModal);
+    }
+    
     const modal = document.getElementById('createProductModal');
     if (modal) {
-      modal.style.display = 'none';
-      document.body.style.overflow = '';
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          closeCreateProductModal();
+        }
+      });
     }
-  }
-  
-  window.closeCreateProductModal = closeCreateProductModal;
-  
-  // Обработчики закрытия модального окна
-  const closeBtn = document.getElementById('closeCreateProductModal');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closeCreateProductModal);
-  }
-  
-  const modal = document.getElementById('createProductModal');
-  if (modal) {
-    modal.addEventListener('click', function(e) {
-      if (e.target === modal) {
-        closeCreateProductModal();
-      }
-    });
-  }
-  
-  // Функция для добавления новой строки в формсет
-  function addNewRow() {
-    const tbody = document.getElementById('quoteItemsBody');
-    const existingRows = tbody.querySelectorAll('.quote-item-row');
-    const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
     
-    if (!tbody || existingRows.length === 0) {
-      // Если нет строк, открываем модальное окно для создания товара
-      openCreateProductModal('', null);
-      return;
-    }
+    // Функция для добавления новой строки в формсет
+    function addNewRow() {
+      console.log('addNewRow вызвана');
+      const tbody = document.getElementById('quoteItemsBody');
+      if (!tbody) {
+        console.error('quoteItemsBody не найден');
+        return;
+      }
+      
+      const existingRows = tbody.querySelectorAll('.quote-item-row');
+      const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+      
+      console.log('Найдено строк:', existingRows.length);
+      
+      if (existingRows.length === 0) {
+        // Если нет строк, открываем модальное окно для создания товара
+        openCreateProductModal('', null);
+        return;
+      }
     
     // Клонируем последнюю строку
     const lastRow = existingRows[existingRows.length - 1];
@@ -617,36 +632,36 @@
     // Инициализируем обработчики для новой строки
     initRowHandlers(newRow);
     
-    // Обновляем глобальную переменную rows
-    const form = document.getElementById('quoteForm');
-    if (form) {
-      rows = form.querySelectorAll('.quote-item-row');
+      // Обновляем глобальную переменную rows
+      const form = document.getElementById('quoteForm');
+      if (form) {
+        rows = form.querySelectorAll('.quote-item-row');
+      }
+      
+      // Фокусируемся на поле названия
+      const titleInput = newRow.querySelector('input[name*="-title"]');
+      if (titleInput) {
+        setTimeout(() => titleInput.focus(), 100);
+      }
     }
     
-    // Фокусируемся на поле названия
-    const titleInput = newRow.querySelector('input[name*="-title"]');
-    if (titleInput) {
-      setTimeout(() => titleInput.focus(), 100);
+    // Функция для обновления имен полей в строке
+    function updateRowFieldNames(row, index) {
+      const prefix = 'quote_items';
+      row.querySelectorAll('input, textarea').forEach(el => {
+        if (el.name) {
+          // Заменяем индекс в имени поля
+          el.name = el.name.replace(new RegExp(`${prefix}-(\\d+)-`), `${prefix}-${index}-`);
+        }
+        if (el.id) {
+          // Заменяем индекс в id поля
+          el.id = el.id.replace(new RegExp(`id_${prefix}-(\\d+)-`), `id_${prefix}-${index}-`);
+        }
+      });
     }
-  }
-  
-  // Функция для обновления имен полей в строке
-  function updateRowFieldNames(row, index) {
-    const prefix = 'quote_items';
-    row.querySelectorAll('input, textarea').forEach(el => {
-      if (el.name) {
-        // Заменяем индекс в имени поля
-        el.name = el.name.replace(new RegExp(`${prefix}-(\\d+)-`), `${prefix}-${index}-`);
-      }
-      if (el.id) {
-        // Заменяем индекс в id поля
-        el.id = el.id.replace(new RegExp(`id_${prefix}-(\\d+)-`), `id_${prefix}-${index}-`);
-      }
-    });
-  }
-  
-  // Функция для инициализации обработчиков строки
-  function initRowHandlers(row) {
+    
+    // Функция для инициализации обработчиков строки
+    function initRowHandlers(row) {
     // Проверяем, не инициализирована ли уже строка
     if (row.dataset.handlersInitialized === 'true') {
       return;
@@ -749,18 +764,21 @@
     }
   }
   
-  // Кнопка добавления товара
-  const addProductBtn = document.getElementById('addProductBtn') || document.getElementById('addFirstProductBtn');
-  if (addProductBtn) {
-    addProductBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      addNewRow();
-    });
-  }
+    // Кнопка добавления товара
+    const addProductBtn = document.getElementById('addProductBtn') || document.getElementById('addFirstProductBtn');
+    if (addProductBtn) {
+      console.log('Кнопка добавления товара найдена');
+      addProductBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Кнопка нажата, вызываем addNewRow');
+        addNewRow();
+      });
+    } else {
+      console.error('Кнопка добавления товара не найдена!');
+    }
   
-  // Обработка успешного создания товара - перехватываем ответ от формы создания
-  document.addEventListener('DOMContentLoaded', function() {
-    // Переопределяем обработчик успешного создания товара из product_create_inline.html
+    // Обработка успешного создания товара - перехватываем ответ от формы создания
     const originalInit = window.initCreateProductForm;
     if (originalInit) {
       window.initCreateProductForm = function() {
@@ -774,7 +792,15 @@
         }
       };
     }
-  });
+  } // конец функции init
+  
+  // Инициализация при загрузке DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM уже загружен, вызываем сразу
+    init();
+  }
 })();
 </script>
 
