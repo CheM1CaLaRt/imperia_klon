@@ -949,6 +949,9 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
             return redirect("core:request_detail", pk=pk)
         else:
             messages.error(request, "Проверьте корректность заполнения цен")
+            # Инициализируем products_data для отображения формы с ошибками
+            if 'products_data' not in locals():
+                products_data = {}
     else:
         # GET запрос - показываем форму
         from .views import _price_for
@@ -1012,6 +1015,15 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                         "purchase_price": float(purchase_price) if purchase_price else None,
                     }
             formset = RequestQuoteItemFormSet(prefix="quote_items", initial=initial_data)
+        else:
+            # Если quote_id был передан, но quote не найден, создаем пустой формсет
+            formset = RequestQuoteItemFormSet(prefix="quote_items", initial=[])
+            if 'products_data' not in locals():
+                products_data = {}
+    
+    # Убеждаемся, что products_data всегда определена
+    if 'products_data' not in locals():
+        products_data = {}
     
     # Проверяем права пользователя для передачи в шаблон
     is_operator = request.user.groups.filter(name="operator").exists()

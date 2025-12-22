@@ -227,26 +227,31 @@ body.modal-open {
 (function() {
   'use strict';
   
-  let form = null;
-  let quoteItemsBody = null;
-  let totalFormsInput = null;
-  let createProductBtn = null;
-  let addRowBtn = null;
-  let addFirstRowBtn = null;
-  let autocompleteTimeout = null;
-  let currentAutocompleteRow = null;
-  let autocompleteList = null;
-  let articleSearchTimeout = null;
-  
-  const isOperatorOrDirector = {% if is_operator|default:False or is_director|default:False %}true{% else %}false{% endif %};
-  
-  // Преобразуем products_data в JavaScript объект
-  const productsDataMap = {};
-  {% if products_data %}
-    {% for pid, data in products_data.items %}
-    productsDataMap[{{ pid }}] = { purchase_price: {% if data.purchase_price %}{{ data.purchase_price|floatformat:2 }}{% else %}null{% endif %} };
-    {% endfor %}
-  {% endif %}
+  try {
+    let form = null;
+    let quoteItemsBody = null;
+    let totalFormsInput = null;
+    let createProductBtn = null;
+    let addRowBtn = null;
+    let addFirstRowBtn = null;
+    let autocompleteTimeout = null;
+    let currentAutocompleteRow = null;
+    let autocompleteList = null;
+    let articleSearchTimeout = null;
+    
+    const isOperatorOrDirector = {% if is_operator|default:False or is_director|default:False %}true{% else %}false{% endif %};
+    
+    // Преобразуем products_data в JavaScript объект
+    const productsDataMap = {};
+    {% if products_data %}
+      {% for pid, data in products_data.items %}
+      try {
+        productsDataMap[{{ pid }}] = { purchase_price: {% if data.purchase_price %}{{ data.purchase_price|floatformat:2 }}{% else %}null{% endif %} };
+      } catch (e) {
+        console.error('Ошибка при добавлении товара в productsDataMap:', e);
+      }
+      {% endfor %}
+    {% endif %}
   
   // Функция для форматирования чисел
   function formatNumber(num) {
@@ -843,12 +848,21 @@ body.modal-open {
     });
   }
   
-  // Инициализация при загрузке DOM
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    // DOM уже загружен
-    init();
+    // Инициализация при загрузке DOM
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      // DOM уже загружен
+      init();
+    }
+  } catch (error) {
+    console.error('Критическая ошибка при инициализации формы КП:', error);
+    // Показываем сообщение пользователю
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 16px; border-radius: 8px; z-index: 10000; max-width: 400px;';
+    errorDiv.textContent = 'Ошибка загрузки формы. Пожалуйста, обновите страницу.';
+    document.body.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 5000);
   }
 })();
 </script>
