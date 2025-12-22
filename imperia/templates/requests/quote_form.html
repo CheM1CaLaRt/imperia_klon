@@ -227,18 +227,12 @@ body.modal-open {
 (function() {
   'use strict';
   
-  const form = document.getElementById('quoteForm');
-  if (!form) {
-    console.error('Форма quoteForm не найдена');
-    return;
-  }
-  
-  const quoteItemsBody = document.getElementById('quoteItemsBody');
-  const totalFormsInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
-  const createProductBtn = document.getElementById('createProductBtn');
-  const addRowBtn = document.getElementById('addRowBtn');
-  const addFirstRowBtn = document.getElementById('addFirstRowBtn');
-  
+  let form = null;
+  let quoteItemsBody = null;
+  let totalFormsInput = null;
+  let createProductBtn = null;
+  let addRowBtn = null;
+  let addFirstRowBtn = null;
   let autocompleteTimeout = null;
   let currentAutocompleteRow = null;
   let autocompleteList = null;
@@ -303,6 +297,7 @@ body.modal-open {
   
   // Расчет общего итога
   function calculateGrandTotal() {
+    if (!quoteItemsBody) return;
     let grandTotal = 0;
     const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
     rows.forEach(row => {
@@ -382,10 +377,11 @@ body.modal-open {
     calculateTotal(row);
   }
   
-  // Обработка ввода в поля
-  document.addEventListener('input', async function(e) {
-    const el = e.target;
-    if (!el || !el.closest('#quoteItemsBody')) return;
+  // Обработка ввода в поля (будет прикреплен в init)
+  function setupInputHandlers() {
+    document.addEventListener('input', async function(e) {
+      const el = e.target;
+      if (!el || !el.closest('#quoteItemsBody')) return;
     
     const row = el.closest('[data-form-row]');
     if (!row) return;
@@ -549,26 +545,60 @@ body.modal-open {
     }
   });
   
-  // Управление формсетом товаров
-  function renumberForms() {
-    const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
-    rows.forEach((row, idx) => {
-      row.querySelectorAll('input, select, textarea').forEach(el => {
-        if (el.name) {
-          el.name = el.name.replace(/quote_items-(\d+)-/g, `quote_items-${idx}-`);
-        }
-        if (el.id) {
-          el.id = el.id.replace(/id_quote_items-(\d+)-/g, `id_quote_items-${idx}-`);
-        }
-      });
-      const numberCell = row.querySelector('td:first-child');
-      if (numberCell) numberCell.textContent = idx + 1;
-      row.setAttribute('data-row-index', idx);
+  function init() {
+    console.log('Начало инициализации формы КП...');
+    
+    form = document.getElementById('quoteForm');
+    if (!form) {
+      console.error('Форма quoteForm не найдена');
+      return;
+    }
+    
+    quoteItemsBody = document.getElementById('quoteItemsBody');
+    if (!quoteItemsBody) {
+      console.error('quoteItemsBody не найден');
+      return;
+    }
+    
+    totalFormsInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
+    createProductBtn = document.getElementById('createProductBtn');
+    addRowBtn = document.getElementById('addRowBtn');
+    addFirstRowBtn = document.getElementById('addFirstRowBtn');
+    
+    console.log('Элементы найдены:', {
+      form: !!form,
+      quoteItemsBody: !!quoteItemsBody,
+      totalFormsInput: !!totalFormsInput,
+      createProductBtn: !!createProductBtn,
+      addRowBtn: !!addRowBtn,
+      addFirstRowBtn: !!addFirstRowBtn
     });
-    if (totalFormsInput) totalFormsInput.value = rows.length;
-  }
-  
-  function cloneLastRow() {
+    
+    // Управление формсетом товаров
+    function renumberForms() {
+      if (!quoteItemsBody || !totalFormsInput) return;
+      const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
+      rows.forEach((row, idx) => {
+        row.querySelectorAll('input, select, textarea').forEach(el => {
+          if (el.name) {
+            el.name = el.name.replace(/quote_items-(\d+)-/g, `quote_items-${idx}-`);
+          }
+          if (el.id) {
+            el.id = el.id.replace(/id_quote_items-(\d+)-/g, `id_quote_items-${idx}-`);
+          }
+        });
+        const numberCell = row.querySelector('td:first-child');
+        if (numberCell) numberCell.textContent = idx + 1;
+        row.setAttribute('data-row-index', idx);
+      });
+      totalFormsInput.value = rows.length;
+    }
+    
+    function cloneLastRow() {
+      if (!quoteItemsBody) {
+        console.error('quoteItemsBody не найден в cloneLastRow');
+        return;
+      }
     const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
     if (rows.length === 0) {
       // Создаем первую строку
@@ -670,39 +700,6 @@ body.modal-open {
     }
   }
   
-  // Кнопка добавления строки
-  if (addRowBtn) {
-    addRowBtn.addEventListener('click', cloneLastRow);
-  }
-  
-  if (addFirstRowBtn) {
-    addFirstRowBtn.addEventListener('click', cloneLastRow);
-  }
-  
-  // Удаление строки
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('[data-remove]');
-    if (!btn) return;
-    
-    const row = btn.closest('[data-form-row]');
-    if (!row) return;
-    
-    const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
-    if (rows.length <= 1) {
-      // Если последняя строка, очищаем её
-      row.querySelectorAll('input, select, textarea').forEach(el => {
-        if (el.type !== 'hidden' && !el.name.includes('DELETE')) {
-          el.value = '';
-        }
-      });
-    } else {
-      row.remove();
-      renumberForms();
-    }
-    
-    calculateGrandTotal();
-  });
-  
   // Модальное окно создания товара
   function openCreateProductModal(productName, row) {
     const modal = document.getElementById('createProductModal');
@@ -745,55 +742,114 @@ body.modal-open {
     }
   }
   
-  // Кнопка создания товара
-  if (createProductBtn) {
-    createProductBtn.addEventListener('click', function(e) {
+    // Кнопка добавления строки
+    if (addRowBtn) {
+      addRowBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        cloneLastRow();
+      });
+    }
+    
+    if (addFirstRowBtn) {
+      addFirstRowBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        cloneLastRow();
+      });
+    }
+    
+    // Удаление строки
+    quoteItemsBody.addEventListener('click', function(e) {
+      const btn = e.target.closest('[data-remove]');
+      if (!btn) return;
+      
       e.preventDefault();
-      openCreateProductModal('', null);
+      e.stopPropagation();
+      
+      const row = btn.closest('[data-form-row]');
+      if (!row) return;
+      
+      if (confirm('Удалить эту позицию?')) {
+        const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
+        if (rows.length <= 1) {
+          // Если последняя строка, очищаем её
+          row.querySelectorAll('input, select, textarea').forEach(el => {
+            if (el.type !== 'hidden' && !el.name.includes('DELETE')) {
+              el.value = '';
+            }
+          });
+        } else {
+          row.remove();
+          renumberForms();
+        }
+        
+        calculateGrandTotal();
+      }
     });
-  }
   
-  // Кнопка создания товара из строки
-  quoteItemsBody.addEventListener('click', function(e) {
-    const btn = e.target.closest('.btn-create-product');
-    if (!btn) return;
+    // Кнопка создания товара
+    if (createProductBtn) {
+      createProductBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openCreateProductModal('', null);
+      });
+    }
     
-    const row = btn.closest('[data-form-row]');
-    if (!row) return;
+    // Кнопка создания товара из строки
+    quoteItemsBody.addEventListener('click', function(e) {
+      const btn = e.target.closest('.btn-create-product');
+      if (!btn) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const row = btn.closest('[data-form-row]');
+      if (!row) return;
+      
+      const titleInput = row.querySelector('[name$="-title"]');
+      const titleValue = titleInput ? titleInput.value.trim() : '';
+      openCreateProductModal(titleValue, row);
+    });
     
-    const titleInput = row.querySelector('[name$="-title"]');
-    const titleValue = titleInput ? titleInput.value.trim() : '';
-    openCreateProductModal(titleValue, row);
-  });
-  
-  // Закрытие модального окна
-  const closeBtn = document.getElementById('closeCreateProductModal');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closeCreateProductModal);
-  }
-  
-  const modal = document.getElementById('createProductModal');
-  if (modal) {
-    modal.addEventListener('click', function(e) {
-      if (e.target === modal) {
-        closeCreateProductModal();
+    // Закрытие модального окна
+    const closeBtn = document.getElementById('closeCreateProductModal');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeCreateProductModal);
+    }
+    
+    const modal = document.getElementById('createProductModal');
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          closeCreateProductModal();
+        }
+      });
+    }
+    
+    // Первоначальный расчет
+    const existingRows = quoteItemsBody.querySelectorAll('[data-form-row]');
+    existingRows.forEach(row => {
+      calculateTotal(row);
+    });
+    calculateGrandTotal();
+    
+    // Скрытие автодополнения при клике вне
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.autocomplete-list') && !e.target.closest('[name$="-title"]')) {
+        hideAutocomplete();
       }
     });
   }
   
-  // Первоначальный расчет
-  const existingRows = quoteItemsBody.querySelectorAll('[data-form-row]');
-  existingRows.forEach(row => {
-    calculateTotal(row);
-  });
-  calculateGrandTotal();
-  
-  // Скрытие автодополнения при клике вне
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('.autocomplete-list') && !e.target.closest('[name$="-title"]')) {
-      hideAutocomplete();
-    }
-  });
+  // Инициализация при загрузке DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM уже загружен
+    init();
+  }
 })();
 </script>
 
