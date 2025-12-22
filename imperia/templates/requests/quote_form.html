@@ -477,75 +477,9 @@
     }
   }
   
-  // Обработчики событий для строк
+  // Обработчики событий для строк - используем функцию initRowHandlers
   rows.forEach((row, index) => {
-    const titleInput = row.querySelector('input[name*="-title"]');
-    const quantityInput = row.querySelector('input[name*="-quantity"]');
-    const priceInput = row.querySelector('input[name*="-price"]');
-    const removeBtn = row.querySelector('.btn-remove-row');
-    const createBtn = row.querySelector('.btn-create-product');
-    
-    // Поиск по названию
-    if (titleInput) {
-      titleInput.addEventListener('input', function() {
-        const query = this.value.trim();
-        
-        if (autocompleteTimeout) {
-          clearTimeout(autocompleteTimeout);
-        }
-        
-        if (currentAutocompleteRow && currentAutocompleteRow !== row) {
-          hideAutocomplete();
-        }
-        
-        autocompleteTimeout = setTimeout(() => {
-          searchProducts(query, row);
-        }, 300);
-      });
-      
-      titleInput.addEventListener('blur', function() {
-        // Закрываем автодополнение с задержкой, чтобы клик по элементу успел сработать
-        setTimeout(hideAutocomplete, 200);
-      });
-    }
-    
-    // Расчет при изменении количества или цены
-    if (quantityInput) {
-      quantityInput.addEventListener('input', () => {
-        calculateTotal(row);
-        calculateGrandTotal();
-      });
-    }
-    
-    if (priceInput) {
-      priceInput.addEventListener('input', () => {
-        calculateTotal(row);
-        calculateGrandTotal();
-      });
-    }
-    
-    // Удаление строки
-    if (removeBtn) {
-      removeBtn.addEventListener('click', function() {
-        if (confirm('Удалить эту позицию?')) {
-          row.remove();
-          calculateGrandTotal();
-        }
-      });
-    }
-    
-    // Создание нового товара
-    if (createBtn) {
-      createBtn.addEventListener('click', function() {
-        const titleValue = titleInput?.value.trim() || '';
-        openCreateProductModal(titleValue, row);
-      });
-    }
-    
-    // Инициализация наценки
-    if (isOperatorOrDirector) {
-      calculateMarkup(row);
-    }
+    initRowHandlers(row);
   });
   
   // Первоначальный расчет
@@ -615,11 +549,212 @@
     });
   }
   
+  // Функция для добавления новой строки в формсет
+  function addNewRow() {
+    const tbody = document.getElementById('quoteItemsBody');
+    const existingRows = tbody.querySelectorAll('.quote-item-row');
+    const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+    
+    if (!tbody || existingRows.length === 0) {
+      // Если нет строк, открываем модальное окно для создания товара
+      openCreateProductModal('', null);
+      return;
+    }
+    
+    // Клонируем последнюю строку
+    const lastRow = existingRows[existingRows.length - 1];
+    const newRow = lastRow.cloneNode(true);
+    
+    // Очищаем значения в новой строке
+    newRow.querySelectorAll('input, textarea').forEach(el => {
+      if (el.type === 'hidden' && el.name.includes('request_item_id')) {
+        // Оставляем request_item_id пустым для новой строки
+        el.value = '';
+      } else if (el.type === 'hidden' && el.name.includes('product_id')) {
+        el.value = '';
+      } else if (el.type === 'hidden' && el.name.includes('DELETE')) {
+        el.value = '';
+      } else if (el.type !== 'hidden') {
+        el.value = '';
+      }
+      // Удаляем классы ошибок
+      el.classList.remove('field-error');
+    });
+    
+    // Очищаем ошибки
+    newRow.querySelectorAll('.errorlist').forEach(el => el.remove());
+    
+    // Сбрасываем итог и наценку
+    const totalSpan = newRow.querySelector('.item-total');
+    if (totalSpan) totalSpan.textContent = '0.00';
+    const markupSpan = newRow.querySelector('.markup-percent');
+    if (markupSpan) {
+      markupSpan.textContent = '—';
+      markupSpan.setAttribute('data-purchase-price', '');
+      markupSpan.className = 'markup-percent';
+    }
+    
+    // Обновляем номер строки
+    const rowNumber = existingRows.length + 1;
+    const numberCell = newRow.querySelector('td:first-child');
+    if (numberCell) numberCell.textContent = rowNumber;
+    
+    // Обновляем data-row-index
+    newRow.setAttribute('data-row-index', existingRows.length);
+    
+    // Добавляем строку в таблицу
+    tbody.appendChild(newRow);
+    
+    // Обновляем TOTAL_FORMS
+    if (totalFormsInput) {
+      const currentTotal = parseInt(totalFormsInput.value || '0', 10);
+      totalFormsInput.value = currentTotal + 1;
+    }
+    
+    // Обновляем имена полей в новой строке
+    updateRowFieldNames(newRow, existingRows.length);
+    
+    // Инициализируем обработчики для новой строки
+    initRowHandlers(newRow);
+    
+    // Обновляем глобальную переменную rows
+    const form = document.getElementById('quoteForm');
+    if (form) {
+      rows = form.querySelectorAll('.quote-item-row');
+    }
+    
+    // Фокусируемся на поле названия
+    const titleInput = newRow.querySelector('input[name*="-title"]');
+    if (titleInput) {
+      setTimeout(() => titleInput.focus(), 100);
+    }
+  }
+  
+  // Функция для обновления имен полей в строке
+  function updateRowFieldNames(row, index) {
+    const prefix = 'quote_items';
+    row.querySelectorAll('input, textarea').forEach(el => {
+      if (el.name) {
+        // Заменяем индекс в имени поля
+        el.name = el.name.replace(new RegExp(`${prefix}-(\\d+)-`), `${prefix}-${index}-`);
+      }
+      if (el.id) {
+        // Заменяем индекс в id поля
+        el.id = el.id.replace(new RegExp(`id_${prefix}-(\\d+)-`), `id_${prefix}-${index}-`);
+      }
+    });
+  }
+  
+  // Функция для инициализации обработчиков строки
+  function initRowHandlers(row) {
+    // Проверяем, не инициализирована ли уже строка
+    if (row.dataset.handlersInitialized === 'true') {
+      return;
+    }
+    row.dataset.handlersInitialized = 'true';
+    
+    const titleInput = row.querySelector('input[name*="-title"]');
+    const quantityInput = row.querySelector('input[name*="-quantity"]');
+    const priceInput = row.querySelector('input[name*="-price"]');
+    const removeBtn = row.querySelector('.btn-remove-row');
+    const createBtn = row.querySelector('.btn-create-product');
+    
+    // Поиск по названию
+    if (titleInput) {
+      titleInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (autocompleteTimeout) {
+          clearTimeout(autocompleteTimeout);
+        }
+        
+        if (currentAutocompleteRow && currentAutocompleteRow !== row) {
+          hideAutocomplete();
+        }
+        
+        autocompleteTimeout = setTimeout(() => {
+          searchProducts(query, row);
+        }, 300);
+      });
+      
+      titleInput.addEventListener('blur', function() {
+        setTimeout(hideAutocomplete, 200);
+      });
+    }
+    
+    // Расчет при изменении количества или цены
+    if (quantityInput) {
+      quantityInput.addEventListener('input', () => {
+        calculateTotal(row);
+        calculateGrandTotal();
+      });
+    }
+    
+    if (priceInput) {
+      priceInput.addEventListener('input', () => {
+        calculateTotal(row);
+        calculateGrandTotal();
+      });
+    }
+    
+    // Удаление строки
+    if (removeBtn) {
+      // Удаляем старые обработчики, если есть
+      const newRemoveBtn = removeBtn.cloneNode(true);
+      removeBtn.parentNode.replaceChild(newRemoveBtn, removeBtn);
+      
+      newRemoveBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm('Удалить эту позицию?')) {
+          const tbody = row.parentNode;
+          row.remove();
+          
+          // Обновляем номера строк
+          const remainingRows = tbody.querySelectorAll('.quote-item-row');
+          remainingRows.forEach((r, idx) => {
+            const numberCell = r.querySelector('td:first-child');
+            if (numberCell) numberCell.textContent = idx + 1;
+            r.setAttribute('data-row-index', idx);
+            updateRowFieldNames(r, idx);
+          });
+          
+          // Обновляем TOTAL_FORMS
+          const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+          if (totalFormsInput) {
+            totalFormsInput.value = remainingRows.length;
+          }
+          
+          // Обновляем список rows для других функций
+          const form = document.getElementById('quoteForm');
+          const updatedRows = form ? form.querySelectorAll('.quote-item-row') : [];
+          rows = updatedRows;
+          
+          calculateGrandTotal();
+        }
+      });
+    }
+    
+    // Создание нового товара
+    if (createBtn) {
+      createBtn.addEventListener('click', function() {
+        const titleValue = titleInput?.value.trim() || '';
+        openCreateProductModal(titleValue, row);
+      });
+    }
+    
+    // Инициализация наценки
+    if (isOperatorOrDirector) {
+      calculateMarkup(row);
+    }
+  }
+  
   // Кнопка добавления товара
   const addProductBtn = document.getElementById('addProductBtn') || document.getElementById('addFirstProductBtn');
   if (addProductBtn) {
-    addProductBtn.addEventListener('click', function() {
-      openCreateProductModal('', null);
+    addProductBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      addNewRow();
     });
   }
   
