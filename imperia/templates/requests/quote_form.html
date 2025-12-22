@@ -242,336 +242,345 @@ body.modal-open {
     const isOperatorOrDirector = {% if is_operator|default:False or is_director|default:False %}true{% else %}false{% endif %};
     
     // Преобразуем products_data в JavaScript объект из JSON
-    const productsDataMap = {% if products_data_json %}{{ products_data_json|safe }}{% else %}{}{% endif %};
-  
-  // Функция для форматирования чисел
-  function formatNumber(num) {
-    return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  }
-  
-  // Расчет итога по строке
-  function calculateTotal(row) {
-    const quantityInput = row.querySelector('input[name*="-quantity"]');
-    const priceInput = row.querySelector('input[name*="-price"]');
-    const totalSpan = row.querySelector('.item-total');
+    let productsDataMap = {};
+    try {
+      {% if products_data_json %}
+      productsDataMap = JSON.parse('{{ products_data_json|escapejs }}');
+      {% endif %}
+    } catch (e) {
+      console.error('Ошибка при парсинге products_data_json:', e);
+      productsDataMap = {};
+    }
     
-    if (!quantityInput || !priceInput || !totalSpan) return;
+    // Функция для форматирования чисел
+    function formatNumber(num) {
+      return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
     
-    const quantity = parseFloat(quantityInput.value) || 0;
-    const price = parseFloat(priceInput.value) || 0;
-    const total = quantity * price;
-    
-    totalSpan.textContent = formatNumber(total);
-    
-    calculateGrandTotal();
-  }
-  
-  // Расчет цены на основе наценки (для операторов и директоров)
-  function calculatePriceFromMarkup(row) {
-    if (!isOperatorOrDirector) return;
-    
-    const markupInput = row.querySelector('input[name*="-markup_percent"]');
-    const priceInput = row.querySelector('input[name*="-price"]');
-    const productIdInput = row.querySelector('input[name*="-product_id"]');
-    
-    if (!markupInput || !priceInput || !productIdInput) return;
-    
-    const markup = parseFloat(markupInput.value);
-    if (isNaN(markup) || markup === 0) return;
-    
-    const productId = parseInt(productIdInput.value);
-    if (!productId) return;
-    
-    const purchasePrice = productsDataMap[productId]?.purchase_price;
-    if (!purchasePrice || purchasePrice <= 0) return;
-    
-    // Рассчитываем цену: цена = закупочная_цена * (1 + наценка / 100)
-    const newPrice = purchasePrice * (1 + markup / 100);
-    priceInput.value = newPrice.toFixed(2);
-    calculateTotal(row);
-  }
-  
-  // Расчет общего итога
-  function calculateGrandTotal() {
-    if (!quoteItemsBody) return;
-    let grandTotal = 0;
-    const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
-    rows.forEach(row => {
+    // Расчет итога по строке
+    function calculateTotal(row) {
       const quantityInput = row.querySelector('input[name*="-quantity"]');
       const priceInput = row.querySelector('input[name*="-price"]');
+      const totalSpan = row.querySelector('.item-total');
       
-      if (quantityInput && priceInput) {
-        const quantity = parseFloat(quantityInput.value) || 0;
-        const price = parseFloat(priceInput.value) || 0;
-        grandTotal += quantity * price;
+      if (!quantityInput || !priceInput || !totalSpan) return;
+      
+      const quantity = parseFloat(quantityInput.value) || 0;
+      const price = parseFloat(priceInput.value) || 0;
+      const total = quantity * price;
+      
+      totalSpan.textContent = formatNumber(total);
+      
+      calculateGrandTotal();
+    }
+    
+    // Расчет цены на основе наценки (для операторов и директоров)
+    function calculatePriceFromMarkup(row) {
+      if (!isOperatorOrDirector) return;
+      
+      const markupInput = row.querySelector('input[name*="-markup_percent"]');
+      const priceInput = row.querySelector('input[name*="-price"]');
+      const productIdInput = row.querySelector('input[name*="-product_id"]');
+      
+      if (!markupInput || !priceInput || !productIdInput) return;
+      
+      const markup = parseFloat(markupInput.value);
+      if (isNaN(markup) || markup === 0) return;
+      
+      const productId = parseInt(productIdInput.value);
+      if (!productId) return;
+      
+      const purchasePrice = productsDataMap[productId]?.purchase_price;
+      if (!purchasePrice || purchasePrice <= 0) return;
+      
+      // Рассчитываем цену: цена = закупочная_цена * (1 + наценка / 100)
+      const newPrice = purchasePrice * (1 + markup / 100);
+      priceInput.value = newPrice.toFixed(2);
+      calculateTotal(row);
+    }
+    
+    // Расчет общего итога
+    function calculateGrandTotal() {
+      if (!quoteItemsBody) return;
+      let grandTotal = 0;
+      const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
+      rows.forEach(row => {
+        const quantityInput = row.querySelector('input[name*="-quantity"]');
+        const priceInput = row.querySelector('input[name*="-price"]');
+        
+        if (quantityInput && priceInput) {
+          const quantity = parseFloat(quantityInput.value) || 0;
+          const price = parseFloat(priceInput.value) || 0;
+          grandTotal += quantity * price;
+        }
+      });
+      
+      const grandTotalSpan = document.getElementById('grandTotal');
+      if (grandTotalSpan) {
+        grandTotalSpan.textContent = formatNumber(grandTotal);
       }
-    });
-    
-    const grandTotalSpan = document.getElementById('grandTotal');
-    if (grandTotalSpan) {
-      grandTotalSpan.textContent = formatNumber(grandTotal);
-    }
-  }
-  
-  // Создание списка автодополнения
-  function createAutocompleteList(row) {
-    if (autocompleteList) {
-      autocompleteList.remove();
-      autocompleteList = null;
     }
     
-    const nameInput = row.querySelector('[name$="-title"]');
-    if (!nameInput) return null;
-    
-    const list = document.createElement('div');
-    list.className = 'autocomplete-list';
-    document.body.appendChild(list);
-    autocompleteList = list;
-    return list;
-  }
-  
-  function hideAutocomplete() {
-    if (autocompleteList) {
-      autocompleteList.remove();
-      autocompleteList = null;
-    }
-    currentAutocompleteRow = null;
-  }
-  
-  function updateAutocompletePosition() {
-    if (!autocompleteList || !currentAutocompleteRow) return;
-    
-    const nameInput = currentAutocompleteRow.querySelector('[name$="-title"]');
-    if (!nameInput) {
-      hideAutocomplete();
-      return;
-    }
-    
-    const inputRect = nameInput.getBoundingClientRect();
-    autocompleteList.style.top = inputRect.bottom + 'px';
-    autocompleteList.style.left = inputRect.left + 'px';
-    autocompleteList.style.width = inputRect.width + 'px';
-  }
-  
-  async function selectProduct(row, product) {
-    hideAutocomplete();
-    
-    const set = (sel, v) => {
-      const el = row.querySelector(sel);
-      if (el) el.value = v || '';
-    };
-    
-    set('[name$="-title"]', product.name);
-    set('[name$="-barcode"]', product.barcode || '');
-    if (product.sku) set('[name$="-article"]', product.sku);
-    set('[name$="-product_id"]', product.id || '');
-    
-    const qtyEl = row.querySelector('[name$="-quantity"]');
-    if (qtyEl && !qtyEl.value) qtyEl.value = 1;
-    
-    row.removeAttribute('data-notfound');
-    calculateTotal(row);
-  }
-  
-  // Обработка ввода в поля (будет прикреплен в init)
-  function setupInputHandlers() {
-    document.addEventListener('input', async function(e) {
-      const el = e.target;
-      if (!el || !el.closest('#quoteItemsBody')) return;
-    
-    const row = el.closest('[data-form-row]');
-    if (!row) return;
-    
-    // Поиск по названию
-    if (el.name && el.name.endsWith('-title')) {
-      row.removeAttribute('data-notfound');
-      const query = el.value.trim();
-      
-      if (autocompleteTimeout) {
-        clearTimeout(autocompleteTimeout);
-        autocompleteTimeout = null;
+    // Создание списка автодополнения
+    function createAutocompleteList(row) {
+      if (autocompleteList) {
+        autocompleteList.remove();
+        autocompleteList = null;
       }
       
-      if (query.length < 3) {
+      const nameInput = row.querySelector('[name$="-title"]');
+      if (!nameInput) return null;
+      
+      const list = document.createElement('div');
+      list.className = 'autocomplete-list';
+      document.body.appendChild(list);
+      autocompleteList = list;
+      return list;
+    }
+    
+    function hideAutocomplete() {
+      if (autocompleteList) {
+        autocompleteList.remove();
+        autocompleteList = null;
+      }
+      currentAutocompleteRow = null;
+    }
+    
+    function updateAutocompletePosition() {
+      if (!autocompleteList || !currentAutocompleteRow) return;
+      
+      const nameInput = currentAutocompleteRow.querySelector('[name$="-title"]');
+      if (!nameInput) {
         hideAutocomplete();
         return;
       }
       
-      if (currentAutocompleteRow && currentAutocompleteRow !== row) {
-        hideAutocomplete();
-      }
-      
-      autocompleteTimeout = setTimeout(async function() {
-        try {
-          const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
-          const resp = await fetch(url);
-          if (!resp.ok) {
-            hideAutocomplete();
-            return;
-          }
-          const data = await resp.json();
-          if (!data.ok || !data.products || data.products.length === 0) {
-            const createBtn = row.querySelector('.btn-create-product');
-            if (createBtn) createBtn.style.display = 'block';
-            hideAutocomplete();
-            return;
-          }
-          
-          currentAutocompleteRow = row;
-          const list = createAutocompleteList(row);
-          if (!list) return;
-          
-          list.innerHTML = '';
-          data.products.forEach(product => {
-            const item = document.createElement('div');
-            item.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;';
-            item.textContent = product.name;
-            item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
-            item.onmouseout = () => item.style.backgroundColor = '';
-            item.onclick = (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              selectProduct(row, product);
-            };
-            list.appendChild(item);
-          });
-          
-          updateAutocompletePosition();
-          
-          if (data.products.length === 1) {
-            selectProduct(row, data.products[0]);
-          }
-        } catch (err) {
-          console.error('Ошибка при поиске:', err);
-          hideAutocomplete();
-        }
-      }, 300);
-      return;
+      const inputRect = nameInput.getBoundingClientRect();
+      autocompleteList.style.top = inputRect.bottom + 'px';
+      autocompleteList.style.left = inputRect.left + 'px';
+      autocompleteList.style.width = inputRect.width + 'px';
     }
     
-    // Поиск по штрихкоду
-    if (el.name && el.name.endsWith('-barcode')) {
+    async function selectProduct(row, product) {
+      hideAutocomplete();
+      
+      const set = (sel, v) => {
+        const el = row.querySelector(sel);
+        if (el) el.value = v || '';
+      };
+      
+      set('[name$="-title"]', product.name);
+      set('[name$="-barcode"]', product.barcode || '');
+      if (product.sku) set('[name$="-article"]', product.sku);
+      set('[name$="-product_id"]', product.id || '');
+      
+      const qtyEl = row.querySelector('[name$="-quantity"]');
+      if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+      
       row.removeAttribute('data-notfound');
-      const bc = el.value.trim();
-      
-      if (bc.length < 6) return;
-      
-      try {
-        const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
-        if (!resp.ok) {
-          row.setAttribute('data-notfound', '1');
-          return;
-        }
-        const data = await resp.json();
-        if (!data.ok) {
-          row.setAttribute('data-notfound', '1');
-          return;
-        }
-        
-        const set = (sel, v) => {
-          const el = row.querySelector(sel);
-          if (el) el.value = v || '';
-        };
-        set('[name$="-title"]', data.name);
-        if (data.sku) set('[name$="-article"]', data.sku);
-        set('[name$="-product_id"]', data.id || '');
-        const qtyEl = row.querySelector('[name$="-quantity"]');
-        if (qtyEl && !qtyEl.value) qtyEl.value = 1;
-        row.removeAttribute('data-notfound');
-        calculateTotal(row);
-      } catch (_) {
-        row.setAttribute('data-notfound', '1');
-      }
-      return;
-    }
-    
-    // Поиск по артикулу
-    if (el.name && el.name.endsWith('-article')) {
-      row.removeAttribute('data-notfound');
-      const article = el.value.trim();
-      
-      if (articleSearchTimeout) {
-        clearTimeout(articleSearchTimeout);
-        articleSearchTimeout = null;
-      }
-      
-      if (article.length < 2) return;
-      
-      articleSearchTimeout = setTimeout(async () => {
-        try {
-          const resp = await fetch(`{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`);
-          if (!resp.ok) {
-            row.setAttribute('data-notfound', '1');
-            return;
-          }
-          const data = await resp.json();
-          if (!data.ok) {
-            row.setAttribute('data-notfound', '1');
-            return;
-          }
-          
-          const set = (sel, v) => {
-            const el = row.querySelector(sel);
-            if (el) el.value = v || '';
-          };
-          set('[name$="-title"]', data.name);
-          set('[name$="-barcode"]', data.barcode || '');
-          if (data.sku) set('[name$="-article"]', data.sku);
-          set('[name$="-product_id"]', data.id || '');
-          const qtyEl = row.querySelector('[name$="-quantity"]');
-          if (qtyEl && !qtyEl.value) qtyEl.value = 1;
-          row.removeAttribute('data-notfound');
-          calculateTotal(row);
-        } catch (err) {
-          console.error('Ошибка поиска по артикулу:', err);
-          row.setAttribute('data-notfound', '1');
-        }
-      }, 500);
-      return;
-    }
-    
-    // Расчет при изменении количества или цены
-    if (el.name && (el.name.endsWith('-quantity') || el.name.endsWith('-price'))) {
       calculateTotal(row);
     }
     
-    // Расчет цены на основе наценки
-    if (isOperatorOrDirector && el.name && el.name.endsWith('-markup_percent')) {
-      calculatePriceFromMarkup(row);
+    // Обработка ввода в поля (будет прикреплен в init)
+    function setupInputHandlers() {
+      document.addEventListener('input', async function(e) {
+        const el = e.target;
+        if (!el || !el.closest('#quoteItemsBody')) return;
+        
+        const row = el.closest('[data-form-row]');
+        if (!row) return;
+        
+        // Поиск по названию
+        if (el.name && el.name.endsWith('-title')) {
+          row.removeAttribute('data-notfound');
+          const query = el.value.trim();
+          
+          if (autocompleteTimeout) {
+            clearTimeout(autocompleteTimeout);
+            autocompleteTimeout = null;
+          }
+          
+          if (query.length < 3) {
+            hideAutocomplete();
+            return;
+          }
+          
+          if (currentAutocompleteRow && currentAutocompleteRow !== row) {
+            hideAutocomplete();
+          }
+          
+          autocompleteTimeout = setTimeout(async function() {
+            try {
+              const url = `{% url 'core:stock_lookup_by_name' %}?name=${encodeURIComponent(query)}`;
+              const resp = await fetch(url);
+              if (!resp.ok) {
+                hideAutocomplete();
+                return;
+              }
+              const data = await resp.json();
+              if (!data.ok || !data.products || data.products.length === 0) {
+                const createBtn = row.querySelector('.btn-create-product');
+                if (createBtn) createBtn.style.display = 'block';
+                hideAutocomplete();
+                return;
+              }
+              
+              currentAutocompleteRow = row;
+              const list = createAutocompleteList(row);
+              if (!list) return;
+              
+              list.innerHTML = '';
+              data.products.forEach(product => {
+                const item = document.createElement('div');
+                item.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;';
+                item.textContent = product.name;
+                item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
+                item.onmouseout = () => item.style.backgroundColor = '';
+                item.onclick = (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  selectProduct(row, product);
+                };
+                list.appendChild(item);
+              });
+              
+              updateAutocompletePosition();
+              
+              if (data.products.length === 1) {
+                selectProduct(row, data.products[0]);
+              }
+            } catch (err) {
+              console.error('Ошибка при поиске:', err);
+              hideAutocomplete();
+            }
+          }, 300);
+          return;
+        }
+        
+        // Поиск по штрихкоду
+        if (el.name && el.name.endsWith('-barcode')) {
+          row.removeAttribute('data-notfound');
+          const bc = el.value.trim();
+          
+          if (bc.length < 6) return;
+          
+          try {
+            const resp = await fetch(`{% url 'core:stock_lookup_by_barcode' %}?barcode=${encodeURIComponent(bc)}`);
+            if (!resp.ok) {
+              row.setAttribute('data-notfound', '1');
+              return;
+            }
+            const data = await resp.json();
+            if (!data.ok) {
+              row.setAttribute('data-notfound', '1');
+              return;
+            }
+            
+            const set = (sel, v) => {
+              const el = row.querySelector(sel);
+              if (el) el.value = v || '';
+            };
+            set('[name$="-title"]', data.name);
+            if (data.sku) set('[name$="-article"]', data.sku);
+            set('[name$="-product_id"]', data.id || '');
+            const qtyEl = row.querySelector('[name$="-quantity"]');
+            if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+            row.removeAttribute('data-notfound');
+            calculateTotal(row);
+          } catch (_) {
+            row.setAttribute('data-notfound', '1');
+          }
+          return;
+        }
+        
+        // Поиск по артикулу
+        if (el.name && el.name.endsWith('-article')) {
+          row.removeAttribute('data-notfound');
+          const article = el.value.trim();
+          
+          if (articleSearchTimeout) {
+            clearTimeout(articleSearchTimeout);
+            articleSearchTimeout = null;
+          }
+          
+          if (article.length < 2) return;
+          
+          articleSearchTimeout = setTimeout(async () => {
+            try {
+              const resp = await fetch(`{% url 'core:stock_lookup_by_sku' %}?sku=${encodeURIComponent(article)}`);
+              if (!resp.ok) {
+                row.setAttribute('data-notfound', '1');
+                return;
+              }
+              const data = await resp.json();
+              if (!data.ok) {
+                row.setAttribute('data-notfound', '1');
+                return;
+              }
+              
+              const set = (sel, v) => {
+                const el = row.querySelector(sel);
+                if (el) el.value = v || '';
+              };
+              set('[name$="-title"]', data.name);
+              set('[name$="-barcode"]', data.barcode || '');
+              if (data.sku) set('[name$="-article"]', data.sku);
+              set('[name$="-product_id"]', data.id || '');
+              const qtyEl = row.querySelector('[name$="-quantity"]');
+              if (qtyEl && !qtyEl.value) qtyEl.value = 1;
+              row.removeAttribute('data-notfound');
+              calculateTotal(row);
+            } catch (err) {
+              console.error('Ошибка поиска по артикулу:', err);
+              row.setAttribute('data-notfound', '1');
+            }
+          }, 500);
+          return;
+        }
+    
+        // Расчет при изменении количества или цены
+        if (el.name && (el.name.endsWith('-quantity') || el.name.endsWith('-price'))) {
+          calculateTotal(row);
+        }
+        
+        // Расчет цены на основе наценки
+        if (isOperatorOrDirector && el.name && el.name.endsWith('-markup_percent')) {
+          calculatePriceFromMarkup(row);
+        }
+      });
     }
-  });
-  
-  function init() {
-    console.log('Начало инициализации формы КП...');
     
-    form = document.getElementById('quoteForm');
-    if (!form) {
-      console.error('Форма quoteForm не найдена');
-      return;
-    }
-    
-    quoteItemsBody = document.getElementById('quoteItemsBody');
-    if (!quoteItemsBody) {
-      console.error('quoteItemsBody не найден');
-      return;
-    }
-    
-    totalFormsInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
-    createProductBtn = document.getElementById('createProductBtn');
-    addRowBtn = document.getElementById('addRowBtn');
-    addFirstRowBtn = document.getElementById('addFirstRowBtn');
-    
-    console.log('Элементы найдены:', {
-      form: !!form,
-      quoteItemsBody: !!quoteItemsBody,
-      totalFormsInput: !!totalFormsInput,
-      createProductBtn: !!createProductBtn,
-      addRowBtn: !!addRowBtn,
-      addFirstRowBtn: !!addFirstRowBtn
-    });
-    
-    // Управление формсетом товаров
-    function renumberForms() {
+    function init() {
+      console.log('Начало инициализации формы КП...');
+      
+      form = document.getElementById('quoteForm');
+      if (!form) {
+        console.error('Форма quoteForm не найдена');
+        return;
+      }
+      
+      quoteItemsBody = document.getElementById('quoteItemsBody');
+      if (!quoteItemsBody) {
+        console.error('quoteItemsBody не найден');
+        return;
+      }
+      
+      totalFormsInput = form.querySelector('input[name$="-TOTAL_FORMS"]');
+      createProductBtn = document.getElementById('createProductBtn');
+      addRowBtn = document.getElementById('addRowBtn');
+      addFirstRowBtn = document.getElementById('addFirstRowBtn');
+      
+      console.log('Элементы найдены:', {
+        form: !!form,
+        quoteItemsBody: !!quoteItemsBody,
+        totalFormsInput: !!totalFormsInput,
+        createProductBtn: !!createProductBtn,
+        addRowBtn: !!addRowBtn,
+        addFirstRowBtn: !!addFirstRowBtn
+      });
+      
+      // Управление формсетом товаров
+      function renumberForms() {
       if (!quoteItemsBody || !totalFormsInput) return;
       const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
       rows.forEach((row, idx) => {
@@ -590,13 +599,13 @@ body.modal-open {
       totalFormsInput.value = rows.length;
     }
     
-    function cloneLastRow() {
-      if (!quoteItemsBody) {
-        console.error('quoteItemsBody не найден в cloneLastRow');
-        return;
-      }
-    const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
-    if (rows.length === 0) {
+      function cloneLastRow() {
+        if (!quoteItemsBody) {
+          console.error('quoteItemsBody не найден в cloneLastRow');
+          return;
+        }
+        const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
+        if (rows.length === 0) {
       // Создаем первую строку
       const tbody = quoteItemsBody;
       const templateRow = document.createElement('tr');
@@ -667,178 +676,181 @@ body.modal-open {
         setTimeout(() => barcodeInput.focus(), 100);
       }
       
-      return;
-    }
-    
-    const lastRow = rows[rows.length - 1];
-    const clone = lastRow.cloneNode(true);
-    
-    clone.querySelectorAll('input, select, textarea').forEach(el => {
-      if (el.type === 'checkbox') el.checked = false;
-      else if (el.type === 'hidden' && el.name.includes('product_id')) el.value = '';
-      else if (el.type === 'hidden' && el.name.includes('request_item_id')) el.value = '';
-      else if (el.type !== 'hidden') el.value = '';
-      el.classList.remove('field-error');
-    });
-    
-    clone.querySelectorAll('.errorlist').forEach(el => el.remove());
-    clone.removeAttribute('data-notfound');
-    
-    const totalSpan = clone.querySelector('.item-total');
-    if (totalSpan) totalSpan.textContent = '0.00';
-    
-    lastRow.parentNode.insertBefore(clone, lastRow.nextSibling);
-    renumberForms();
-    
-    const barcodeInput = clone.querySelector('input[name*="-barcode"]');
-    if (barcodeInput) {
-      setTimeout(() => barcodeInput.focus(), 100);
-    }
-  }
-  
-  // Модальное окно создания товара
-  function openCreateProductModal(productName, row) {
-    const modal = document.getElementById('createProductModal');
-    const content = document.getElementById('createProductContent');
-    
-    if (!modal || !content) return;
-    
-    content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>';
-    modal.style.display = 'flex';
-    document.body.classList.add('modal-open');
-    
-    fetch('/ajax/product-create-inline/', {
-      method: 'GET',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    })
-    .then(response => response.text())
-    .then(html => {
-      content.innerHTML = html;
-      const nameInput = content.querySelector('input[name="name"]');
-      if (nameInput && productName) {
-        nameInput.value = productName;
-      }
-      if (window.initCreateProductForm) {
-        window.initCreateProductForm();
-      }
-    })
-    .catch(error => {
-      console.error('Ошибка загрузки формы:', error);
-      content.innerHTML = '<div style="color: #ef4444; padding: 20px;">Ошибка загрузки формы создания товара</div>';
-    });
-  }
-  
-  function closeCreateProductModal() {
-    const modal = document.getElementById('createProductModal');
-    if (modal) {
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-    }
-  }
-  
-    // Кнопка добавления строки
-    if (addRowBtn) {
-      addRowBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        cloneLastRow();
-      });
-    }
-    
-    if (addFirstRowBtn) {
-      addFirstRowBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        cloneLastRow();
-      });
-    }
-    
-    // Удаление строки
-    quoteItemsBody.addEventListener('click', function(e) {
-      const btn = e.target.closest('[data-remove]');
-      if (!btn) return;
-      
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const row = btn.closest('[data-form-row]');
-      if (!row) return;
-      
-      if (confirm('Удалить эту позицию?')) {
-        const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
-        if (rows.length <= 1) {
-          // Если последняя строка, очищаем её
-          row.querySelectorAll('input, select, textarea').forEach(el => {
-            if (el.type !== 'hidden' && !el.name.includes('DELETE')) {
-              el.value = '';
-            }
-          });
-        } else {
-          row.remove();
-          renumberForms();
+          return;
         }
         
-        calculateGrandTotal();
+        const lastRow = rows[rows.length - 1];
+        const clone = lastRow.cloneNode(true);
+        
+        clone.querySelectorAll('input, select, textarea').forEach(el => {
+          if (el.type === 'checkbox') el.checked = false;
+          else if (el.type === 'hidden' && el.name.includes('product_id')) el.value = '';
+          else if (el.type === 'hidden' && el.name.includes('request_item_id')) el.value = '';
+          else if (el.type !== 'hidden') el.value = '';
+          el.classList.remove('field-error');
+        });
+        
+        clone.querySelectorAll('.errorlist').forEach(el => el.remove());
+        clone.removeAttribute('data-notfound');
+        
+        const totalSpan = clone.querySelector('.item-total');
+        if (totalSpan) totalSpan.textContent = '0.00';
+        
+        lastRow.parentNode.insertBefore(clone, lastRow.nextSibling);
+        renumberForms();
+        
+        const barcodeInput = clone.querySelector('input[name*="-barcode"]');
+        if (barcodeInput) {
+          setTimeout(() => barcodeInput.focus(), 100);
+        }
       }
-    });
+      
+      // Модальное окно создания товара
+      function openCreateProductModal(productName, row) {
+        const modal = document.getElementById('createProductModal');
+        const content = document.getElementById('createProductContent');
+        
+        if (!modal || !content) return;
+        
+        content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">Загрузка формы...</div>';
+        modal.style.display = 'flex';
+        document.body.classList.add('modal-open');
+        
+        fetch('/ajax/product-create-inline/', {
+          method: 'GET',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(response => response.text())
+        .then(html => {
+          content.innerHTML = html;
+          const nameInput = content.querySelector('input[name="name"]');
+          if (nameInput && productName) {
+            nameInput.value = productName;
+          }
+          if (window.initCreateProductForm) {
+            window.initCreateProductForm();
+          }
+        })
+        .catch(error => {
+          console.error('Ошибка загрузки формы:', error);
+          content.innerHTML = '<div style="color: #ef4444; padding: 20px;">Ошибка загрузки формы создания товара</div>';
+        });
+      }
   
-    // Кнопка создания товара
-    if (createProductBtn) {
-      createProductBtn.addEventListener('click', function(e) {
+      function closeCreateProductModal() {
+        const modal = document.getElementById('createProductModal');
+        if (modal) {
+          modal.style.display = 'none';
+          document.body.classList.remove('modal-open');
+        }
+      }
+      
+      // Кнопка добавления строки
+      if (addRowBtn) {
+        addRowBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          cloneLastRow();
+        });
+      }
+      
+      if (addFirstRowBtn) {
+        addFirstRowBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          cloneLastRow();
+        });
+      }
+      
+      // Удаление строки
+      quoteItemsBody.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-remove]');
+        if (!btn) return;
+        
         e.preventDefault();
         e.stopPropagation();
-        openCreateProductModal('', null);
+        
+        const row = btn.closest('[data-form-row]');
+        if (!row) return;
+        
+        if (confirm('Удалить эту позицию?')) {
+          const rows = quoteItemsBody.querySelectorAll('[data-form-row]');
+          if (rows.length <= 1) {
+            // Если последняя строка, очищаем её
+            row.querySelectorAll('input, select, textarea').forEach(el => {
+              if (el.type !== 'hidden' && !el.name.includes('DELETE')) {
+                el.value = '';
+              }
+            });
+          } else {
+            row.remove();
+            renumberForms();
+          }
+          
+          calculateGrandTotal();
+        }
       });
-    }
-    
-    // Кнопка создания товара из строки
-    quoteItemsBody.addEventListener('click', function(e) {
-      const btn = e.target.closest('.btn-create-product');
-      if (!btn) return;
       
-      e.preventDefault();
-      e.stopPropagation();
+      // Кнопка создания товара
+      if (createProductBtn) {
+        createProductBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openCreateProductModal('', null);
+        });
+      }
       
-      const row = btn.closest('[data-form-row]');
-      if (!row) return;
+      // Кнопка создания товара из строки
+      quoteItemsBody.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-create-product');
+        if (!btn) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const row = btn.closest('[data-form-row]');
+        if (!row) return;
+        
+        const titleInput = row.querySelector('[name$="-title"]');
+        const titleValue = titleInput ? titleInput.value.trim() : '';
+        openCreateProductModal(titleValue, row);
+      });
       
-      const titleInput = row.querySelector('[name$="-title"]');
-      const titleValue = titleInput ? titleInput.value.trim() : '';
-      openCreateProductModal(titleValue, row);
-    });
+      // Закрытие модального окна
+      const closeBtn = document.getElementById('closeCreateProductModal');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', closeCreateProductModal);
+      }
+      
+      const modal = document.getElementById('createProductModal');
+      if (modal) {
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) {
+            closeCreateProductModal();
+          }
+        });
+      }
     
-    // Закрытие модального окна
-    const closeBtn = document.getElementById('closeCreateProductModal');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', closeCreateProductModal);
-    }
-    
-    const modal = document.getElementById('createProductModal');
-    if (modal) {
-      modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-          closeCreateProductModal();
+      // Прикрепляем обработчики ввода
+      setupInputHandlers();
+      
+      // Первоначальный расчет
+      const existingRows = quoteItemsBody.querySelectorAll('[data-form-row]');
+      existingRows.forEach(row => {
+        calculateTotal(row);
+      });
+      calculateGrandTotal();
+      
+      // Скрытие автодополнения при клике вне
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.autocomplete-list') && !e.target.closest('[name$="-title"]')) {
+          hideAutocomplete();
         }
       });
     }
     
-    // Первоначальный расчет
-    const existingRows = quoteItemsBody.querySelectorAll('[data-form-row]');
-    existingRows.forEach(row => {
-      calculateTotal(row);
-    });
-    calculateGrandTotal();
-    
-    // Скрытие автодополнения при клике вне
-    document.addEventListener('click', function(e) {
-      if (!e.target.closest('.autocomplete-list') && !e.target.closest('[name$="-title"]')) {
-        hideAutocomplete();
-      }
-    });
-  }
-  
     // Инициализация при загрузке DOM
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init);
