@@ -463,10 +463,10 @@
       </section>
       {% endif %}
 
-      <!-- Позиции -->
+      <!-- Позиции заявки -->
       <section class="rq-card">
         <div class="rq-card__head">
-          <h2>Позиции</h2>
+          <h2>Позиции заявки</h2>
           {% if can_add_items %}
             <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
               {% csrf_token %}
@@ -478,19 +478,96 @@
           {% endif %}
         </div>
 
-        {% if obj.items.all %}
+        {% if items_with_relations %}
           <div class="rq-table">
             <div class="rq-trow rq-trow--head">
               <div>Наименование</div>
               <div class="ta-right">Кол-во</div>
               <div>Примечание</div>
+              <div>Источник</div>
+              <div class="ta-center {% if not can_edit_items %}rq-hidden{% endif %}">Действия</div>
             </div>
-            {% for it in obj.items.all %}
-              <div class="rq-trow">
-                <div>{% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}</div>
-                <div class="ta-right">{{ it.quantity }}</div>
-                <div class="muted">{{ it.note }}</div>
-              </div>
+            {% for item_data in items_with_relations %}
+              {% with it=item_data.item quote_item=item_data.quote_item %}
+                <div class="rq-trow rq-trow--item" data-item-id="{{ it.pk }}">
+                  <div class="rq-item-name">
+                    {% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}
+                  </div>
+                  <div class="ta-right rq-item-qty">{{ it.quantity }}</div>
+                  <div class="muted rq-item-note">{{ it.note|default:"—" }}</div>
+                  <div class="rq-item-source">
+                    <div class="rq-source-badges">
+                      <span class="rq-source-badge rq-source-badge--request" title="Позиция из заявки">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Заявка
+                      </span>
+                      {% if quote_item %}
+                        <span class="rq-source-badge rq-source-badge--quote" title="Есть в коммерческом предложении">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                          КП
+                        </span>
+                        {% if item_data.has_shipments %}
+                          <span class="rq-source-badge rq-source-badge--shipment" title="Частично или полностью отгружено">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M16 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V8L16 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                              <path d="M15 3V8H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Отгрузка
+                          </span>
+                        {% endif %}
+                        {% if item_data.shipped_quantity > 0 %}
+                          <span class="rq-source-info" title="Отгружено: {{ item_data.shipped_quantity }} из {{ quote_item.quantity }}">
+                            ({{ item_data.shipped_quantity }}/{{ quote_item.quantity }})
+                          </span>
+                        {% endif %}
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="rq-item-actions ta-center {% if not can_edit_items %}rq-hidden{% endif %}">
+                      <button type="button" class="rq-edit-btn" data-edit-item="{{ it.pk }}" title="Редактировать">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M18.5 2.5C18.8978 2.10218 19.4374 1.87868 20 1.87868C20.5626 1.87868 21.1022 2.10218 21.5 2.5C21.8978 2.89782 22.1213 3.43739 22.1213 4C22.1213 4.56261 21.8978 5.10218 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                      <form method="post" action="{% url 'core:request_delete_item' obj.pk it.pk %}" class="rq-delete-form" onsubmit="return confirm('Удалить позицию?');">
+                        {% csrf_token %}
+                        <button type="submit" class="rq-delete-btn" title="Удалить">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+                <!-- Форма редактирования (скрыта по умолчанию) -->
+                {% if can_edit_items %}
+                  <div class="rq-trow rq-trow--edit" data-edit-form="{{ it.pk }}" style="display: none;">
+                    <form method="post" action="{% url 'core:request_update_item' obj.pk it.pk %}" class="rq-edit-form">
+                      {% csrf_token %}
+                      <div class="rq-edit-form__field">
+                        <input type="text" name="title" value="{{ it.title }}" placeholder="Наименование" required class="rq-edit-input">
+                      </div>
+                      <div class="rq-edit-form__qty">
+                        <input type="number" name="quantity" value="{{ it.quantity }}" step="0.001" min="0" placeholder="Кол-во" required class="rq-edit-input">
+                      </div>
+                      <div class="rq-edit-form__note">
+                        <input type="text" name="note" value="{{ it.note }}" placeholder="Примечание" class="rq-edit-input">
+                      </div>
+                      <div></div>
+                      <div class="rq-edit-form__actions ta-center {% if not can_edit_items %}rq-hidden{% endif %}">
+                        <button type="submit" class="rq-save-btn">Сохранить</button>
+                        <button type="button" class="rq-cancel-btn" data-cancel-edit="{{ it.pk }}">Отмена</button>
+                      </div>
+                    </form>
+                  </div>
+                {% endif %}
+              {% endwith %}
             {% endfor %}
           </div>
         {% else %}
@@ -2310,9 +2387,13 @@
 .rq-upload__label{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px dashed #111;border-radius:12px;background:#fff;color:#111;font-weight:700;cursor:pointer}
 
 .rq-table{display:grid;border-top:1px solid var(--line)}
-.rq-trow{display:grid;grid-template-columns:1fr 120px 1fr;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
-.rq-trow--head{background:#fbfbfb;font-weight:700}
+.rq-trow{display:grid;grid-template-columns:1.5fr 100px 1fr 1.2fr 100px;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:center}
+.rq-trow--head{background:#fbfbfb;font-weight:700;font-size:13px;color:#666}
+.rq-trow--item:hover{background:#fafafa}
+.rq-trow--edit{background:#f8f9fa;border-left:3px solid #111}
 .ta-right{text-align:right}
+.ta-center{text-align:center}
+.rq-hidden{display:none}
 
 .rq-file{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dotted var(--line)}
 .rq-file:last-child{border-bottom:0}
@@ -2320,8 +2401,43 @@
 .rq-file__actions{display:flex;gap:6px}
 .rq-file__actions form{display:inline}
 
-.rq-additem{display:grid;grid-template-columns:1fr 120px 1fr auto;gap:8px;align-items:center}
+.rq-additem{display:grid;grid-template-columns:1.5fr 100px 1fr auto;gap:8px;align-items:center}
 .rq-additem__field input,.rq-additem__qty input,.rq-additem__note input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+
+/* Стили для позиций заявки */
+.rq-item-name{font-weight:500;color:#111}
+.rq-item-qty{font-weight:500;color:#111}
+.rq-item-note{font-size:13px;color:#777}
+
+/* Бейджи источников */
+.rq-item-source{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rq-source-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rq-source-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;transition:all 0.2s}
+.rq-source-badge--request{background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe}
+.rq-source-badge--quote{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.rq-source-badge--shipment{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
+.rq-source-badge svg{flex-shrink:0}
+.rq-source-info{font-size:11px;color:#666;font-weight:500}
+
+/* Действия с позициями */
+.rq-item-actions{display:flex;align-items:center;justify-content:center;gap:6px}
+.rq-edit-btn,.rq-delete-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:none;border-radius:8px;background:transparent;color:#666;cursor:pointer;transition:all 0.2s}
+.rq-edit-btn:hover{background:#e0e7ff;color:#3730a3}
+.rq-delete-btn:hover{background:#fee2e2;color:#dc2626}
+.rq-edit-btn svg,.rq-delete-btn svg{width:16px;height:16px}
+.rq-delete-form{display:inline;margin:0}
+
+/* Форма редактирования */
+.rq-edit-form{display:contents}
+.rq-edit-form__field,.rq-edit-form__qty,.rq-edit-form__note{display:flex;align-items:center}
+.rq-edit-form__actions{display:flex;align-items:center;justify-content:center;gap:6px}
+.rq-edit-input{width:100%;padding:8px 10px;border:1px solid #111;border-radius:8px;background:#fff;font-size:14px}
+.rq-edit-input:focus{outline:none;border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,0.1)}
+.rq-save-btn,.rq-cancel-btn{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;border:none}
+.rq-save-btn{background:#111;color:#fff}
+.rq-save-btn:hover{opacity:0.9}
+.rq-cancel-btn{background:#f3f4f6;color:#666;border:1px solid #e5e7eb}
+.rq-cancel-btn:hover{background:#e5e7eb}
 
 .rq-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;color:#111}
 .rq-chip--paid{border-style:dashed}
@@ -2384,7 +2500,10 @@
   .rq-step{flex-shrink:0;font-size:12px;padding:5px 10px}
   .rq-additem{grid-template-columns:1fr 1fr;gap:8px}
   .rq-additem__note{grid-column:1 / -1}
-  .rq-trow{grid-template-columns:1fr 90px 1fr;gap:8px;padding:8px 12px}
+  .rq-trow{grid-template-columns:1fr 70px 0.8fr 0.8fr 70px;gap:6px;padding:8px 12px;font-size:13px}
+  .rq-trow--head{grid-template-columns:1fr 70px 0.8fr 0.8fr 70px;font-size:12px}
+  .rq-source-badges{flex-direction:column;align-items:flex-start;gap:4px}
+  .rq-item-actions{flex-direction:column;gap:4px}
   .rq-file__actions{flex-direction:column;width:100%}
   .rq-file__actions .btn{width:100%;justify-content:center}
   .rq-card__head{flex-wrap:wrap;gap:12px}
@@ -2394,4 +2513,59 @@
   .action-link-btn{padding:14px 20px;font-size:15px}
 }
 </style>
+
+<script>
+// Inline редактирование позиций заявки
+document.addEventListener('DOMContentLoaded', function() {
+  const editButtons = document.querySelectorAll('[data-edit-item]');
+  const cancelButtons = document.querySelectorAll('[data-cancel-edit]');
+  
+  // Обработчик кнопки редактирования
+  editButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const itemId = this.getAttribute('data-edit-item');
+      const itemRow = document.querySelector(`[data-item-id="${itemId}"]`);
+      const editRow = document.querySelector(`[data-edit-form="${itemId}"]`);
+      
+      if (itemRow && editRow) {
+        // Скрываем строку с данными
+        itemRow.style.display = 'none';
+        // Показываем форму редактирования
+        editRow.style.display = 'grid';
+        // Фокус на первое поле
+        const firstInput = editRow.querySelector('.rq-edit-input');
+        if (firstInput) {
+          firstInput.focus();
+          firstInput.select();
+        }
+      }
+    });
+  });
+  
+  // Обработчик кнопки отмены
+  cancelButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const itemId = this.getAttribute('data-cancel-edit');
+      const itemRow = document.querySelector(`[data-item-id="${itemId}"]`);
+      const editRow = document.querySelector(`[data-edit-form="${itemId}"]`);
+      
+      if (itemRow && editRow) {
+        // Показываем строку с данными
+        itemRow.style.display = 'grid';
+        // Скрываем форму редактирования
+        editRow.style.display = 'none';
+      }
+    });
+  });
+  
+  // Обработка отправки формы редактирования
+  const editForms = document.querySelectorAll('.rq-edit-form');
+  editForms.forEach(form => {
+    form.addEventListener('submit', function(e) {
+      // Форма отправится обычным способом, страница перезагрузится
+      // Можно добавить здесь индикатор загрузки если нужно
+    });
+  });
+});
+</script>
 {% endblock %}

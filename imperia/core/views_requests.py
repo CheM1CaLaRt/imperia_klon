@@ -28,6 +28,7 @@ from .forms_requests import (
 from .models import Counterparty, CounterpartyAddress, CounterpartyContact
 from .models_requests import (
     Request,
+    RequestShipmentItem,
     RequestItem,
     RequestStatus,
     RequestHistory,
@@ -430,6 +431,34 @@ def request_detail(request, pk: int):
     is_manager_only = is_manager and not has_full_access
     can_add_items = (is_manager_only and obj.is_editable) or (has_full_access and obj.can_add_items)
     
+    # Проверка возможности редактирования позиций
+    can_edit_items = (is_manager_only and obj.is_editable) or (has_full_access and obj.can_add_items)
+    
+    # Собираем информацию о связях позиций заявки с КП и отгрузками
+    items_with_relations = []
+    for item in obj.items.all():
+        # Ищем связанные позиции в КП
+        quote_items = item.quote_items.filter(quote__is_active=True) if active_quote else []
+        quote_item = quote_items.first() if quote_items else None
+        
+        # Ищем отгруженные количества для позиций КП
+        shipped_quantity = Decimal("0")
+        if quote_item:
+            shipped_quantity = obj.get_shipped_quantity(quote_item)
+        
+        # Проверяем, есть ли отгрузки для этой позиции
+        has_shipments = False
+        if quote_item:
+            shipment_items = RequestShipmentItem.objects.filter(quote_item=quote_item)
+            has_shipments = shipment_items.exists()
+        
+        items_with_relations.append({
+            'item': item,
+            'quote_item': quote_item,
+            'shipped_quantity': shipped_quantity,
+            'has_shipments': has_shipments,
+        })
+    
     # Получаем даты прохождения этапов из истории
     status_dates = {}
     for h in obj.history.all().order_by('created_at'):
@@ -549,6 +578,8 @@ def request_detail(request, pk: int):
             "shipments": shipments,
             "can_create_shipment": can_create_shipment,
             "can_add_items": can_add_items,
+            "can_edit_items": can_edit_items,
+            "items_with_relations": items_with_relations,
             "status_dates": status_dates,
             "display_steps": display_steps,
         },
@@ -610,8 +641,20 @@ def request_add_item(request, pk: int):
 @require_groups("manager", "operator", "director")
 def request_update_item(request, pk: int, item_id: int):
     obj = get_object_or_404(Request, pk=pk)
-    if not obj.is_editable:
-        return HttpResponseBadRequest("Нельзя изменять в этом статусе")
+    u = request.user
+    
+    # Проверка прав доступа
+    is_manager = u.groups.filter(name="manager").exists()
+    has_full_access = u.is_superuser or u.groups.filter(name__in=["operator", "director"]).exists()
+    
+    # Менеджер может редактировать только в редактируемых статусах
+    if is_manager and not has_full_access:
+        if not obj.is_editable:
+            return HttpResponseBadRequest("Нельзя изменять в этом статусе")
+    else:
+        # Оператор и директор могут редактировать на всех стадиях кроме завершенных/отмененных
+        if not obj.can_add_items:
+            return HttpResponseBadRequest("Нельзя изменять позиции в завершенной или отмененной заявке")
 
     it = get_object_or_404(RequestItem, pk=item_id, request=obj)
     form = RequestItemEditForm(request.POST, instance=it)
@@ -629,8 +672,20 @@ def request_update_item(request, pk: int, item_id: int):
 @require_groups("manager", "operator", "director")
 def request_delete_item(request, pk: int, item_id: int):
     obj = get_object_or_404(Request, pk=pk)
-    if not obj.is_editable:
-        return HttpResponseBadRequest("Нельзя изменять в этом статусе")
+    u = request.user
+    
+    # Проверка прав доступа
+    is_manager = u.groups.filter(name="manager").exists()
+    has_full_access = u.is_superuser or u.groups.filter(name__in=["operator", "director"]).exists()
+    
+    # Менеджер может удалять только в редактируемых статусах
+    if is_manager and not has_full_access:
+        if not obj.is_editable:
+            return HttpResponseBadRequest("Нельзя изменять в этом статусе")
+    else:
+        # Оператор и директор могут удалять на всех стадиях кроме завершенных/отмененных
+        if not obj.can_add_items:
+            return HttpResponseBadRequest("Нельзя удалять позиции в завершенной или отмененной заявке")
 
     it = get_object_or_404(RequestItem, pk=item_id, request=obj)
     it.delete()
