@@ -5,34 +5,50 @@
   <title>УПД — Заявка #{{ obj.number }}{% if shipment %} (Отгрузка #{{ shipment.shipment_number|default:shipment.pk }}){% endif %}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font:12px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#000;background:#fff}
+    body{font:11px/1.3 "Times New Roman",Times,serif;color:#000;background:#fff}
     .wrap{max-width:210mm;margin:0 auto;padding:10mm}
     @media print{
       .noprint{display:none}
       .wrap{padding:5mm}
       body{background:#fff}
+      @page{margin:0;size:A4}
     }
-    h1{font-size:16px;font-weight:700;margin-bottom:15px;text-align:center;text-transform:uppercase}
-    .header{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px}
-    .header-box{border:1px solid #000;padding:10px}
-    .header-box h3{font-size:11px;font-weight:600;margin-bottom:8px;text-transform:uppercase;border-bottom:1px solid #000;padding-bottom:3px}
-    .header-box p{margin:3px 0;font-size:11px;line-height:1.3}
-    .doc-info{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}
-    .doc-info-item{border:1px solid #000;padding:8px;text-align:center}
-    .doc-info-item strong{display:block;font-size:10px;margin-bottom:3px}
-    .doc-info-item span{font-size:11px}
-    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:11px}
-    th,td{padding:6px 4px;border:1px solid #000;text-align:left}
-    th{background:#f0f0f0;font-weight:600;text-align:center;font-size:10px}
+    h1{font-size:14px;font-weight:700;margin-bottom:10px;text-align:center;text-transform:uppercase;letter-spacing:0.5px}
+    .doc-header{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+    .doc-header-box{border:1px solid #000;padding:6px 8px;min-height:80px}
+    .doc-header-box h3{font-size:9px;font-weight:700;margin-bottom:4px;text-transform:uppercase;border-bottom:1px solid #000;padding-bottom:2px}
+    .doc-header-box p{margin:2px 0;font-size:9px;line-height:1.2}
+    .doc-header-box strong{font-weight:700}
+    .doc-info{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;border:1px solid #000}
+    .doc-info-item{border-right:1px solid #000;padding:6px 4px;text-align:center}
+    .doc-info-item:last-child{border-right:none}
+    .doc-info-item strong{display:block;font-size:8px;margin-bottom:2px;font-weight:700}
+    .doc-info-item span{font-size:10px}
+    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:9px;border:1px solid #000}
+    th,td{padding:4px 3px;border:1px solid #000;text-align:left;vertical-align:top}
+    th{background:#f0f0f0;font-weight:700;text-align:center;font-size:8px;padding:5px 3px}
     .right{text-align:right}
     .center{text-align:center}
-    .footer{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
-    .signature-block{border:1px solid #000;padding:10px;min-height:80px}
-    .signature-block h4{font-size:11px;font-weight:600;margin-bottom:8px;text-transform:uppercase}
-    .signature-block p{margin:5px 0;font-size:10px}
-    .total-row{font-weight:700;font-size:12px}
+    .col-num{width:3%}
+    .col-name{width:35%}
+    .col-unit{width:6%}
+    .col-qty{width:8%}
+    .col-price{width:12%}
+    .col-total{width:12%}
+    .col-vat-rate{width:8%}
+    .col-vat{width:8%}
+    .col-total-vat{width:8%}
+    .footer{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:15px}
+    .signature-block{border:1px solid #000;padding:8px;min-height:100px}
+    .signature-block h4{font-size:9px;font-weight:700;margin-bottom:6px;text-transform:uppercase}
+    .signature-block p{margin:4px 0;font-size:9px}
+    .signature-line{margin-top:50px;border-top:1px solid #000;padding-top:4px}
+    .total-section{margin-top:10px;border:1px solid #000;padding:6px}
+    .total-row{font-weight:700;font-size:10px;padding:4px 3px}
+    .total-row td{border-top:2px solid #000}
     .muted{color:#666}
-    .note-box{margin-top:15px;padding:10px;border:1px solid #000;font-size:11px}
+    .note-box{margin-top:10px;padding:6px 8px;border:1px solid #000;font-size:9px}
+    .vat-info{font-size:8px;color:#666;margin-top:2px}
   </style>
 </head>
 <body>
@@ -46,42 +62,57 @@
     
     <div class="doc-info">
       <div class="doc-info-item">
-        <strong>Номер</strong>
+        <strong>Номер документа</strong>
         <span>{% if shipment %}{{ shipment.shipment_number|default:shipment.pk }}{% else %}{{ obj.number|default:obj.pk }}{% endif %}</span>
       </div>
       <div class="doc-info-item">
-        <strong>Дата</strong>
+        <strong>Дата составления</strong>
         <span>{% if shipment %}{{ shipment.shipped_at|date:"d.m.Y" }}{% else %}{{ obj.created_at|date:"d.m.Y" }}{% endif %}</span>
       </div>
       <div class="doc-info-item">
-        <strong>Заявка</strong>
+        <strong>Номер заявки</strong>
         <span>#{{ obj.number|default:obj.pk }}</span>
       </div>
       <div class="doc-info-item">
-        <strong>Статус</strong>
-        <span>{% if shipment %}Отгрузка{% else %}Заявка{% endif %}</span>
+        <strong>Вид операции</strong>
+        <span>Отгрузка товаров</span>
       </div>
     </div>
 
-    <div class="header">
-      <div class="header-box">
+    <div class="doc-header">
+      <div class="doc-header-box">
         <h3>Продавец</h3>
-        <p><strong>ООО "Ваша компания"</strong></p>
-        <p>ИНН: <span id="seller_inn">________________</span></p>
-        <p>КПП: <span id="seller_kpp">________________</span></p>
-        <p>Адрес: <span id="seller_address">________________</span></p>
-        <p>Телефон: <span id="seller_phone">________________</span></p>
+        <p><strong>{{ company.full_name|default:company.name|default:"________________" }}</strong></p>
+        {% if company.inn %}
+          <p>ИНН {{ company.inn }}{% if company.kpp %} / КПП {{ company.kpp }}{% endif %}</p>
+        {% else %}
+          <p>ИНН ________________ / КПП ________________</p>
+        {% endif %}
+        {% if company.ogrn %}
+          <p>ОГРН {{ company.ogrn }}</p>
+        {% endif %}
+        {% if company.address %}
+          <p>Адрес: {{ company.address }}</p>
+        {% else %}
+          <p>Адрес: ________________</p>
+        {% endif %}
+        {% if company.phone %}
+          <p>Телефон: {{ company.phone }}</p>
+        {% endif %}
+        {% if company.email %}
+          <p>Email: {{ company.email }}</p>
+        {% endif %}
       </div>
       
-      <div class="header-box">
+      <div class="doc-header-box">
         <h3>Покупатель</h3>
         {% if obj.counterparty %}
-          <p><strong>{{ obj.counterparty.name }}</strong></p>
+          <p><strong>{{ obj.counterparty.full_name|default:obj.counterparty.name }}</strong></p>
           {% if obj.counterparty.inn %}
-            <p>ИНН: {{ obj.counterparty.inn }}</p>
+            <p>ИНН {{ obj.counterparty.inn }}{% if obj.counterparty.kpp %} / КПП {{ obj.counterparty.kpp }}{% endif %}</p>
           {% endif %}
-          {% if obj.counterparty.kpp %}
-            <p>КПП: {{ obj.counterparty.kpp }}</p>
+          {% if obj.counterparty.ogrn %}
+            <p>ОГРН {{ obj.counterparty.ogrn }}</p>
           {% endif %}
           {% if obj.counterparty.address %}
             <p>Адрес: {{ obj.counterparty.address }}</p>
@@ -93,9 +124,18 @@
     </div>
 
     {% if obj.delivery_address or obj.delivery_contact %}
-    <div class="header" style="margin-top:10px">
-      <div class="header-box">
-        <h3>Адрес доставки</h3>
+    <div class="doc-header" style="margin-top:8px">
+      <div class="doc-header-box">
+        <h3>Грузоотправитель</h3>
+        {% if company.address %}
+          <p>{{ company.address }}</p>
+        {% else %}
+          <p>________________</p>
+        {% endif %}
+      </div>
+      
+      <div class="doc-header-box">
+        <h3>Грузополучатель</h3>
         {% if obj.delivery_address %}
           <p>{{ obj.delivery_address.address }}</p>
         {% elif obj.counterparty and obj.counterparty.actual_address %}
@@ -104,37 +144,21 @@
           <p class="muted">Не указан</p>
         {% endif %}
       </div>
-      
-      <div class="header-box">
-        <h3>Контактное лицо</h3>
-        {% if obj.delivery_contact %}
-          <p><strong>{{ obj.delivery_contact.full_name }}</strong></p>
-          {% if obj.delivery_contact.position %}
-            <p>Должность: {{ obj.delivery_contact.position }}</p>
-          {% endif %}
-          {% if obj.delivery_contact.phone %}
-            <p>Телефон: {{ obj.delivery_contact.phone }}</p>
-          {% endif %}
-          {% if obj.delivery_contact.email %}
-            <p>Email: {{ obj.delivery_contact.email }}</p>
-          {% endif %}
-        {% else %}
-          <p class="muted">Не указано</p>
-        {% endif %}
-      </div>
     </div>
     {% endif %}
 
-    <h3 style="margin-top:15px;margin-bottom:8px;font-size:13px;font-weight:600">Товары</h3>
     <table>
       <thead>
         <tr>
-          <th style="width:4%">№</th>
-          <th style="width:40%">Наименование</th>
-          <th style="width:8%" class="center">Ед.</th>
-          <th style="width:12%" class="right">Количество</th>
-          <th style="width:18%" class="right">Цена</th>
-          <th style="width:18%" class="right">Сумма</th>
+          <th class="col-num">№ п/п</th>
+          <th class="col-name">Наименование товара (описание)</th>
+          <th class="col-unit">Ед. изм.</th>
+          <th class="col-qty right">Количество</th>
+          <th class="col-price right">Цена за единицу измерения</th>
+          <th class="col-total right">Стоимость товаров без НДС - всего</th>
+          <th class="col-vat-rate center">Налоговая ставка</th>
+          <th class="col-vat right">Сумма НДС</th>
+          <th class="col-total-vat right">Стоимость товаров с учетом НДС - всего</th>
         </tr>
       </thead>
       <tbody>
@@ -142,43 +166,111 @@
           <tr>
             <td class="center">{{ forloop.counter }}</td>
             <td>{{ item.title }}</td>
-            <td class="center">{{ item.unit }}</td>
-            <td class="right">{{ item.quantity }}</td>
+            <td class="center">{{ item.unit|default:"шт" }}</td>
+            <td class="right">{{ item.quantity|floatformat:3 }}</td>
             <td class="right">{{ item.price|floatformat:2 }} ₽</td>
             <td class="right">{{ item.total|floatformat:2 }} ₽</td>
+            <td class="center">20%</td>
+            <td class="right">{{ item.vat_amount|default:0|floatformat:2 }} ₽</td>
+            <td class="right">{{ item.total_with_vat|default:item.total|floatformat:2 }} ₽</td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="6" class="center muted">Товары не указаны</td>
+            <td colspan="9" class="center muted">Товары не указаны</td>
           </tr>
         {% endfor %}
         <tr class="total-row">
           <td colspan="5" class="right"><strong>Итого:</strong></td>
-          <td class="right">{{ total_amount|floatformat:2 }} ₽</td>
+          <td class="right">{{ total_without_vat|floatformat:2 }} ₽</td>
+          <td class="center">—</td>
+          <td class="right">{{ vat_amount|floatformat:2 }} ₽</td>
+          <td class="right">{{ total_with_vat|floatformat:2 }} ₽</td>
         </tr>
       </tbody>
     </table>
 
+    <div class="total-section">
+      <table style="border:none;margin:0">
+        <tr>
+          <td style="border:none;padding:2px 0;font-size:9px"><strong>Всего к оплате:</strong></td>
+          <td style="border:none;padding:2px 0;text-align:right;font-size:10px;font-weight:700">{{ total_with_vat|floatformat:2 }} ₽</td>
+        </tr>
+        <tr>
+          <td style="border:none;padding:2px 0;font-size:8px">В том числе НДС ({{ vat_rate|floatformat:0 }}%):</td>
+          <td style="border:none;padding:2px 0;text-align:right;font-size:9px">{{ vat_amount|floatformat:2 }} ₽</td>
+        </tr>
+      </table>
+    </div>
+
     {% if shipment and shipment.comment %}
     <div class="note-box">
-      <strong>Примечание к отгрузке:</strong> {{ shipment.comment }}
+      <strong>Примечание:</strong> {{ shipment.comment }}
     </div>
     {% endif %}
 
     <div class="footer">
       <div class="signature-block">
         <h4>Отпустил</h4>
-        <p style="margin-top:30px">____________________</p>
-        <p class="muted" style="font-size:9px">Подпись, ФИО</p>
+        {% if company.director_name %}
+          <p style="margin-top:10px"><strong>{{ company.director_position }}</strong></p>
+          <div class="signature-line">
+            <p>{{ company.director_name }}</p>
+          </div>
+        {% else %}
+          <div class="signature-line">
+            <p>____________________</p>
+            <p class="muted" style="font-size:8px">Подпись, ФИО</p>
+          </div>
+        {% endif %}
       </div>
       <div class="signature-block">
         <h4>Получил</h4>
-        <p style="margin-top:30px">____________________</p>
-        <p class="muted" style="font-size:9px">Подпись, ФИО</p>
+        {% if obj.delivery_contact %}
+          <p style="margin-top:10px"><strong>{{ obj.delivery_contact.full_name }}</strong></p>
+          {% if obj.delivery_contact.position %}
+            <p style="font-size:8px">{{ obj.delivery_contact.position }}</p>
+          {% endif %}
+        {% endif %}
+        <div class="signature-line">
+          <p>____________________</p>
+          <p class="muted" style="font-size:8px">Подпись, ФИО</p>
+        </div>
       </div>
     </div>
+
+    <div class="footer" style="margin-top:10px">
+      <div class="signature-block">
+        <h4>Главный бухгалтер</h4>
+        {% if company.accountant_name %}
+          <div class="signature-line">
+            <p>{{ company.accountant_name }}</p>
+          </div>
+        {% else %}
+          <div class="signature-line">
+            <p>____________________</p>
+            <p class="muted" style="font-size:8px">Подпись, ФИО</p>
+          </div>
+        {% endif %}
+      </div>
+      <div class="signature-block">
+        <h4>Индивидуальный предприниматель</h4>
+        <div class="signature-line">
+          <p>____________________</p>
+          <p class="muted" style="font-size:8px">Подпись, ФИО</p>
+        </div>
+      </div>
+    </div>
+
+    {% if company.bank_name or company.bank_account %}
+    <div class="note-box" style="margin-top:10px">
+      <strong>Реквизиты банка продавца:</strong><br>
+      {% if company.bank_name %}Банк: {{ company.bank_name }}<br>{% endif %}
+      {% if company.bank_bik %}БИК: {{ company.bank_bik }}<br>{% endif %}
+      {% if company.bank_account %}Расчетный счет: {{ company.bank_account }}<br>{% endif %}
+      {% if company.bank_corr_account %}Корр. счет: {{ company.bank_corr_account }}{% endif %}
+    </div>
+    {% endif %}
   </div>
   <script>window.addEventListener('load',()=>{ if(!window.opener) setTimeout(()=>window.print(),500); });</script>
 </body>
 </html>
-

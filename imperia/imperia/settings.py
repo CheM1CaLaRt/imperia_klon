@@ -146,3 +146,21 @@ LOGIN_REDIRECT_URL = "post_login_router"
 LOGOUT_REDIRECT_URL = "login"
 
 X_FRAME_OPTIONS = "SAMEORIGIN"
+
+# === Настройки компании для УПД ===
+COMPANY_NAME = os.getenv("COMPANY_NAME", "ООО \"Ваша компания\"")
+COMPANY_FULL_NAME = os.getenv("COMPANY_FULL_NAME", "Общество с ограниченной ответственностью \"Ваша компания\"")
+COMPANY_INN = os.getenv("COMPANY_INN", "")
+COMPANY_KPP = os.getenv("COMPANY_KPP", "")
+COMPANY_OGRN = os.getenv("COMPANY_OGRN", "")
+COMPANY_ADDRESS = os.getenv("COMPANY_ADDRESS", "")
+COMPANY_PHONE = os.getenv("COMPANY_PHONE", "")
+COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "")
+COMPANY_BANK_NAME = os.getenv("COMPANY_BANK_NAME", "")
+COMPANY_BANK_BIK = os.getenv("COMPANY_BANK_BIK", "")
+COMPANY_BANK_ACCOUNT = os.getenv("COMPANY_BANK_ACCOUNT", "")
+COMPANY_BANK_CORR_ACCOUNT = os.getenv("COMPANY_BANK_CORR_ACCOUNT", "")
+COMPANY_DIRECTOR_NAME = os.getenv("COMPANY_DIRECTOR_NAME", "")
+COMPANY_DIRECTOR_POSITION = os.getenv("COMPANY_DIRECTOR_POSITION", "Генеральный директор")
+COMPANY_ACCOUNTANT_NAME = os.getenv("COMPANY_ACCOUNTANT_NAME", "")
+COMPANY_ACCOUNTANT_POSITION = os.getenv("COMPANY_ACCOUNTANT_POSITION", "Главный бухгалтер")

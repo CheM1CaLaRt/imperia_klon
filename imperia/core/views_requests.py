@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from django.apps import apps
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.exceptions import FieldDoesNotExist
+from django.conf import settings
 
 from .permissions import require_groups
 from .forms_requests import (
@@ -1478,6 +1479,7 @@ def request_upd(request, pk: int, shipment_id: int = None):
     shipment = None
     items = []
     total_amount = Decimal("0")
+    vat_rate = Decimal("20.00")  # Ставка НДС 20%
     
     if shipment_id:
         # УПД для конкретной отгрузки
@@ -1485,6 +1487,8 @@ def request_upd(request, pk: int, shipment_id: int = None):
         shipment_items = shipment.items.select_related("product", "quote_item").all()
         for item in shipment_items:
             item_total = item.quantity * (item.price or Decimal("0"))
+            item_vat = item_total * vat_rate / Decimal("100")
+            item_total_with_vat = item_total + item_vat
             total_amount += item_total
             items.append({
                 "title": item.title,
@@ -1492,6 +1496,8 @@ def request_upd(request, pk: int, shipment_id: int = None):
                 "unit": "шт",
                 "price": item.price or Decimal("0"),
                 "total": item_total,
+                "vat_amount": item_vat,
+                "total_with_vat": item_total_with_vat,
             })
     else:
         # УПД для всей заявки (по активному КП)
@@ -1500,6 +1506,8 @@ def request_upd(request, pk: int, shipment_id: int = None):
             quote_items = active_quote.items.select_related("product").all()
             for item in quote_items:
                 item_total = item.total
+                item_vat = item_total * vat_rate / Decimal("100")
+                item_total_with_vat = item_total + item_vat
                 total_amount += item_total
                 items.append({
                     "title": item.title,
@@ -1507,11 +1515,43 @@ def request_upd(request, pk: int, shipment_id: int = None):
                     "unit": "шт",
                     "price": item.price,
                     "total": item_total,
+                    "vat_amount": item_vat,
+                    "total_with_vat": item_total_with_vat,
                 })
+    
+    # Данные компании-продавца из настроек
+    company_data = {
+        "name": getattr(settings, "COMPANY_NAME", ""),
+        "full_name": getattr(settings, "COMPANY_FULL_NAME", ""),
+        "inn": getattr(settings, "COMPANY_INN", ""),
+        "kpp": getattr(settings, "COMPANY_KPP", ""),
+        "ogrn": getattr(settings, "COMPANY_OGRN", ""),
+        "address": getattr(settings, "COMPANY_ADDRESS", ""),
+        "phone": getattr(settings, "COMPANY_PHONE", ""),
+        "email": getattr(settings, "COMPANY_EMAIL", ""),
+        "bank_name": getattr(settings, "COMPANY_BANK_NAME", ""),
+        "bank_bik": getattr(settings, "COMPANY_BANK_BIK", ""),
+        "bank_account": getattr(settings, "COMPANY_BANK_ACCOUNT", ""),
+        "bank_corr_account": getattr(settings, "COMPANY_BANK_CORR_ACCOUNT", ""),
+        "director_name": getattr(settings, "COMPANY_DIRECTOR_NAME", ""),
+        "director_position": getattr(settings, "COMPANY_DIRECTOR_POSITION", "Генеральный директор"),
+        "accountant_name": getattr(settings, "COMPANY_ACCOUNTANT_NAME", ""),
+        "accountant_position": getattr(settings, "COMPANY_ACCOUNTANT_POSITION", "Главный бухгалтер"),
+    }
+    
+    # Расчет итогового НДС
+    total_without_vat = total_amount
+    vat_amount = total_without_vat * vat_rate / Decimal("100")
+    total_with_vat = total_without_vat + vat_amount
     
     return render(request, "requests/upd.html", {
         "obj": obj,
         "shipment": shipment,
         "items": items,
         "total_amount": total_amount,
+        "total_without_vat": total_without_vat,
+        "vat_rate": vat_rate,
+        "vat_amount": vat_amount,
+        "total_with_vat": total_with_vat,
+        "company": company_data,
     })
