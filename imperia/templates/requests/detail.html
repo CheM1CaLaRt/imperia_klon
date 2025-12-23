@@ -408,14 +408,8 @@
     </div>
   </div>
 
-  <!-- ===== Макет: 2 колонки ===== -->
-  <div class="rq-grid">
-
-    <!-- ===== Левая колонка ===== -->
-    <div class="rq-main">
-
-      <!-- Коммерческое предложение -->
-      <section class="rq-card">
+  <!-- ===== Коммерческое предложение (полная ширина) ===== -->
+  <section class="rq-card">
         <div class="rq-card__head">
           <h2>Коммерческое предложение</h2>
 
@@ -500,228 +494,227 @@
         {% endif %}
       </section>
 
-      <!-- Отгрузки -->
-      {% if obj.status in 'ready_to_ship in_delivery partially_shipped shipped' %}
-      <section class="rq-card">
-        <div class="rq-card__head">
-          <h2>Отгрузки</h2>
-          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            {% if can_create_shipment %}
-              <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">
-                Создать отгрузку
-              </a>
-            {% endif %}
-            {% if obj.status == 'ready_to_ship' %}
-              {% if obj.delivery_address or obj.delivery_contact %}
-                <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
-                  📋 Маршрутный лист
-                </a>
-              {% endif %}
-            {% endif %}
+    <!-- ===== Отгрузки ===== -->
+    {% if obj.status in 'ready_to_ship in_delivery partially_shipped shipped' %}
+    <section class="rq-card">
+      <div class="rq-card__head">
+        <h2>Отгрузки</h2>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          {% if can_create_shipment %}
+            <a href="{% url 'core:request_shipment_create' obj.pk %}" class="btn btn-primary">
+              Создать отгрузку
+            </a>
+          {% endif %}
+          {% if obj.status == 'ready_to_ship' %}
             {% if obj.delivery_address or obj.delivery_contact %}
-              <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
-                📄 УПД
+              <a href="{% url 'core:request_route_sheet' obj.pk %}" target="_blank" class="btn btn-ghost">
+                📋 Маршрутный лист
               </a>
             {% endif %}
-          </div>
-        </div>
-
-        {% if shipments %}
-          {% for shipment in shipments %}
-            <div style="padding: 16px; border-bottom: 1px solid var(--border); {% if not forloop.last %}margin-bottom: 16px;{% endif %}">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div>
-                  <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
-                    Отгрузка #{{ shipment.shipment_number|default:shipment.pk }}
-                  </h3>
-                  <div style="margin-top: 4px; font-size: 13px; color: var(--muted);">
-                    {{ shipment.shipped_at|date:"d.m.Y H:i" }} · {{ shipment.shipped_by }}
-                    {% if shipment.is_partial %}
-                      <span style="color: #f59e0b;">(Частичная)</span>
-                    {% endif %}
-                  </div>
-                </div>
-                <div style="font-size: 16px; font-weight: 700; color: var(--primary);">
-                  Итого: {{ shipment.get_total|floatformat:2 }} ₽
-                </div>
-              </div>
-              
-              {% if shipment.comment %}
-                <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: var(--muted);">
-                  {{ shipment.comment }}
-                </div>
-              {% endif %}
-              
-              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                <thead>
-                  <tr style="border-bottom: 1px solid var(--border);">
-                    <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">№</th>
-                    <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">Наименование</th>
-                    <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Количество</th>
-                    <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Цена</th>
-                    <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Итого</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for item in shipment.items.all %}
-                    <tr style="border-bottom: 1px solid var(--border);">
-                      <td style="padding: 10px 8px;">{{ forloop.counter }}</td>
-                      <td style="padding: 10px 8px;">{{ item.title }}</td>
-                      <td style="padding: 10px 8px; text-align: right;">{{ item.quantity }}</td>
-                      <td style="padding: 10px 8px; text-align: right;">{{ item.price|floatformat:2|default:"—" }} {% if item.price %}₽{% endif %}</td>
-                      <td style="padding: 10px 8px; text-align: right; font-weight: 600;">
-                        {% if item.price %}
-                          {% widthratio item.quantity 1 item.price as item_total %}
-                          {{ item_total|floatformat:2 }} ₽
-                        {% else %}
-                          —
-                        {% endif %}
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-              
-              <div style="margin-top: 12px; display: flex; gap: 8px;">
-                <a href="{% url 'core:request_upd_shipment' obj.pk shipment.pk %}" target="_blank" class="btn btn-ghost" style="font-size: 13px;">
-                  📄 УПД для этой отгрузки
-                </a>
-              </div>
-            </div>
-          {% endfor %}
-        {% else %}
-          <div class="rq-empty">Отгрузок нет</div>
-        {% endif %}
-      </section>
-      {% endif %}
-      
-      <!-- Документы (если нет отгрузок, но есть данные для доставки) -->
-      {% if obj.status not in 'ready_to_ship partially_shipped shipped in_delivery' and obj.delivery_address %}
-      <section class="rq-card">
-        <div class="rq-card__head">
-          <h2>Документы</h2>
-        </div>
-        <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-          {% if active_quote %}
+          {% endif %}
+          {% if obj.delivery_address or obj.delivery_contact %}
             <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
               📄 УПД
             </a>
           {% endif %}
         </div>
-      </section>
-      {% endif %}
+      </div>
 
-      <!-- Позиции заявки -->
-      <section class="rq-card">
-        <div class="rq-card__head">
-          <h2>Позиции заявки</h2>
-          {% if can_add_items %}
-            <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
-              {% csrf_token %}
-              <div class="rq-additem__field">{{ item_form.title }}</div>
-              <div class="rq-additem__qty">{{ item_form.quantity }}</div>
-              <div class="rq-additem__note">{{ item_form.note }}</div>
-              <button class="btn">Добавить</button>
-            </form>
-          {% endif %}
-        </div>
-
-        {% if items_with_relations %}
-          <div class="rq-table">
-            <div class="rq-trow rq-trow--head">
-              <div>Наименование</div>
-              <div class="ta-right">Кол-во</div>
-              <div>Примечание</div>
-              <div>Источник</div>
-              <div class="ta-center {% if not can_edit_items %}rq-hidden{% endif %}">Действия</div>
+      {% if shipments %}
+        {% for shipment in shipments %}
+          <div style="padding: 16px; border-bottom: 1px solid var(--border); {% if not forloop.last %}margin-bottom: 16px;{% endif %}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+                  Отгрузка #{{ shipment.shipment_number|default:shipment.pk }}
+                </h3>
+                <div style="margin-top: 4px; font-size: 13px; color: var(--muted);">
+                  {{ shipment.shipped_at|date:"d.m.Y H:i" }} · {{ shipment.shipped_by }}
+                  {% if shipment.is_partial %}
+                    <span style="color: #f59e0b;">(Частичная)</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div style="font-size: 16px; font-weight: 700; color: var(--primary);">
+                Итого: {{ shipment.get_total|floatformat:2 }} ₽
+              </div>
             </div>
-            {% for item_data in items_with_relations %}
-              {% with it=item_data.item quote_item=item_data.quote_item %}
-                <div class="rq-trow rq-trow--item" data-item-id="{{ it.pk }}">
-                  <div class="rq-item-name">
-                    {% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}
-                  </div>
-                  <div class="ta-right rq-item-qty">{{ it.quantity }}</div>
-                  <div class="muted rq-item-note">{{ it.note|default:"—" }}</div>
-                  <div class="rq-item-source">
-                    <div class="rq-source-badges">
-                      <span class="rq-source-badge rq-source-badge--request" title="Позиция из заявки">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Заявка
-                      </span>
-                      {% if quote_item %}
-                        <span class="rq-source-badge rq-source-badge--quote" title="Есть в коммерческом предложении">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                          </svg>
-                          КП
-                        </span>
-                        {% if item_data.has_shipments %}
-                          <span class="rq-source-badge rq-source-badge--shipment" title="Частично или полностью отгружено">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M16 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V8L16 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                              <path d="M15 3V8H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Отгрузка
-                          </span>
-                        {% endif %}
-                        {% if item_data.shipped_quantity > 0 %}
-                          <span class="rq-source-info" title="Отгружено: {{ item_data.shipped_quantity }} из {{ quote_item.quantity }}">
-                            ({{ item_data.shipped_quantity }}/{{ quote_item.quantity }})
-                          </span>
-                        {% endif %}
+            
+            {% if shipment.comment %}
+              <div style="padding: 12px; background: var(--bg); border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: var(--muted);">
+                {{ shipment.comment }}
+              </div>
+            {% endif %}
+            
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border);">
+                  <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">№</th>
+                  <th style="padding: 8px; text-align: left; font-weight: 600; color: var(--muted);">Наименование</th>
+                  <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Количество</th>
+                  <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Цена</th>
+                  <th style="padding: 8px; text-align: right; font-weight: 600; color: var(--muted);">Итого</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in shipment.items.all %}
+                  <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 10px 8px;">{{ forloop.counter }}</td>
+                    <td style="padding: 10px 8px;">{{ item.title }}</td>
+                    <td style="padding: 10px 8px; text-align: right;">{{ item.quantity }}</td>
+                    <td style="padding: 10px 8px; text-align: right;">{{ item.price|floatformat:2|default:"—" }} {% if item.price %}₽{% endif %}</td>
+                    <td style="padding: 10px 8px; text-align: right; font-weight: 600;">
+                      {% if item.price %}
+                        {% widthratio item.quantity 1 item.price as item_total %}
+                        {{ item_total|floatformat:2 }} ₽
+                      {% else %}
+                        —
                       {% endif %}
-                    </div>
-                  </div>
-                  <div class="rq-item-actions ta-center {% if not can_edit_items %}rq-hidden{% endif %}">
-                      <button type="button" class="rq-edit-btn" data-edit-item="{{ it.pk }}" title="Редактировать">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M18.5 2.5C18.8978 2.10218 19.4374 1.87868 20 1.87868C20.5626 1.87868 21.1022 2.10218 21.5 2.5C21.8978 2.89782 22.1213 3.43739 22.1213 4C22.1213 4.56261 21.8978 5.10218 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+              <a href="{% url 'core:request_upd_shipment' obj.pk shipment.pk %}" target="_blank" class="btn btn-ghost" style="font-size: 13px;">
+                📄 УПД для этой отгрузки
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="rq-empty">Отгрузок нет</div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- ===== Документы (если нет отгрузок, но есть данные для доставки) ===== -->
+    {% if obj.status not in 'ready_to_ship partially_shipped shipped in_delivery' and obj.delivery_address %}
+    <section class="rq-card">
+      <div class="rq-card__head">
+        <h2>Документы</h2>
+      </div>
+      <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+        {% if active_quote %}
+          <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
+            📄 УПД
+          </a>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- ===== Позиции заявки ===== -->
+    <section class="rq-card">
+      <div class="rq-card__head">
+        <h2>Позиции заявки</h2>
+        {% if can_add_items %}
+          <form method="post" action="{% url 'core:request_add_item' obj.pk %}" class="rq-additem">
+            {% csrf_token %}
+            <div class="rq-additem__field">{{ item_form.title }}</div>
+            <div class="rq-additem__qty">{{ item_form.quantity }}</div>
+            <div class="rq-additem__note">{{ item_form.note }}</div>
+            <button class="btn">Добавить</button>
+          </form>
+        {% endif %}
+      </div>
+
+      {% if items_with_relations %}
+        <div class="rq-table">
+          <div class="rq-trow rq-trow--head">
+            <div>Наименование</div>
+            <div class="ta-right">Кол-во</div>
+            <div>Примечание</div>
+            <div>Источник</div>
+            <div class="ta-center {% if not can_edit_items %}rq-hidden{% endif %}">Действия</div>
+          </div>
+          {% for item_data in items_with_relations %}
+            {% with it=item_data.item quote_item=item_data.quote_item %}
+              <div class="rq-trow rq-trow--item" data-item-id="{{ it.pk }}">
+                <div class="rq-item-name">
+                  {% if it.title %}{{ it.title }}{% else %}{{ it.product.name }}{% endif %}
+                </div>
+                <div class="ta-right rq-item-qty">{{ it.quantity }}</div>
+                <div class="muted rq-item-note">{{ it.note|default:"—" }}</div>
+                <div class="rq-item-source">
+                  <div class="rq-source-badges">
+                    <span class="rq-source-badge rq-source-badge--request" title="Позиция из заявки">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      Заявка
+                    </span>
+                    {% if quote_item %}
+                      <span class="rq-source-badge rq-source-badge--quote" title="Есть в коммерческом предложении">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                      </button>
-                      <form method="post" action="{% url 'core:request_delete_item' obj.pk it.pk %}" class="rq-delete-form" onsubmit="return confirm('Удалить позицию?');">
-                        {% csrf_token %}
-                        <button type="submit" class="rq-delete-btn" title="Удалить">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        КП
+                      </span>
+                      {% if item_data.has_shipments %}
+                        <span class="rq-source-badge rq-source-badge--shipment" title="Частично или полностью отгружено">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V8L16 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M15 3V8H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                           </svg>
-                        </button>
-                      </form>
-                    </div>
+                          Отгрузка
+                        </span>
+                      {% endif %}
+                      {% if item_data.shipped_quantity > 0 %}
+                        <span class="rq-source-info" title="Отгружено: {{ item_data.shipped_quantity }} из {{ quote_item.quantity }}">
+                          ({{ item_data.shipped_quantity }}/{{ quote_item.quantity }})
+                        </span>
+                      {% endif %}
+                    {% endif %}
                   </div>
                 </div>
-                <!-- Форма редактирования (скрыта по умолчанию) -->
-                {% if can_edit_items %}
-                  <div class="rq-trow rq-trow--edit" data-edit-form="{{ it.pk }}" style="display: none;">
-                    <form method="post" action="{% url 'core:request_update_item' obj.pk it.pk %}" class="rq-edit-form">
-                      {% csrf_token %}
-                      <div class="rq-edit-form__field">
-                        <input type="text" name="title" value="{{ it.title }}" placeholder="Наименование" required class="rq-edit-input">
-                      </div>
-                      <div class="rq-edit-form__qty">
-                        <input type="number" name="quantity" value="{{ it.quantity }}" step="0.001" min="0" placeholder="Кол-во" required class="rq-edit-input">
-                      </div>
-                      <div class="rq-edit-form__note">
-                        <input type="text" name="note" value="{{ it.note }}" placeholder="Примечание" class="rq-edit-input">
-                      </div>
-                      <div></div>
-                      <div class="rq-edit-form__actions ta-center {% if not can_edit_items %}rq-hidden{% endif %}">
-                        <button type="submit" class="rq-save-btn">Сохранить</button>
-                        <button type="button" class="rq-cancel-btn" data-cancel-edit="{{ it.pk }}">Отмена</button>
-                      </div>
-                    </form>
-                  </div>
-                {% endif %}
-              {% endwith %}
-            {% endfor %}
-          </div>
-        {% else %}
-          <div class="rq-empty">Пока пусто</div>
-        {% endif %}
-      </section>
+                <div class="rq-item-actions ta-center {% if not can_edit_items %}rq-hidden{% endif %}">
+                  <button type="button" class="rq-edit-btn" data-edit-item="{{ it.pk }}" title="Редактировать">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M18.5 2.5C18.8978 2.10218 19.4374 1.87868 20 1.87868C20.5626 1.87868 21.1022 2.10218 21.5 2.5C21.8978 2.89782 22.1213 3.43739 22.1213 4C22.1213 4.56261 21.8978 5.10218 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  <form method="post" action="{% url 'core:request_delete_item' obj.pk it.pk %}" class="rq-delete-form" onsubmit="return confirm('Удалить позицию?');">
+                    {% csrf_token %}
+                    <button type="submit" class="rq-delete-btn" title="Удалить">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 6H5H21M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                  </form>
+                </div>
+              </div>
+              <!-- Форма редактирования (скрыта по умолчанию) -->
+              {% if can_edit_items %}
+                <div class="rq-trow rq-trow--edit" data-edit-form="{{ it.pk }}" style="display: none;">
+                  <form method="post" action="{% url 'core:request_update_item' obj.pk it.pk %}" class="rq-edit-form">
+                    {% csrf_token %}
+                    <div class="rq-edit-form__field">
+                      <input type="text" name="title" value="{{ it.title }}" placeholder="Наименование" required class="rq-edit-input">
+                    </div>
+                    <div class="rq-edit-form__qty">
+                      <input type="number" name="quantity" value="{{ it.quantity }}" step="0.001" min="0" placeholder="Кол-во" required class="rq-edit-input">
+                    </div>
+                    <div class="rq-edit-form__note">
+                      <input type="text" name="note" value="{{ it.note }}" placeholder="Примечание" class="rq-edit-input">
+                    </div>
+                    <div></div>
+                    <div class="rq-edit-form__actions ta-center {% if not can_edit_items %}rq-hidden{% endif %}">
+                      <button type="submit" class="rq-save-btn">Сохранить</button>
+                      <button type="button" class="rq-cancel-btn" data-cancel-edit="{{ it.pk }}">Отмена</button>
+                    </div>
+                  </form>
+                </div>
+              {% endif %}
+            {% endwith %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="rq-empty">Пока пусто</div>
+      {% endif %}
+    </section>
 
       <!-- Секция «Сборка со склада» (оператор/директор при статусе approved) -->
       {% if show_pick_section %}
@@ -1077,44 +1070,36 @@
 
 
 
-      <!-- История -->
-      <section class="rq-card">
-        <div class="rq-card__head">
-          <h2>История</h2>
-          {% with history_all=obj.history.all %}
-            {% if history_all|length > 3 %}
-              <button type="button" id="toggleHistory" class="rq-history-toggle" aria-label="Показать полную историю">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            {% endif %}
-          {% endwith %}
-        </div>
-        {% if obj.history.all %}
-          <ul class="rq-history" id="historyList">
-            {% for h in obj.history.all %}
-              <li class="history-item">
-                <span class="rq-mono">{{ h.created_at|date:"d.m.Y H:i" }}</span>
-                — <b>{{ h.author }}</b>:
-                <span class="rq-mono">{{ h.from_status|default:"—" }}</span>
-                → <span class="rq-mono">{{ h.to_status }}</span>
-                <span class="muted">{{ h.note }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <div class="rq-empty">Пусто</div>
-        {% endif %}
-      </section>
-
-    </div>
-
-    <!-- ===== Правая колонка (пустая, можно использовать для дополнительной информации) ===== -->
-    <aside class="rq-aside">
-      {# Правая колонка оставлена пустой, блоки действий и оплаты перенесены вверх #}
-    </aside>
-  </div>
+    <!-- ===== История ===== -->
+    <section class="rq-card">
+      <div class="rq-card__head">
+        <h2>История</h2>
+        {% with history_all=obj.history.all %}
+          {% if history_all|length > 3 %}
+            <button type="button" id="toggleHistory" class="rq-history-toggle" aria-label="Показать полную историю">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          {% endif %}
+        {% endwith %}
+      </div>
+      {% if obj.history.all %}
+        <ul class="rq-history" id="historyList">
+          {% for h in obj.history.all %}
+            <li class="history-item">
+              <span class="rq-mono">{{ h.created_at|date:"d.m.Y H:i" }}</span>
+              — <b>{{ h.author }}</b>:
+              <span class="rq-mono">{{ h.from_status|default:"—" }}</span>
+              → <span class="rq-mono">{{ h.to_status }}</span>
+              <span class="muted">{{ h.note }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="rq-empty">Пусто</div>
+      {% endif %}
+    </section>
 </div>
 
 {# ===== Модалка предпросмотра КП ===== #}
