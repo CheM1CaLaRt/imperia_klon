@@ -183,6 +183,154 @@
   </div>
   {% endif %}
 
+  <!-- ===== Блок действий (самый первый) ===== -->
+  {% if request.user|in_groups:"operator,director,warehouse" %}
+  <section class="modern-actions-card modern-actions-card--top">
+    <div class="modern-actions-header">
+      <div class="modern-actions-header__icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 class="modern-actions-header__title">Действия</h2>
+    </div>
+
+    <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="modern-actions-form" id="statusChangeForm">
+      {% csrf_token %}
+
+      {# ОПЕРАТОР И ДИРЕКТОР - выпадающее меню со всеми статусами #}
+      {% if request.user|in_groups:"operator,director" %}
+        <div class="status-select-wrapper">
+          <label for="statusSelect" class="status-select-label">Изменить статус заявки</label>
+          <select id="statusSelect" name="to" class="status-select" data-current-status="{{ obj.status }}">
+            <option value="">-- Выберите статус --</option>
+            {% if obj.status != "draft" %}
+              <option value="draft">Черновик</option>
+          {% endif %}
+            {% if obj.status != "submitted" %}
+              <option value="submitted">Отправлена</option>
+        {% endif %}
+            {% if obj.status != "quote" %}
+              <option value="quote">КП</option>
+      {% endif %}
+            {% if obj.status != "pending_approval" %}
+              <option value="pending_approval">На согласовании</option>
+        {% endif %}
+            {% if obj.status != "approved" %}
+              <option value="approved">Согласована</option>
+      {% endif %}
+            {% if obj.status != "rejected" %}
+              <option value="rejected">Не согласована</option>
+        {% endif %}
+            {% if obj.status != "to_pick" %}
+              <option value="to_pick">На сборку</option>
+      {% endif %}
+            {% if obj.status != "in_progress" %}
+              <option value="in_progress">В работу</option>
+            {% endif %}
+            {% if obj.status != "ready_to_ship" %}
+              <option value="ready_to_ship">Готова к отгрузке</option>
+          {% endif %}
+            {% if obj.status != "in_delivery" %}
+              <option value="in_delivery">В доставке</option>
+            {% endif %}
+            {% if obj.status != "partially_shipped" %}
+              <option value="partially_shipped">Частично отгружена</option>
+            {% endif %}
+            {% if obj.status != "shipped" %}
+              <option value="shipped">Отгружена</option>
+            {% endif %}
+            {% if obj.status != "delivered" %}
+              <option value="delivered">Доставлена</option>
+            {% endif %}
+            {% if obj.status != "done" %}
+              <option value="done">Завершена</option>
+            {% endif %}
+            {% if obj.status != "canceled" %}
+              <option value="canceled">Отменена</option>
+            {% endif %}
+          </select>
+          <button type="submit" class="status-submit-btn" id="statusSubmitBtn" disabled>
+            <span class="status-submit-btn__icon">✓</span>
+            <span class="status-submit-btn__text">Применить</span>
+          </button>
+        </div>
+        
+        {# Специальные действия для оператора #}
+        {% if request.user|in_groups:"operator" %}
+          {% if obj.status == "submitted" or obj.status == "rejected" %}
+            <div class="modern-actions-divider"></div>
+            <a href="{% url 'core:request_quote_create' obj.pk %}" class="action-link-btn">
+              <span class="action-link-btn__icon">➕</span>
+              <span class="action-link-btn__text">{% if obj.status == "rejected" %}Редактировать КП{% else %}Создать КП{% endif %}</span>
+            </a>
+        {% endif %}
+          {% if obj.status == "ready_to_ship" or obj.status == "partially_shipped" %}
+            <div class="modern-actions-divider"></div>
+            <a href="{% url 'core:request_shipment_create' obj.pk %}" class="action-link-btn">
+              <span class="action-link-btn__icon">➕</span>
+              <span class="action-link-btn__text">Создать отгрузку</span>
+            </a>
+        {% endif %}
+        {% endif %}
+      {% endif %}
+
+      {# СКЛАД - только "В работу" и "Готова к отгрузке" #}
+      {% if request.user|in_groups:"warehouse" %}
+        <div class="status-select-wrapper">
+          <label for="statusSelectWarehouse" class="status-select-label">Изменить статус</label>
+          <select id="statusSelectWarehouse" name="to" class="status-select" data-current-status="{{ obj.status }}">
+            <option value="">-- Выберите статус --</option>
+            {% if obj.status == "to_pick" %}
+              <option value="in_progress">В работу</option>
+            {% elif obj.status == "in_progress" %}
+              <option value="ready_to_ship">Готова к отгрузке</option>
+            {% elif obj.status == "ready_to_ship" %}
+              <option value="in_delivery">В доставке</option>
+            {% endif %}
+          </select>
+          <button type="submit" class="status-submit-btn" id="statusSubmitBtnWarehouse" disabled>
+            <span class="status-submit-btn__icon">✓</span>
+            <span class="status-submit-btn__text">Применить</span>
+          </button>
+        </div>
+      {% endif %}
+    </form>
+  </section>
+  {% endif %}
+
+  <!-- ===== Оплата (второй блок) ===== -->
+  {% if request.user|in_groups:"director,operator" %}
+    {% if obj.status != 'canceled' %}
+    <section class="rq-card rq-card--payment">
+      <div class="rq-card__head">
+        <h2>Оплата</h2>
+        {% if obj.is_paid %}
+          <span class="rq-chip" style="background:#dcfce7;border-color:#86efac;color:#166534">Оплачено</span>
+        {% endif %}
+      </div>
+      <form method="post" action="{% url 'core:request_toggle_payment' obj.pk %}">
+        {% csrf_token %}
+        <label class="rq-pay" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer">
+          <input type="checkbox" name="is_paid" value="1" {% if obj.is_paid %}checked{% endif %} onchange="this.form.submit()" style="width:20px;height:20px;cursor:pointer">
+          <span style="font-weight:600;font-size:15px">Заявка оплачена</span>
+        </label>
+        {% if obj.status == 'delivered' and not obj.is_paid %}
+          <div style="padding:8px 14px;margin:0 14px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#78350f">
+            💡 Отметьте оплату, чтобы автоматически завершить заявку
+          </div>
+        {% elif obj.status == 'done' and not obj.is_paid %}
+          <div style="padding:8px 14px;margin:0 14px 12px;background:#fee2e2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#7f1d1d">
+            ⚠️ Заявка завершена, но не оплачена. Снимите отметку, чтобы вернуть в статус «Доставлена»
+          </div>
+        {% endif %}
+      </form>
+    </section>
+    {% endif %}
+  {% endif %}
+
   <!-- Внутренний комментарий -->
   <div class="collapsible-card">
     <button type="button" class="collapsible-card__header" data-collapse-target="comment">
@@ -962,155 +1110,9 @@
 
     </div>
 
-    <!-- ===== Правая колонка (Действия) ===== -->
+    <!-- ===== Правая колонка (пустая, можно использовать для дополнительной информации) ===== -->
     <aside class="rq-aside">
-      {# Блок действий - только для операторов, директоров и склада (не для менеджеров) #}
-      {% if request.user|in_groups:"operator,director,warehouse" %}
-      <section class="modern-actions-card rq-sticky">
-        <div class="modern-actions-header">
-          <div class="modern-actions-header__icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h2 class="modern-actions-header__title">Действия</h2>
-        </div>
-
-        <form method="post" action="{% url 'core:request_change_status' obj.pk %}" class="modern-actions-form" id="statusChangeForm">
-          {% csrf_token %}
-
-          {# ОПЕРАТОР И ДИРЕКТОР - выпадающее меню со всеми статусами #}
-          {% if request.user|in_groups:"operator,director" %}
-            <div class="status-select-wrapper">
-              <label for="statusSelect" class="status-select-label">Изменить статус заявки</label>
-              <select id="statusSelect" name="to" class="status-select" data-current-status="{{ obj.status }}">
-                <option value="">-- Выберите статус --</option>
-                {% if obj.status != "draft" %}
-                  <option value="draft">Черновик</option>
-              {% endif %}
-                {% if obj.status != "submitted" %}
-                  <option value="submitted">Отправлена</option>
-            {% endif %}
-                {% if obj.status != "quote" %}
-                  <option value="quote">КП</option>
-          {% endif %}
-                {% if obj.status != "pending_approval" %}
-                  <option value="pending_approval">На согласовании</option>
-            {% endif %}
-                {% if obj.status != "approved" %}
-                  <option value="approved">Согласована</option>
-          {% endif %}
-                {% if obj.status != "rejected" %}
-                  <option value="rejected">Не согласована</option>
-            {% endif %}
-                {% if obj.status != "to_pick" %}
-                  <option value="to_pick">На сборку</option>
-          {% endif %}
-                {% if obj.status != "in_progress" %}
-                  <option value="in_progress">В работу</option>
-                {% endif %}
-                {% if obj.status != "ready_to_ship" %}
-                  <option value="ready_to_ship">Готова к отгрузке</option>
-              {% endif %}
-                {% if obj.status != "in_delivery" %}
-                  <option value="in_delivery">В доставке</option>
-                {% endif %}
-                {% if obj.status != "partially_shipped" %}
-                  <option value="partially_shipped">Частично отгружена</option>
-                {% endif %}
-                {% if obj.status != "shipped" %}
-                  <option value="shipped">Отгружена</option>
-                {% endif %}
-                {% if obj.status != "delivered" %}
-                  <option value="delivered">Доставлена</option>
-                {% endif %}
-                {% if obj.status != "done" %}
-                  <option value="done">Завершена</option>
-                {% endif %}
-                {% if obj.status != "canceled" %}
-                  <option value="canceled">Отменена</option>
-                {% endif %}
-              </select>
-              <button type="submit" class="status-submit-btn" id="statusSubmitBtn" disabled>
-                <span class="status-submit-btn__icon">✓</span>
-                <span class="status-submit-btn__text">Применить</span>
-              </button>
-            </div>
-            
-            {# Специальные действия для оператора #}
-            {% if request.user|in_groups:"operator" %}
-              {% if obj.status == "submitted" or obj.status == "rejected" %}
-                <div class="modern-actions-divider"></div>
-                <a href="{% url 'core:request_quote_create' obj.pk %}" class="action-link-btn">
-                  <span class="action-link-btn__icon">➕</span>
-                  <span class="action-link-btn__text">{% if obj.status == "rejected" %}Редактировать КП{% else %}Создать КП{% endif %}</span>
-                </a>
-            {% endif %}
-              {% if obj.status == "ready_to_ship" or obj.status == "partially_shipped" %}
-                <div class="modern-actions-divider"></div>
-                <a href="{% url 'core:request_shipment_create' obj.pk %}" class="action-link-btn">
-                  <span class="action-link-btn__icon">➕</span>
-                  <span class="action-link-btn__text">Создать отгрузку</span>
-                </a>
-            {% endif %}
-            {% endif %}
-          {% endif %}
-
-          {# СКЛАД - только "В работу" и "Готова к отгрузке" #}
-          {% if request.user|in_groups:"warehouse" %}
-            <div class="status-select-wrapper">
-              <label for="statusSelectWarehouse" class="status-select-label">Изменить статус</label>
-              <select id="statusSelectWarehouse" name="to" class="status-select" data-current-status="{{ obj.status }}">
-                <option value="">-- Выберите статус --</option>
-                {% if obj.status == "to_pick" %}
-                  <option value="in_progress">В работу</option>
-                {% elif obj.status == "in_progress" %}
-                  <option value="ready_to_ship">Готова к отгрузке</option>
-                {% elif obj.status == "ready_to_ship" %}
-                  <option value="in_delivery">В доставке</option>
-                {% endif %}
-              </select>
-              <button type="submit" class="status-submit-btn" id="statusSubmitBtnWarehouse" disabled>
-                <span class="status-submit-btn__icon">✓</span>
-                <span class="status-submit-btn__text">Применить</span>
-              </button>
-            </div>
-          {% endif %}
-        </form>
-      </section>
-      {% endif %}
-
-      {# ОПЛАТА: только директор/оператор #}
-      {% if request.user|in_groups:"director,operator" %}
-        {% if obj.status != 'canceled' %}
-        <section class="rq-card rq-sticky">
-          <div class="rq-card__head">
-            <h2>Оплата</h2>
-            {% if obj.is_paid %}
-              <span class="rq-chip" style="background:#dcfce7;border-color:#86efac;color:#166534">Оплачено</span>
-            {% endif %}
-          </div>
-          <form method="post" action="{% url 'core:request_toggle_payment' obj.pk %}">
-            {% csrf_token %}
-            <label class="rq-pay" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer">
-              <input type="checkbox" name="is_paid" value="1" {% if obj.is_paid %}checked{% endif %} onchange="this.form.submit()" style="width:20px;height:20px;cursor:pointer">
-              <span style="font-weight:600;font-size:15px">Заявка оплачена</span>
-            </label>
-            {% if obj.status == 'delivered' and not obj.is_paid %}
-              <div style="padding:8px 14px;margin:0 14px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#78350f">
-                💡 Отметьте оплату, чтобы автоматически завершить заявку
-              </div>
-            {% elif obj.status == 'done' and not obj.is_paid %}
-              <div style="padding:8px 14px;margin:0 14px 12px;background:#fee2e2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#7f1d1d">
-                ⚠️ Заявка завершена, но не оплачена. Снимите отметку, чтобы вернуть в статус «Доставлена»
-              </div>
-            {% endif %}
-          </form>
-        </section>
-        {% endif %}
-      {% endif %}
+      {# Правая колонка оставлена пустой, блоки действий и оплаты перенесены вверх #}
     </aside>
   </div>
 </div>
@@ -1785,6 +1787,15 @@
   box-shadow:0 2px 8px rgba(0,0,0,0.04);
   overflow:hidden;
 }
+.rq-card--payment{
+  margin-bottom: 16px;
+  border: 2px solid #059669;
+  box-shadow: 0 4px 12px rgba(5,150,105,0.15);
+}
+.rq-card--payment .rq-card__head{
+  background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%);
+  border-bottom-color: #86efac;
+}
 .rq-card__head{
   display:flex;
   align-items:center;
@@ -2175,6 +2186,19 @@
 }
 
 /* Современный блок действий 2025 */
+/* Блок действий вверху страницы */
+.modern-actions-card--top{
+  margin-bottom: 20px;
+  margin-top: 0;
+  border: 2px solid #111;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06);
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+}
+.modern-actions-card--top .modern-actions-header__icon{
+  background: rgba(17, 17, 17, 0.1);
+  border-color: rgba(17, 17, 17, 0.15);
+}
+
 .modern-actions-card{
   background:linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%);
   backdrop-filter:blur(20px) saturate(180%);
