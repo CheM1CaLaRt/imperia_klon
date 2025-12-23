@@ -1606,7 +1606,8 @@ def request_upd_xml(request, pk: int, shipment_id: int = None):
             return HttpResponse("Нет активного коммерческого предложения", status=400)
         
         doc_date = active_quote.created_at
-        doc_number = active_quote.number or f"QUOTE-{active_quote.pk}"
+        # Используем номер заявки или ID КП
+        doc_number = obj.number or f"QUOTE-{active_quote.pk}"
         quote_items = active_quote.items.select_related("product").all()
         for idx, item in enumerate(quote_items, 1):
             item_total = item.total
