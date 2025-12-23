@@ -151,10 +151,28 @@
       </div>
     </div>
 
-    <div style="display: flex; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border);">
-      <button name="action" value="save" type="submit" class="btn btn-primary" style="flex: 1; min-width: 140px; padding: 12px 24px; border-radius: 8px; font-weight: 500;">Сохранить КП</button>
-      <button name="action" value="submit_for_approval" type="submit" class="btn" style="flex: 1; min-width: 140px; background: var(--success); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 500;">Отправить на согласование</button>
-      <a href="{% url 'core:request_detail' request_obj.pk %}" class="btn" style="background: var(--bg); border-color: var(--border); color: var(--text); min-width: 140px; padding: 12px 24px; border-radius: 8px; font-weight: 500;">Отмена</a>
+    <div class="quote-form-actions" style="display: flex; gap: 12px; padding: 24px 0; margin-top: 24px; border-top: 2px solid var(--border); flex-wrap: wrap;">
+      <button name="action" value="save" type="submit" class="quote-btn quote-btn--save">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+          <path d="M19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16L21 8V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M17 21V13H7V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7 3V8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Сохранить КП</span>
+      </button>
+      <button name="action" value="submit_for_approval" type="submit" class="quote-btn quote-btn--submit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+          <path d="M22 2L11 13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Отправить на согласование</span>
+      </button>
+      <a href="{% url 'core:request_detail' request_obj.pk %}" class="quote-btn quote-btn--cancel">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0;">
+          <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Отмена</span>
+      </a>
     </div>
   </form>
 </div>
@@ -218,6 +236,100 @@ body.modal-open {
   
   .card {
     padding: 20px !important;
+  }
+}
+
+/* Стили для кнопок действий формы КП */
+.quote-form-actions {
+  display: flex;
+  gap: 12px;
+  padding: 24px 0;
+  margin-top: 24px;
+  border-top: 2px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.quote-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  flex: 1;
+  min-width: 180px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.quote-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.quote-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.quote-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Кнопка "Сохранить КП" */
+.quote-btn--save {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.quote-btn--save:hover {
+  background: #333;
+  border-color: #333;
+  color: #fff;
+}
+
+/* Кнопка "Отправить на согласование" */
+.quote-btn--submit {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+}
+
+.quote-btn--submit:hover {
+  background: #047857;
+  border-color: #047857;
+  color: #fff;
+}
+
+/* Кнопка "Отмена" */
+.quote-btn--cancel {
+  background: #fff;
+  color: #666;
+  border-color: #e5e7eb;
+}
+
+.quote-btn--cancel:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111;
+}
+
+@media (max-width: 640px) {
+  .quote-form-actions {
+    flex-direction: column;
+  }
+  
+  .quote-btn {
+    width: 100%;
+    min-width: 100%;
   }
 }
 </style>
