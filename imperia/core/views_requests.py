@@ -14,6 +14,10 @@ from django.apps import apps
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.exceptions import FieldDoesNotExist
 from django.conf import settings
+from .services.upd_xml import Upd970, parse_address
+import uuid
+import os
+from django.http import HttpResponse
 
 from .permissions import require_groups
 from .forms_requests import (
@@ -1555,3 +1559,161 @@ def request_upd(request, pk: int, shipment_id: int = None):
         "total_with_vat": total_with_vat,
         "company": company_data,
     })
+
+
+# ---------- УПД XML (Универсальный передаточный документ в формате XML) ----------
+@require_GET
+@require_groups("operator", "director")
+def request_upd_xml(request, pk: int, shipment_id: int = None):
+    """Генерация УПД в формате XML для заявки или конкретной отгрузки"""
+    obj = get_object_or_404(
+        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact"),
+        pk=pk
+    )
+    
+    shipment = None
+    items = []
+    total_amount = Decimal("0")
+    total_without_vat = Decimal("0")
+    vat_rate = Decimal("20.00")  # Ставка НДС 20%
+    
+    # Определяем дату документа
+    if shipment_id:
+        shipment = get_object_or_404(RequestShipment, pk=shipment_id, request=obj)
+        doc_date = shipment.shipped_at
+        doc_number = shipment.shipment_number or f"SHIP-{shipment.pk}"
+        shipment_items = shipment.items.select_related("product", "quote_item").all()
+        for idx, item in enumerate(shipment_items, 1):
+            item_total = item.quantity * (item.price or Decimal("0"))
+            item_vat = item_total * vat_rate / Decimal("100")
+            total_without_vat += item_total
+            items.append({
+                "Стоимость": f"{item_total + item_vat:.2f}",
+                "СтоимостьБезНДС": f"{item_total:.2f}",
+                "Цена": f"{item.price or 0:.2f}",
+                "Кол": f"{item.quantity:.3f}",
+                "НаимЕдИзм": "шт",
+                "ОКЕИ": "796",
+                "Товар": item.title,
+                "НомСтр": str(idx),
+                "СуммаНалога": f"{item_vat:.2f}",
+                "НалСт": "20%"
+            })
+    else:
+        # УПД для всей заявки (по активному КП)
+        active_quote = obj.active_quote
+        if not active_quote:
+            return HttpResponse("Нет активного коммерческого предложения", status=400)
+        
+        doc_date = active_quote.created_at
+        doc_number = active_quote.number or f"QUOTE-{active_quote.pk}"
+        quote_items = active_quote.items.select_related("product").all()
+        for idx, item in enumerate(quote_items, 1):
+            item_total = item.total
+            item_vat = item_total * vat_rate / Decimal("100")
+            total_without_vat += item_total
+            items.append({
+                "Стоимость": f"{item_total + item_vat:.2f}",
+                "СтоимостьБезНДС": f"{item_total:.2f}",
+                "Цена": f"{item.price:.2f}",
+                "Кол": f"{item.quantity:.3f}",
+                "НаимЕдИзм": "шт",
+                "ОКЕИ": "796",
+                "Товар": item.title,
+                "НомСтр": str(idx),
+                "СуммаНалога": f"{item_vat:.2f}",
+                "НалСт": "20%"
+            })
+    
+    vat_amount = total_without_vat * vat_rate / Decimal("100")
+    total_with_vat = total_without_vat + vat_amount
+    
+    # Данные компании-продавца
+    company_inn = getattr(settings, "COMPANY_INN", "")
+    company_kpp = getattr(settings, "COMPANY_KPP", "")
+    company_name = getattr(settings, "COMPANY_FULL_NAME", "") or getattr(settings, "COMPANY_NAME", "")
+    company_address = getattr(settings, "COMPANY_ADDRESS", "")
+    
+    # Парсим адрес компании
+    company_addr_parsed = parse_address(company_address)
+    
+    # Данные покупателя
+    if not obj.counterparty:
+        return HttpResponse("Контрагент не указан", status=400)
+    
+    buyer_inn = obj.counterparty.inn or ""
+    buyer_kpp = obj.counterparty.kpp or ""
+    buyer_name = obj.counterparty.full_name or obj.counterparty.name
+    buyer_address = obj.counterparty.address or ""
+    
+    # Парсим адрес покупателя
+    buyer_addr_parsed = parse_address(buyer_address)
+    
+    # Если есть адрес доставки, используем его для грузополучателя
+    if obj.delivery_address:
+        delivery_addr_parsed = parse_address(obj.delivery_address.address)
+    else:
+        delivery_addr_parsed = buyer_addr_parsed
+    
+    # Подготовка данных для УПД
+    upd_head = {
+        "guid_doc": str(uuid.uuid4()),
+        "upd_number": doc_number,
+        "upd_date": doc_date,
+        "СтоимВсего": f"{total_with_vat:.2f}",
+        "СтоимБезНДСВсего": f"{total_without_vat:.2f}",
+        "СумНал": f"{vat_amount:.2f}",
+    }
+    
+    upd_seller = {
+        "guid": f"2BM-{company_inn}-{company_kpp or '000000000'}-{company_inn}",
+        "НаимОрг": company_name,
+        "ИНН": company_inn,
+        "КПП": company_kpp or "",
+        **company_addr_parsed
+    }
+    
+    upd_buyer = {
+        "guid": f"2BM-{buyer_inn}-{buyer_kpp or '000000000'}-{buyer_inn}",
+        "НаимОрг": buyer_name,
+        "ИНН": buyer_inn,
+        "КПП": buyer_kpp or "",
+        **buyer_addr_parsed
+    }
+    
+    # Основания передачи (можно добавить договор, счет и т.д.)
+    upd_docs = []
+    if obj.number:
+        upd_docs.append({
+            "РеквДатаДок": obj.created_at.strftime("%d.%m.%Y"),
+            "РеквНомерДок": obj.number,
+            "РеквНаимДок": "Заявка"
+        })
+    
+    # Добавляем информацию о подписанте
+    director_name = getattr(settings, "COMPANY_DIRECTOR_NAME", "")
+    if director_name:
+        name_parts = director_name.split()
+        if len(name_parts) >= 3:
+            upd_seller["ФИО"] = {
+                "Фамилия": name_parts[0],
+                "Имя": name_parts[1],
+                "Отчество": name_parts[2]
+            }
+        upd_seller["Должн"] = getattr(settings, "COMPANY_DIRECTOR_POSITION", "Генеральный директор")
+    
+    # Генерируем XML
+    upd = Upd970(upd_head, upd_buyer, upd_seller, items, upd_docs, delivery_addr_parsed if obj.delivery_address else None)
+    xml_content = upd.create_xml()
+    
+    # Формируем имя файла
+    if shipment_id:
+        filename = f"UPD_{obj.number or obj.pk}_SHIP{shipment_id}_{doc_date.strftime('%Y%m%d')}.xml"
+    else:
+        filename = f"UPD_{obj.number or obj.pk}_{doc_date.strftime('%Y%m%d')}.xml"
+    
+    # Возвращаем XML как файл для скачивания
+    # Кодировка windows-1251 для соответствия требованиям ФНС
+    response = HttpResponse(xml_content, content_type='application/xml; charset=windows-1251')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response

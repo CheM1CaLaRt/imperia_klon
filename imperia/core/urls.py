@@ -51,6 +51,8 @@ urlpatterns = [
     path("requests/<int:pk>/route-sheet/", rq.request_route_sheet, name="request_route_sheet"),
     path("requests/<int:pk>/upd/", rq.request_upd, name="request_upd"),
     path("requests/<int:pk>/upd/<int:shipment_id>/", rq.request_upd, name="request_upd_shipment"),
+    path("requests/<int:pk>/upd-xml/", rq.request_upd_xml, name="request_upd_xml"),
+    path("requests/<int:pk>/upd-xml/<int:shipment_id>/", rq.request_upd_xml, name="request_upd_xml_shipment"),
 
     # Оплата
     path("requests/<int:pk>/toggle-payment/", rq.request_toggle_payment, name="request_toggle_payment"),

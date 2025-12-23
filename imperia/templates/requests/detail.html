@@ -340,7 +340,10 @@
     <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
       {% if active_quote %}
         <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
-          📄 УПД
+          📄 УПД (HTML)
+        </a>
+        <a href="{% url 'core:request_upd_xml' obj.pk %}" class="btn btn-ghost">
+          📥 УПД (XML)
         </a>
       {% endif %}
     </div>
@@ -530,7 +533,10 @@
           {% endif %}
           {% if obj.delivery_address or obj.delivery_contact %}
             <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
-              📄 УПД
+              📄 УПД (HTML)
+            </a>
+            <a href="{% url 'core:request_upd_xml' obj.pk %}" class="btn btn-ghost">
+              📥 УПД (XML)
             </a>
           {% endif %}
         </div>
@@ -594,7 +600,10 @@
             
             <div style="margin-top: 12px; display: flex; gap: 8px;">
               <a href="{% url 'core:request_upd_shipment' obj.pk shipment.pk %}" target="_blank" class="btn btn-ghost" style="font-size: 13px;">
-                📄 УПД для этой отгрузки
+                📄 УПД (HTML)
+              </a>
+              <a href="{% url 'core:request_upd_xml_shipment' obj.pk shipment.pk %}" class="btn btn-ghost" style="font-size: 13px;">
+                📥 УПД (XML)
               </a>
             </div>
           </div>
