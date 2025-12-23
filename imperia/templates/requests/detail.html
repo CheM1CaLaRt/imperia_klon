@@ -331,6 +331,22 @@
     {% endif %}
   {% endif %}
 
+  <!-- ===== Документы (если нет отгрузок, но есть данные для доставки) ===== -->
+  {% if obj.status not in 'ready_to_ship partially_shipped shipped in_delivery' and obj.delivery_address %}
+  <section class="rq-card">
+    <div class="rq-card__head">
+      <h2>Документы</h2>
+    </div>
+    <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+      {% if active_quote %}
+        <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
+          📄 УПД
+        </a>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <!-- Внутренний комментарий -->
   <div class="collapsible-card">
     <button type="button" class="collapsible-card__header" data-collapse-target="comment">
@@ -586,22 +602,6 @@
       {% else %}
         <div class="rq-empty">Отгрузок нет</div>
       {% endif %}
-    </section>
-    {% endif %}
-
-    <!-- ===== Документы (если нет отгрузок, но есть данные для доставки) ===== -->
-    {% if obj.status not in 'ready_to_ship partially_shipped shipped in_delivery' and obj.delivery_address %}
-    <section class="rq-card">
-      <div class="rq-card__head">
-        <h2>Документы</h2>
-      </div>
-      <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-        {% if active_quote %}
-          <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
-            📄 УПД
-          </a>
-        {% endif %}
-      </div>
     </section>
     {% endif %}
 
