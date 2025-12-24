@@ -1056,9 +1056,26 @@ body.modal-open {
       // Прикрепляем обработчики ввода
       setupInputHandlers();
       
-      // Первоначальный расчет
+      // Первоначальный расчет и заполнение цен из каталога
       const existingRows = quoteItemsBody.querySelectorAll('[data-form-row]');
       existingRows.forEach(row => {
+        // Заполняем цену из каталога, если поле пустое
+        const priceInput = row.querySelector('input[name*="-price"]');
+        const productIdInput = row.querySelector('input[name*="-product_id"]');
+        
+        if (priceInput && productIdInput) {
+          const productId = parseInt(productIdInput.value);
+          const currentPrice = parseFloat(priceInput.value) || 0;
+          
+          // Если цена пустая или равна 0, и есть product_id, заполняем из каталога
+          if (currentPrice === 0 && productId && productsDataMap[productId]) {
+            const purchasePrice = productsDataMap[productId].purchase_price;
+            if (purchasePrice && purchasePrice > 0) {
+              priceInput.value = purchasePrice.toFixed(2);
+            }
+          }
+        }
+        
         calculateTotal(row);
       });
       calculateGrandTotal();

@@ -1065,6 +1065,14 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     barcode = item.product.barcode or ""
                     article = item.product.sku or item.product.vendor_code or ""
                 
+                # Используем сохраненную цену, если она есть, иначе берем из каталога
+                initial_price = item.price or Decimal("0")
+                if not initial_price and purchase_price:
+                    try:
+                        initial_price = Decimal(str(purchase_price))
+                    except (ValueError, TypeError, InvalidOperation):
+                        initial_price = Decimal("0")
+                
                 initial_data.append({
                     "request_item_id": item.request_item_id,
                     "product_id": product_id,
@@ -1072,7 +1080,7 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     "article": article,
                     "title": item.title,
                     "quantity": item.quantity,
-                    "price": item.price,
+                    "price": initial_price,  # Используем сохраненную цену или цену из каталога
                     "note": item.note,
                 })
                 if product_id:
@@ -1101,6 +1109,14 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     barcode = item.product.barcode or ""
                     article = item.product.sku or item.product.vendor_code or ""
                 
+                # Используем purchase_price как начальную цену, если она есть
+                initial_price = Decimal("0")
+                if purchase_price:
+                    try:
+                        initial_price = Decimal(str(purchase_price))
+                    except (ValueError, TypeError, InvalidOperation):
+                        initial_price = Decimal("0")
+                
                 initial_data.append({
                     "request_item_id": item.id,
                     "product_id": product_id,
@@ -1108,7 +1124,7 @@ def request_quote_create_edit(request, pk: int, quote_id: int = None):
                     "article": article,
                     "title": item.title,
                     "quantity": item.quantity,
-                    "price": Decimal("0"),
+                    "price": initial_price,  # Используем цену из каталога вместо 0
                     "note": item.note,
                 })
                 if product_id:
