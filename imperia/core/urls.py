@@ -40,6 +40,7 @@ urlpatterns = [
     path("requests/<int:pk>/item/<int:item_id>/update/", rq.request_update_item, name="request_update_item"),
     path("requests/<int:pk>/item/<int:item_id>/delete/", rq.request_delete_item, name="request_delete_item"),
     path("requests/<int:pk>/status/", rq.request_change_status, name="request_change_status"),
+    path("requests/<int:pk>/update-company/", rq.request_update_company, name="request_update_company"),
 
     # КП (файлы и товары)
     path("requests/<int:pk>/quote/create/", rq.request_quote_create_edit, name="request_quote_create"),

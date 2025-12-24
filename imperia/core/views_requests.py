@@ -30,7 +30,7 @@ from .forms_requests import (
     OrderItemFormSet,
     RequestShipmentItemFormSet,
 )
-from .models import Counterparty, CounterpartyAddress, CounterpartyContact
+from .models import Counterparty, CounterpartyAddress, CounterpartyContact, Company
 from .models_requests import (
     Request,
     RequestShipmentItem,
@@ -558,6 +558,9 @@ def request_detail(request, pk: int):
             'is_completed': False,
         })
 
+    # Список активных компаний для выбора (только для операторов и директоров)
+    companies = Company.objects.filter(is_active=True).order_by("name") if has_full_access else []
+    
     return render(
         request,
         "requests/detail.html",
@@ -587,6 +590,8 @@ def request_detail(request, pk: int):
             "items_with_relations": items_with_relations,
             "status_dates": status_dates,
             "display_steps": display_steps,
+            "companies": companies,
+            "can_edit_company": has_full_access,  # Могут редактировать только операторы и директоры
         },
     )
 
@@ -843,6 +848,36 @@ def request_quote_preview(request, pk: int, quote_id: int):
         f'inline; filename="{q.original_name or q.file.name}"'
     )
     return resp
+
+
+# ---------- Обновление компании заявки ----------
+@require_POST
+@require_groups("operator", "director")
+def request_update_company(request, pk: int):
+    """Обновление компании-продавца заявки (можно менять на любой стадии)"""
+    obj = get_object_or_404(Request, pk=pk)
+    company_id = request.POST.get("company_id")
+    
+    if not company_id:
+        return JsonResponse({"ok": False, "error": "Не указана компания"}, status=400)
+    
+    try:
+        company = Company.objects.get(pk=int(company_id), is_active=True)
+    except (ValueError, Company.DoesNotExist):
+        return JsonResponse({"ok": False, "error": "Компания не найдена"}, status=400)
+    
+    old_company_name = obj.company.name if obj.company else None
+    obj.company = company
+    obj.save(update_fields=["company", "updated_at"])
+    
+    messages.success(request, f"Компания-продавец изменена на «{company.name}»")
+    
+    return JsonResponse({
+        "ok": True,
+        "company_id": company.pk,
+        "company_name": company.name,
+        "company_full_name": company.full_name or company.name,
+    })
 
 
 # ---------- Смена оплаты ----------

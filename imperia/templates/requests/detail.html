@@ -58,7 +58,27 @@
       {% if obj.company %}
         <div class="request-header__meta-item">
           <span class="request-header__meta-label">Компания (продавец):</span>
-          <span class="request-header__meta-value">{{ obj.company.name }}</span>
+          {% if can_edit_company and companies %}
+            <select id="company-select" class="request-header__company-select" style="border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:14px;background:var(--card);color:var(--text);cursor:pointer;min-width:200px">
+              {% for company in companies %}
+                <option value="{{ company.pk }}" {% if company.pk == obj.company.pk %}selected{% endif %}>
+                  {{ company.name }}
+                </option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <span class="request-header__meta-value">{{ obj.company.name }}</span>
+          {% endif %}
+        </div>
+      {% elif can_edit_company and companies %}
+        <div class="request-header__meta-item">
+          <span class="request-header__meta-label">Компания (продавец):</span>
+          <select id="company-select" class="request-header__company-select" style="border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:14px;background:var(--card);color:var(--text);cursor:pointer;min-width:200px">
+            <option value="">-- Выберите компанию --</option>
+            {% for company in companies %}
+              <option value="{{ company.pk }}">{{ company.name }}</option>
+            {% endfor %}
+          </select>
         </div>
       {% endif %}
       {% if obj.counterparty %}
@@ -2693,6 +2713,75 @@ document.addEventListener('DOMContentLoaded', function() {
       // Можно добавить здесь индикатор загрузки если нужно
     });
   });
+  
+  // ==========================
+  // Обновление компании заявки
+  // ==========================
+  const companySelect = document.getElementById('company-select');
+  if (companySelect) {
+    let isUpdating = false;
+    
+    companySelect.addEventListener('change', async function() {
+      if (isUpdating) return;
+      
+      const companyId = this.value;
+      if (!companyId) return;
+      
+      isUpdating = true;
+      const originalValue = this.value;
+      const selectElement = this;
+      selectElement.disabled = true;
+      selectElement.style.opacity = '0.6';
+      
+      try {
+        // Получаем CSRF токен из cookies
+        function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+              const cookie = cookies[i].trim();
+              if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+              }
+            }
+          }
+          return cookieValue;
+        }
+        
+        const formData = new FormData();
+        formData.append('company_id', companyId);
+        formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+        
+        const response = await fetch('{% url "core:request_update_company" obj.pk %}', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+          },
+        });
+        
+        const data = await response.json();
+        
+        if (data.ok) {
+          // Перезагружаем страницу для обновления всех данных компании
+          window.location.reload();
+        } else {
+          alert(data.error || 'Ошибка при обновлении компании');
+          selectElement.value = '{{ obj.company.pk|default:"" }}';
+        }
+      } catch (error) {
+        console.error('Ошибка при обновлении компании:', error);
+        alert('Ошибка при обновлении компании');
+        selectElement.value = '{{ obj.company.pk|default:"" }}';
+      } finally {
+        isUpdating = false;
+        selectElement.disabled = false;
+        selectElement.style.opacity = '1';
+      }
+    });
+  }
 });
 </script>
 {% endblock %}
