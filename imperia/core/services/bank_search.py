@@ -2,80 +2,99 @@
 """
 Справочник банков России с БИК
 Источники:
-- https://www.bankodrom.ru/banki-rossii/spravochnik-bik-bankov-rf/
+- https://bik-info.ru/base/base.xml (полная база данных банков)
 - https://bik-info.ru/base.html (API для получения корреспондентского счета)
 """
+import os
+import xml.etree.ElementTree as ET
+import html
 import requests
-from typing import Optional, Dict
+from typing import Optional, Dict, List
+from django.conf import settings
 
-# Список популярных банков России с БИК
-# Источник: https://www.bankodrom.ru/banki-rossii/spravochnik-bik-bankov-rf/
-BANKS_DATA = [
-    {"name": "Альфа-банк", "bik": "044525593"},
-    {"name": "Сбербанк России", "bik": "044525225"},
-    {"name": "ПАО Сбербанк", "bik": "044525225"},
-    {"name": "ВТБ", "bik": "044525187"},
-    {"name": "ПАО ВТБ", "bik": "044525187"},
-    {"name": "ВТБ 24", "bik": "044525187"},
-    {"name": "Газпромбанк", "bik": "044525823"},
-    {"name": "ПАО Газпромбанк", "bik": "044525823"},
-    {"name": "Россельхозбанк", "bik": "044525111"},
-    {"name": "АО Россельхозбанк", "bik": "044525111"},
-    {"name": "Райффайзенбанк", "bik": "044525700"},
-    {"name": "АО Райффайзенбанк", "bik": "044525700"},
-    {"name": "ЮниКредит Банк", "bik": "044525787"},
-    {"name": "АО ЮниКредит Банк", "bik": "044525787"},
-    {"name": "Росбанк", "bik": "044525256"},
-    {"name": "АО Росбанк", "bik": "044525256"},
-    {"name": "Открытие", "bik": "044525192"},
-    {"name": "ПАО Банк ФК Открытие", "bik": "044525192"},
-    {"name": "Банк ФК Открытие", "bik": "044525192"},
-    {"name": "Промсвязьбанк", "bik": "044525220"},
-    {"name": "ПАО Промсвязьбанк", "bik": "044525220"},
-    {"name": "МКБ", "bik": "044525201"},
-    {"name": "АО МКБ", "bik": "044525201"},
-    {"name": "Ак Барс", "bik": "049205805"},
-    {"name": "АО Ак Барс Банк", "bik": "049205805"},
-    {"name": "Тинькофф Банк", "bik": "044525974"},
-    {"name": "АО Тинькофф Банк", "bik": "044525974"},
-    {"name": "Совкомбанк", "bik": "044525411"},
-    {"name": "ПАО Совкомбанк", "bik": "044525411"},
-    {"name": "Хоум Кредит Банк", "bik": "044525911"},
-    {"name": "АО Хоум Кредит энд Финанс Банк", "bik": "044525911"},
-    {"name": "Ренессанс Кредит", "bik": "044525174"},
-    {"name": "АО Ренессанс Кредит", "bik": "044525174"},
-    {"name": "ОТП Банк", "bik": "044525121"},
-    {"name": "АО ОТП Банк", "bik": "044525121"},
-    {"name": "Русский Стандарт", "bik": "044525416"},
-    {"name": "АО Русский Стандарт", "bik": "044525416"},
-    {"name": "МТС Банк", "bik": "044525503"},
-    {"name": "ПАО МТС Банк", "bik": "044525503"},
-    {"name": "Почта Банк", "bik": "044525106"},
-    {"name": "ПАО Почта Банк", "bik": "044525106"},
-    {"name": "Абсолют Банк", "bik": "044525976"},
-    {"name": "ПАО Абсолют Банк", "bik": "044525976"},
-    {"name": "Авангард", "bik": "044525201"},
-    {"name": "АО Авангард", "bik": "044525201"},
-    {"name": "Америкэн Экспресс Банк", "bik": "044525717"},
-    {"name": "АО Америкэн Экспресс Банк", "bik": "044525717"},
-    {"name": "Банк Санкт-Петербург", "bik": "044030790"},
-    {"name": "АО Банк Санкт-Петербург", "bik": "044030790"},
-    {"name": "Банк Возрождение", "bik": "044525181"},
-    {"name": "ПАО Банк Возрождение", "bik": "044525181"},
-    {"name": "Банк Зенит", "bik": "044525093"},
-    {"name": "ПАО Банк Зенит", "bik": "044525093"},
-    {"name": "Банк Интеза", "bik": "044525700"},
-    {"name": "АО Банк Интеза", "bik": "044525700"},
-    {"name": "Банк ЦентрИнвест", "bik": "046015207"},
-    {"name": "АО Банк ЦентрИнвест", "bik": "046015207"},
-    {"name": "Яндекс.Банк", "bik": "044525974"},
-    {"name": "АО Яндекс.Банк", "bik": "044525974"},
-]
+# Путь к XML файлу с базой банков
+XML_FILE_PATH = os.path.join(os.path.dirname(__file__), "banks_base.xml")
+
+# Кэш для загруженных данных банков
+_banks_cache: Optional[List[Dict]] = None
+_banks_by_bik_cache: Optional[Dict[str, Dict]] = None
 
 
-def search_banks(query: str, limit: int = 20) -> list:
+def _load_banks_from_xml() -> List[Dict]:
     """
-    Поиск банков по первым символам названия
+    Загружает базу банков из XML файла
+    Возвращает список словарей с данными банков
+    """
+    global _banks_cache
+    
+    if _banks_cache is not None:
+        return _banks_cache
+    
+    banks = []
+    
+    try:
+        if not os.path.exists(XML_FILE_PATH):
+            # Если файл не найден, возвращаем пустой список
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"XML файл с банками не найден: {XML_FILE_PATH}")
+            return []
+        
+        # Парсим XML с правильной кодировкой
+        # Используем ET.parse, который автоматически обрабатывает кодировку из XML декларации
+        parser = ET.XMLParser(encoding='utf-8')
+        tree = ET.parse(XML_FILE_PATH, parser=parser)
+        root = tree.getroot()
+        
+        for bik_elem in root.findall('bik'):
+            bik = bik_elem.get('bik', '').strip()
+            ks = bik_elem.get('ks', '').strip()
+            # Получаем названия и обрабатываем HTML-сущности
+            name_raw = bik_elem.get('name', '').strip()
+            namemini_raw = bik_elem.get('namemini', '').strip()
+            
+            # Декодируем HTML-сущности (&quot; -> ", &amp; -> & и т.д.)
+            name = html.unescape(name_raw) if name_raw else ''
+            namemini = html.unescape(namemini_raw) if namemini_raw else ''
+            
+            # Используем краткое наименование, если есть, иначе полное
+            display_name = namemini if namemini else name
+            
+            if bik and display_name:
+                banks.append({
+                    "name": display_name,
+                    "bik": bik,
+                    "ks": ks,  # Корреспондентский счет
+                    "full_name": name,  # Полное наименование
+                })
+        
+        _banks_cache = banks
+        return banks
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ошибка загрузки XML файла с банками: {e}")
+        return []
+
+
+def _get_banks_by_bik_dict() -> Dict[str, Dict]:
+    """
+    Возвращает словарь банков, индексированный по БИК
+    """
+    global _banks_by_bik_cache
+    
+    if _banks_by_bik_cache is not None:
+        return _banks_by_bik_cache
+    
+    banks = _load_banks_from_xml()
+    _banks_by_bik_cache = {bank["bik"]: bank for bank in banks}
+    return _banks_by_bik_cache
+
+
+def search_banks(query: str, limit: int = 20) -> List[Dict]:
+    """
+    Поиск банков по первым символам названия из XML базы
     
     Args:
         query: Поисковый запрос (минимум 3 символа)
@@ -87,20 +106,28 @@ def search_banks(query: str, limit: int = 20) -> list:
     if len(query) < 3:
         return []
     
-    query_lower = query.lower()
+    banks = _load_banks_from_xml()
+    if not banks:
+        return []
+    
+    query_lower = query.lower().strip()
+    query_upper = query.upper().strip()
     results = []
     
-    for bank in BANKS_DATA:
-        if query_lower in bank["name"].lower():
-            result = bank.copy()
-            # Пытаемся получить корреспондентский счет из API для каждого найденного банка
-            try:
-                api_data = fetch_bank_info_from_api(bank["bik"])
-                if api_data and api_data.get("ks"):
-                    result["ks"] = api_data["ks"]
-            except Exception:
-                pass
-            results.append(result)
+    # Поиск по краткому и полному наименованию (без учета регистра)
+    for bank in banks:
+        name = bank["name"].strip()
+        full_name = bank.get("full_name", "").strip()
+        
+        name_lower = name.lower()
+        full_name_lower = full_name.lower()
+        name_upper = name.upper()
+        full_name_upper = full_name.upper()
+        
+        # Поиск по подстроке в названии (проверяем и нижний, и верхний регистр)
+        if (query_lower in name_lower or query_lower in full_name_lower or
+            query_upper in name_upper or query_upper in full_name_upper):
+            results.append(bank.copy())
             if len(results) >= limit:
                 break
     
@@ -109,7 +136,7 @@ def search_banks(query: str, limit: int = 20) -> list:
 
 def get_bank_by_bik(bik: str) -> Optional[Dict]:
     """
-    Получить банк по БИК с использованием API bik-info.ru
+    Получить банк по БИК из XML базы
     
     Args:
         bik: БИК банка (9 цифр)
@@ -117,22 +144,12 @@ def get_bank_by_bik(bik: str) -> Optional[Dict]:
     Returns:
         Словарь с ключами 'name', 'bik', 'ks' (корреспондентский счет) или None
     """
-    # Сначала проверяем локальный справочник
-    for bank in BANKS_DATA:
-        if bank["bik"] == bik:
-            result = bank.copy()
-            # Пытаемся получить корреспондентский счет из API
-            try:
-                api_data = fetch_bank_info_from_api(bik)
-                if api_data and api_data.get("ks"):
-                    result["ks"] = api_data["ks"]
-                    if api_data.get("name"):
-                        result["name"] = api_data["name"]
-            except Exception:
-                pass
-            return result
+    banks_dict = _get_banks_by_bik_dict()
     
-    # Если не найден в локальном справочнике, пробуем получить из API
+    if bik in banks_dict:
+        return banks_dict[bik].copy()
+    
+    # Если не найден в XML, пробуем получить из API как fallback
     try:
         api_data = fetch_bank_info_from_api(bik)
         if api_data:
@@ -191,4 +208,31 @@ def fetch_bank_info_from_api(bik: str) -> Optional[Dict]:
         return None
     
     return None
+
+
+def update_banks_xml():
+    """
+    Обновить XML файл с банками с сайта bik-info.ru
+    Вызывается вручную или по расписанию для обновления базы
+    """
+    try:
+        url = "https://bik-info.ru/base/base.xml"
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        
+        # Сохраняем файл
+        with open(XML_FILE_PATH, 'wb') as f:
+            f.write(response.content)
+        
+        # Сбрасываем кэш
+        global _banks_cache, _banks_by_bik_cache
+        _banks_cache = None
+        _banks_by_bik_cache = None
+        
+        return True
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ошибка обновления XML файла с банками: {e}")
+        return False
 
