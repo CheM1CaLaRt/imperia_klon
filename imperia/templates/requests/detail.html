@@ -94,6 +94,126 @@
     </div>
   </header>
 
+  <!-- ===== Информация о компании (продавце) ===== -->
+  {% if obj.company %}
+  <div class="collapsible-card">
+    <button type="button" class="collapsible-card__header" data-collapse-target="company-info">
+      <div class="collapsible-card__header-left">
+        <div class="collapsible-card__icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 7H15M9 11H15M9 15H13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3 class="collapsible-card__title">Компания (продавец)</h3>
+      </div>
+      <div class="collapsible-card__arrow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </button>
+    <div class="collapsible-card__content" id="company-info">
+      <div class="collapsible-card__body">
+        <div style="display: grid; gap: 12px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Наименование</div>
+              <div style="font-weight: 600; font-size: 15px;">{{ obj.company.name }}</div>
+              {% if obj.company.full_name %}
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">{{ obj.company.full_name }}</div>
+              {% endif %}
+            </div>
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">ИНН / КПП</div>
+              <div style="font-weight: 600; font-size: 14px; font-family: monospace;">
+                {{ obj.company.inn }}{% if obj.company.kpp %} / {{ obj.company.kpp }}{% endif %}
+              </div>
+              {% if obj.company.ogrn %}
+                <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">ОГРН: {{ obj.company.ogrn }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% if obj.company.address %}
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Адрес</div>
+              <div style="font-size: 14px;">{{ obj.company.address }}</div>
+            </div>
+          {% endif %}
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            {% if obj.company.phone %}
+              <div>
+                <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Телефон</div>
+                <div style="font-size: 14px;">
+                  <a href="tel:{{ obj.company.phone }}" style="color: var(--primary); text-decoration: none;">{{ obj.company.phone }}</a>
+                </div>
+              </div>
+            {% endif %}
+            {% if obj.company.email %}
+              <div>
+                <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Email</div>
+                <div style="font-size: 14px;">
+                  <a href="mailto:{{ obj.company.email }}" style="color: var(--primary); text-decoration: none;">{{ obj.company.email }}</a>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+          {% if obj.company.bank_name or obj.company.bank_account %}
+            <div style="padding-top: 12px; border-top: 1px solid var(--border);">
+              <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Банковские реквизиты</div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; font-size: 13px;">
+                {% if obj.company.bank_name %}
+                  <div>
+                    <div style="color: var(--muted); margin-bottom: 2px;">Банк</div>
+                    <div>{{ obj.company.bank_name }}</div>
+                  </div>
+                {% endif %}
+                {% if obj.company.bank_bik %}
+                  <div>
+                    <div style="color: var(--muted); margin-bottom: 2px;">БИК</div>
+                    <div style="font-family: monospace;">{{ obj.company.bank_bik }}</div>
+                  </div>
+                {% endif %}
+                {% if obj.company.bank_account %}
+                  <div>
+                    <div style="color: var(--muted); margin-bottom: 2px;">Расчетный счет</div>
+                    <div style="font-family: monospace;">{{ obj.company.bank_account }}</div>
+                  </div>
+                {% endif %}
+                {% if obj.company.bank_corr_account %}
+                  <div>
+                    <div style="color: var(--muted); margin-bottom: 2px;">Корр. счет</div>
+                    <div style="font-family: monospace;">{{ obj.company.bank_corr_account }}</div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+          {% if obj.company.director_name or obj.company.accountant_name %}
+            <div style="padding-top: 12px; border-top: 1px solid var(--border);">
+              <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Руководство</div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; font-size: 13px;">
+                {% if obj.company.director_name %}
+                  <div>
+                    <div style="color: var(--muted); margin-bottom: 2px;">{{ obj.company.director_position|default:"Руководитель" }}</div>
+                    <div>{{ obj.company.director_name }}</div>
+                  </div>
+                {% endif %}
+                {% if obj.company.accountant_name %}
+                  <div>
+                    <div style="color: var(--muted); margin-bottom: 2px;">{{ obj.company.accountant_position|default:"Главный бухгалтер" }}</div>
+                    <div>{{ obj.company.accountant_name }}</div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ===== Информация о доставке ===== -->
   {% if obj.delivery_date or obj.delivery_contact or obj.delivery_address %}
   <div class="collapsible-card">
@@ -327,108 +447,6 @@
   </section>
   {% endif %}
 
-  <!-- ===== Информация о компании (продавце) ===== -->
-  {% if obj.company %}
-  <section class="rq-card">
-    <div class="rq-card__head">
-      <h2>Компания (продавец)</h2>
-    </div>
-    <div style="padding: 16px; display: grid; gap: 12px;">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
-        <div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Наименование</div>
-          <div style="font-weight: 600; font-size: 15px;">{{ obj.company.name }}</div>
-          {% if obj.company.full_name %}
-            <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">{{ obj.company.full_name }}</div>
-          {% endif %}
-        </div>
-        <div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">ИНН / КПП</div>
-          <div style="font-weight: 600; font-size: 14px; font-family: monospace;">
-            {{ obj.company.inn }}{% if obj.company.kpp %} / {{ obj.company.kpp }}{% endif %}
-          </div>
-          {% if obj.company.ogrn %}
-            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">ОГРН: {{ obj.company.ogrn }}</div>
-          {% endif %}
-        </div>
-      </div>
-      {% if obj.company.address %}
-        <div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Адрес</div>
-          <div style="font-size: 14px;">{{ obj.company.address }}</div>
-        </div>
-      {% endif %}
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-        {% if obj.company.phone %}
-          <div>
-            <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Телефон</div>
-            <div style="font-size: 14px;">
-              <a href="tel:{{ obj.company.phone }}" style="color: var(--primary); text-decoration: none;">{{ obj.company.phone }}</a>
-            </div>
-          </div>
-        {% endif %}
-        {% if obj.company.email %}
-          <div>
-            <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Email</div>
-            <div style="font-size: 14px;">
-              <a href="mailto:{{ obj.company.email }}" style="color: var(--primary); text-decoration: none;">{{ obj.company.email }}</a>
-            </div>
-          </div>
-        {% endif %}
-      </div>
-      {% if obj.company.bank_name or obj.company.bank_account %}
-        <div style="padding-top: 12px; border-top: 1px solid var(--border);">
-          <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Банковские реквизиты</div>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; font-size: 13px;">
-            {% if obj.company.bank_name %}
-              <div>
-                <div style="color: var(--muted); margin-bottom: 2px;">Банк</div>
-                <div>{{ obj.company.bank_name }}</div>
-              </div>
-            {% endif %}
-            {% if obj.company.bank_bik %}
-              <div>
-                <div style="color: var(--muted); margin-bottom: 2px;">БИК</div>
-                <div style="font-family: monospace;">{{ obj.company.bank_bik }}</div>
-              </div>
-            {% endif %}
-            {% if obj.company.bank_account %}
-              <div>
-                <div style="color: var(--muted); margin-bottom: 2px;">Расчетный счет</div>
-                <div style="font-family: monospace;">{{ obj.company.bank_account }}</div>
-              </div>
-            {% endif %}
-            {% if obj.company.bank_corr_account %}
-              <div>
-                <div style="color: var(--muted); margin-bottom: 2px;">Корр. счет</div>
-                <div style="font-family: monospace;">{{ obj.company.bank_corr_account }}</div>
-              </div>
-            {% endif %}
-          </div>
-        </div>
-      {% endif %}
-      {% if obj.company.director_name or obj.company.accountant_name %}
-        <div style="padding-top: 12px; border-top: 1px solid var(--border);">
-          <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Руководство</div>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; font-size: 13px;">
-            {% if obj.company.director_name %}
-              <div>
-                <div style="color: var(--muted); margin-bottom: 2px;">{{ obj.company.director_position|default:"Руководитель" }}</div>
-                <div>{{ obj.company.director_name }}</div>
-              </div>
-            {% endif %}
-            {% if obj.company.accountant_name %}
-              <div>
-                <div style="color: var(--muted); margin-bottom: 2px;">{{ obj.company.accountant_position|default:"Главный бухгалтер" }}</div>
-                <div>{{ obj.company.accountant_name }}</div>
-              </div>
-            {% endif %}
-          </div>
-        </div>
-      {% endif %}
-    </div>
-  </section>
-  {% endif %}
 
   <!-- ===== Оплата (второй блок) ===== -->
   {% if request.user|in_groups:"director,operator" %}
