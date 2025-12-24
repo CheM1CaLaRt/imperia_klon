@@ -50,10 +50,18 @@
       <div class="grid grid-2" style="gap:20px">
         <div class="field">
           <label class="field label">{{ form.inn.label }} <span style="color:#ef4444">*</span></label>
-          {{ form.inn }}
+          <div style="position:relative">
+            {{ form.inn }}
+            <div id="egrul-loading" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--primary);font-size:14px">
+              Поиск...
+            </div>
+          </div>
           {% if form.inn.errors %}
             <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.inn.errors }}</div>
           {% endif %}
+          <div style="margin-top:6px;font-size:13px;color:var(--muted)">
+            Введите ИНН и нажмите Enter для автоматического поиска в ЕГРЮЛ
+          </div>
         </div>
         
         <div class="field">
@@ -370,6 +378,81 @@
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && autocompleteList) {
       hideAutocomplete();
+    }
+  });
+})();
+</script>
+
+<script>
+// Автозаполнение по ИНН из ЕГРЮЛ
+(function() {
+  const innInput = document.getElementById('id_inn');
+  const loadingEl = document.getElementById('egrul-loading');
+  
+  if (!innInput) return;
+  
+  const lookupUrl = "{% url 'core:company_lookup_inn' %}";
+  
+  async function performLookup() {
+    const inn = (innInput.value || '').trim();
+    
+    if (!/^\d{10}(\d{2})?$/.test(inn)) {
+      alert('Введите корректный ИНН: 10 (юр.лицо) или 12 (ИП) цифр.');
+      innInput.focus();
+      return;
+    }
+    
+    if (loadingEl) loadingEl.style.display = 'block';
+    innInput.disabled = true;
+    
+    try {
+      const resp = await fetch(`${lookupUrl}?inn=${encodeURIComponent(inn)}`, { method: 'GET' });
+      const data = await resp.json();
+      
+      if (!resp.ok || !data.ok) {
+        alert(data.error || 'Не удалось получить данные ЕГРЮЛ');
+        return;
+      }
+      
+      const d = data.data || {};
+      
+      // Заполняем известные поля из payload
+      const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && (val ?? '') !== '') el.value = val;
+      };
+      
+      setVal('id_name', d.name);
+      setVal('id_full_name', d.full_name);
+      setVal('id_kpp', d.kpp);
+      setVal('id_ogrn', d.ogrn);
+      setVal('id_address', d.address);
+      
+      // Показываем уведомление об успехе
+      if (loadingEl) {
+        loadingEl.style.color = '#10b981';
+        loadingEl.textContent = '✓ Данные загружены';
+        setTimeout(() => {
+          loadingEl.style.display = 'none';
+          loadingEl.style.color = 'var(--primary)';
+          loadingEl.textContent = 'Поиск...';
+        }, 2000);
+      }
+      
+    } catch (err) {
+      console.error('Ошибка запроса ЕГРЮЛ:', err);
+      alert('Ошибка при получении данных из ЕГРЮЛ');
+      if (loadingEl) loadingEl.style.display = 'none';
+    } finally {
+      innInput.disabled = false;
+    }
+  }
+  
+  // Обработка Enter в поле ИНН
+  innInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      performLookup();
     }
   });
 })();

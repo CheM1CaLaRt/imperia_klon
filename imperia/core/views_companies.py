@@ -3,11 +3,13 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .forms_companies import CompanyForm
 from .models import Company
+from .services.egrul import EgrulError, fetch_by_inn, parse_counterparty_payload
 
 
 def _is_director(user):
@@ -139,4 +141,25 @@ def company_delete(request, pk):
         messages.error(request, f"Ошибка при удалении компании: {str(e)}")
     
     return redirect("core:company_list")
+
+
+@login_required
+@user_passes_test(_is_director)
+@require_GET
+def company_lookup_inn(request):
+    """
+    AJAX: /companies/lookup/?inn=...
+    Возвращаем JSON для автозаполнения формы компании по ИНН из ЕГРЮЛ.
+    """
+    inn = (request.GET.get("inn") or "").strip()
+    if not inn.isdigit() or len(inn) not in (10, 12):
+        return HttpResponseBadRequest("Некорректный ИНН")
+    
+    try:
+        raw = fetch_by_inn(inn)
+        payload = parse_counterparty_payload(raw)
+        payload.pop("meta_json", None)
+        return JsonResponse({"ok": True, "data": payload})
+    except EgrulError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=502)
 

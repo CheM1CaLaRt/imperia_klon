@@ -98,6 +98,7 @@ urlpatterns = [
     path("companies/new/", vcomp.company_create, name="company_create"),
     path("companies/<int:pk>/edit/", vcomp.company_edit, name="company_edit"),
     path("companies/<int:pk>/delete/", vcomp.company_delete, name="company_delete"),
+    path("companies/lookup/", vcomp.company_lookup_inn, name="company_lookup_inn"),
     path("operator/", vc.operator_dashboard, name="operator_dashboard"),
     path("deletion-requests/<int:req_id>/cancel/", vc.deletion_request_cancel, name="deletion_request_cancel"),
     path("deletion-requests/clear-rejected/", vc.deletion_requests_clear_rejected, name="deletion_requests_clear_rejected"),
