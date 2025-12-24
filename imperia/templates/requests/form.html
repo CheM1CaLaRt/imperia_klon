@@ -26,6 +26,13 @@
     <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
       <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Основная информация</h2>
       
+      <div class="field">
+        <label class="field label">{{ form.company.label }}</label>
+        {{ form.company }}
+        {% if form.company.errors %}<div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.company.errors }}</div>{% endif %}
+        {% if form.company.help_text %}<div style="margin-top:6px;font-size:13px;color:var(--muted)">{{ form.company.help_text }}</div>{% endif %}
+      </div>
+      
       <div class="grid grid-2" style="gap:20px">
         <div class="field">
           <label class="field label">{{ form.title.label }} <span style="color:#ef4444">*</span></label>

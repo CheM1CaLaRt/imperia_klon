@@ -688,3 +688,39 @@ def mark_requests_rejected_on_counterparty_delete(sender, instance: Counterparty
         pass
 
 
+class Company(models.Model):
+    """Собственные компании для оформления документов (УПД, счета, КП)"""
+    name = models.CharField("Краткое наименование", max_length=255, help_text='Например: ООО "Ваша компания"')
+    full_name = models.CharField("Полное наименование", max_length=500, help_text='Например: Общество с ограниченной ответственностью "Ваша компания"')
+    inn = models.CharField("ИНН", max_length=12, validators=[RegexValidator(regex=r'^\d{10,12}$', message='ИНН должен содержать 10 или 12 цифр')])
+    kpp = models.CharField("КПП", max_length=9, blank=True, validators=[RegexValidator(regex=r'^\d{9}$', message='КПП должен содержать 9 цифр')])
+    ogrn = models.CharField("ОГРН", max_length=15, blank=True, validators=[RegexValidator(regex=r'^\d{13,15}$', message='ОГРН должен содержать 13 или 15 цифр')])
+    address = models.TextField("Адрес", help_text='Например: г. Москва, ул. Примерная, д. 1')
+    phone = models.CharField("Телефон", max_length=50, blank=True)
+    email = models.EmailField("Email", max_length=255, blank=True)
+    
+    # Банковские реквизиты
+    bank_name = models.CharField("Наименование банка", max_length=255, blank=True)
+    bank_bik = models.CharField("БИК", max_length=9, blank=True, validators=[RegexValidator(regex=r'^\d{9}$', message='БИК должен содержать 9 цифр')])
+    bank_account = models.CharField("Расчетный счет", max_length=20, blank=True, validators=[RegexValidator(regex=r'^\d{20}$', message='Расчетный счет должен содержать 20 цифр')])
+    bank_corr_account = models.CharField("Корреспондентский счет", max_length=20, blank=True, validators=[RegexValidator(regex=r'^\d{20}$', message='Корреспондентский счет должен содержать 20 цифр')])
+    
+    # Руководитель и бухгалтер
+    director_name = models.CharField("ФИО руководителя", max_length=255, blank=True)
+    director_position = models.CharField("Должность руководителя", max_length=255, default="Генеральный директор")
+    accountant_name = models.CharField("ФИО главного бухгалтера", max_length=255, blank=True)
+    accountant_position = models.CharField("Должность главного бухгалтера", max_length=255, default="Главный бухгалтер")
+    
+    is_active = models.BooleanField("Активна", default=True, help_text="Неактивные компании не будут отображаться в списках выбора")
+    created_at = models.DateTimeField("Дата создания", auto_now_add=True)
+    updated_at = models.DateTimeField("Дата обновления", auto_now=True)
+    
+    class Meta:
+        verbose_name = "Компания"
+        verbose_name_plural = "Компании"
+        ordering = ["name"]
+    
+    def __str__(self):
+        return self.name
+
+

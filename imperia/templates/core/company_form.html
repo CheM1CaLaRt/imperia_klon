@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — IndigoFlow{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">{{ title }}</h1>
+      <p class="card-subtitle">
+        {% if action == "edit" %}
+          Редактирование данных компании
+        {% else %}
+          Заполните форму для создания новой компании
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% url 'core:company_list' %}" class="btn btn-secondary">← Назад к списку</a>
+  </div>
+
+  <form method="post" style="padding:24px;display:grid;gap:24px">
+    {% csrf_token %}
+    
+    {% if form.non_field_errors %}
+      <div style="padding:14px 18px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#7f1d1d;font-size:14px">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <!-- Основная информация -->
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Основная информация</h2>
+      
+      <div class="field">
+        <label class="field label">{{ form.name.label }} <span style="color:#ef4444">*</span></label>
+        {{ form.name }}
+        {% if form.name.errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.name.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label class="field label">{{ form.full_name.label }} <span style="color:#ef4444">*</span></label>
+        {{ form.full_name }}
+        {% if form.full_name.errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.full_name.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.inn.label }} <span style="color:#ef4444">*</span></label>
+          {{ form.inn }}
+          {% if form.inn.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.inn.errors }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="field">
+          <label class="field label">{{ form.kpp.label }}</label>
+          {{ form.kpp }}
+          {% if form.kpp.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.kpp.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field label">{{ form.ogrn.label }}</label>
+        {{ form.ogrn }}
+        {% if form.ogrn.errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.ogrn.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label class="field label">{{ form.address.label }} <span style="color:#ef4444">*</span></label>
+        {{ form.address }}
+        {% if form.address.errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.address.errors }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Контактная информация -->
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Контактная информация</h2>
+      
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.phone.label }}</label>
+          {{ form.phone }}
+          {% if form.phone.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.phone.errors }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="field">
+          <label class="field label">{{ form.email.label }}</label>
+          {{ form.email }}
+          {% if form.email.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.email.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Банковские реквизиты -->
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Банковские реквизиты</h2>
+      
+      <div class="field">
+        <label class="field label">{{ form.bank_name.label }}</label>
+        {{ form.bank_name }}
+        {% if form.bank_name.errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.bank_name.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.bank_bik.label }}</label>
+          {{ form.bank_bik }}
+          {% if form.bank_bik.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.bank_bik.errors }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="field">
+          <label class="field label">{{ form.bank_account.label }}</label>
+          {{ form.bank_account }}
+          {% if form.bank_account.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.bank_account.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field label">{{ form.bank_corr_account.label }}</label>
+        {{ form.bank_corr_account }}
+        {% if form.bank_corr_account.errors %}
+          <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.bank_corr_account.errors }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Руководство -->
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Руководство</h2>
+      
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.director_name.label }}</label>
+          {{ form.director_name }}
+          {% if form.director_name.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.director_name.errors }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="field">
+          <label class="field label">{{ form.director_position.label }}</label>
+          {{ form.director_position }}
+          {% if form.director_position.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.director_position.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="gap:20px">
+        <div class="field">
+          <label class="field label">{{ form.accountant_name.label }}</label>
+          {{ form.accountant_name }}
+          {% if form.accountant_name.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.accountant_name.errors }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="field">
+          <label class="field label">{{ form.accountant_position.label }}</label>
+          {{ form.accountant_position }}
+          {% if form.accountant_position.errors %}
+            <div style="color:#ef4444;font-size:13px;margin-top:6px">{{ form.accountant_position.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Статус -->
+    <div class="field" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:8px">
+      {{ form.is_active }}
+      <label for="{{ form.is_active.id_for_label }}" style="cursor:pointer;font-size:14px;font-weight:500">
+        {{ form.is_active.label }}
+      </label>
+      {% if form.is_active.help_text %}
+        <span style="font-size:12px;color:var(--muted);margin-left:auto">{{ form.is_active.help_text }}</span>
+      {% endif %}
+    </div>
+
+    <!-- Кнопки действий -->
+    <div style="display:flex;gap:12px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary" style="flex:1;min-width:140px">
+        {% if action == "edit" %}Сохранить изменения{% else %}Создать компанию{% endif %}
+      </button>
+      <a href="{% url 'core:company_list' %}" class="btn" style="background:var(--card);border-color:var(--border);color:var(--text)">Отмена</a>
+    </div>
+  </form>
+</div>
+
+<style>
+@media (max-width:640px){
+  .grid-2{grid-template-columns:1fr}
+  .card-header{flex-direction:column;align-items:stretch;gap:12px}
+  .card-header .btn{width:100%;justify-content:center}
+}
+</style>
+{% endblock %}
+

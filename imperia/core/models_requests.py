@@ -39,6 +39,11 @@ class Request(models.Model):
         "core.Counterparty", on_delete=models.SET_NULL,
         null=True, blank=True, verbose_name="Контрагент"
     )
+    company = models.ForeignKey(
+        "core.Company", on_delete=models.SET_NULL,
+        null=True, blank=True, verbose_name="Компания (продавец)",
+        help_text="Компания, от имени которой оформляется заявка"
+    )
     delivery_date = models.DateField("Дата доставки", null=True, blank=True)
     delivery_address = models.ForeignKey(
         "core.CounterpartyAddress", on_delete=models.SET_NULL,

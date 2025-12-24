@@ -14,6 +14,9 @@ from . import views_pick as vp
 # управление сотрудниками
 from . import views_employees as ve
 
+# управление компаниями
+from . import views_companies as vcomp
+
 app_name = "core"
 
 urlpatterns = [
@@ -87,6 +90,12 @@ urlpatterns = [
     path("employees/<int:pk>/edit/", ve.employee_edit, name="employee_edit"),
     path("employees/<int:pk>/delete/", ve.employee_delete, name="employee_delete"),
     path("employees/<int:pk>/detail/", ve.employee_detail, name="employee_detail"),
+    
+    # Управление компаниями
+    path("companies/", vcomp.company_list, name="company_list"),
+    path("companies/new/", vcomp.company_create, name="company_create"),
+    path("companies/<int:pk>/edit/", vcomp.company_edit, name="company_edit"),
+    path("companies/<int:pk>/delete/", vcomp.company_delete, name="company_delete"),
     path("operator/", vc.operator_dashboard, name="operator_dashboard"),
     path("deletion-requests/<int:req_id>/cancel/", vc.deletion_request_cancel, name="deletion_request_cancel"),
     path("deletion-requests/clear-rejected/", vc.deletion_requests_clear_rejected, name="deletion_requests_clear_rejected"),

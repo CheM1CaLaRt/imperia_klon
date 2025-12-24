@@ -307,10 +307,15 @@ def director_dashboard(request):
     employees_count = User.objects.filter(is_superuser=False).count()
     recent_employees = User.objects.filter(is_superuser=False).select_related("profile").prefetch_related("groups").order_by("-date_joined")[:5]
     
+    # Получаем количество компаний
+    from .models import Company
+    companies_count = Company.objects.count()
+    
     return render(request, "core/director_dashboard.html", {
         "pending": pending,
         "employees_count": employees_count,
         "recent_employees": recent_employees,
+        "companies_count": companies_count,
     })
 
 @login_required

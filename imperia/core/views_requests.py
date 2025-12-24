@@ -1476,7 +1476,7 @@ def request_route_sheet(request, pk: int):
 def request_upd(request, pk: int, shipment_id: int = None):
     """Генерация УПД для заявки или конкретной отгрузки"""
     obj = get_object_or_404(
-        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact"),
+        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact", "company"),
         pk=pk
     )
     
@@ -1523,25 +1523,46 @@ def request_upd(request, pk: int, shipment_id: int = None):
                     "total_with_vat": item_total_with_vat,
                 })
     
-    # Данные компании-продавца из настроек
-    company_data = {
-        "name": getattr(settings, "COMPANY_NAME", ""),
-        "full_name": getattr(settings, "COMPANY_FULL_NAME", ""),
-        "inn": getattr(settings, "COMPANY_INN", ""),
-        "kpp": getattr(settings, "COMPANY_KPP", ""),
-        "ogrn": getattr(settings, "COMPANY_OGRN", ""),
-        "address": getattr(settings, "COMPANY_ADDRESS", ""),
-        "phone": getattr(settings, "COMPANY_PHONE", ""),
-        "email": getattr(settings, "COMPANY_EMAIL", ""),
-        "bank_name": getattr(settings, "COMPANY_BANK_NAME", ""),
-        "bank_bik": getattr(settings, "COMPANY_BANK_BIK", ""),
-        "bank_account": getattr(settings, "COMPANY_BANK_ACCOUNT", ""),
-        "bank_corr_account": getattr(settings, "COMPANY_BANK_CORR_ACCOUNT", ""),
-        "director_name": getattr(settings, "COMPANY_DIRECTOR_NAME", ""),
-        "director_position": getattr(settings, "COMPANY_DIRECTOR_POSITION", "Генеральный директор"),
-        "accountant_name": getattr(settings, "COMPANY_ACCOUNTANT_NAME", ""),
-        "accountant_position": getattr(settings, "COMPANY_ACCOUNTANT_POSITION", "Главный бухгалтер"),
-    }
+    # Данные компании-продавца (из модели Company или из settings как fallback)
+    if obj.company:
+        company_data = {
+            "name": obj.company.name or "",
+            "full_name": obj.company.full_name or "",
+            "inn": obj.company.inn or "",
+            "kpp": obj.company.kpp or "",
+            "ogrn": obj.company.ogrn or "",
+            "address": obj.company.address or "",
+            "phone": obj.company.phone or "",
+            "email": obj.company.email or "",
+            "bank_name": obj.company.bank_name or "",
+            "bank_bik": obj.company.bank_bik or "",
+            "bank_account": obj.company.bank_account or "",
+            "bank_corr_account": obj.company.bank_corr_account or "",
+            "director_name": obj.company.director_name or "",
+            "director_position": obj.company.director_position or "Генеральный директор",
+            "accountant_name": obj.company.accountant_name or "",
+            "accountant_position": obj.company.accountant_position or "Главный бухгалтер",
+        }
+    else:
+        # Fallback на settings, если компания не выбрана
+        company_data = {
+            "name": getattr(settings, "COMPANY_NAME", ""),
+            "full_name": getattr(settings, "COMPANY_FULL_NAME", ""),
+            "inn": getattr(settings, "COMPANY_INN", ""),
+            "kpp": getattr(settings, "COMPANY_KPP", ""),
+            "ogrn": getattr(settings, "COMPANY_OGRN", ""),
+            "address": getattr(settings, "COMPANY_ADDRESS", ""),
+            "phone": getattr(settings, "COMPANY_PHONE", ""),
+            "email": getattr(settings, "COMPANY_EMAIL", ""),
+            "bank_name": getattr(settings, "COMPANY_BANK_NAME", ""),
+            "bank_bik": getattr(settings, "COMPANY_BANK_BIK", ""),
+            "bank_account": getattr(settings, "COMPANY_BANK_ACCOUNT", ""),
+            "bank_corr_account": getattr(settings, "COMPANY_BANK_CORR_ACCOUNT", ""),
+            "director_name": getattr(settings, "COMPANY_DIRECTOR_NAME", ""),
+            "director_position": getattr(settings, "COMPANY_DIRECTOR_POSITION", "Генеральный директор"),
+            "accountant_name": getattr(settings, "COMPANY_ACCOUNTANT_NAME", ""),
+            "accountant_position": getattr(settings, "COMPANY_ACCOUNTANT_POSITION", "Главный бухгалтер"),
+        }
     
     # Расчет итогового НДС
     total_without_vat = total_amount
@@ -1567,7 +1588,7 @@ def request_upd(request, pk: int, shipment_id: int = None):
 def request_upd_xml(request, pk: int, shipment_id: int = None):
     """Генерация УПД в формате XML для заявки или конкретной отгрузки"""
     obj = get_object_or_404(
-        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact"),
+        Request.objects.select_related("counterparty", "delivery_address", "delivery_contact", "company"),
         pk=pk
     )
     
@@ -1629,14 +1650,21 @@ def request_upd_xml(request, pk: int, shipment_id: int = None):
     vat_amount = total_without_vat * vat_rate / Decimal("100")
     total_with_vat = total_without_vat + vat_amount
     
-    # Данные компании-продавца
-    company_inn = getattr(settings, "COMPANY_INN", "")
-    company_kpp = getattr(settings, "COMPANY_KPP", "")
-    company_name = getattr(settings, "COMPANY_FULL_NAME", "") or getattr(settings, "COMPANY_NAME", "")
-    company_address = getattr(settings, "COMPANY_ADDRESS", "")
+    # Данные компании-продавца (из модели Company или из settings как fallback)
+    if obj.company:
+        company_inn = obj.company.inn or ""
+        company_kpp = obj.company.kpp or ""
+        company_name = obj.company.full_name or obj.company.name
+        company_address = obj.company.address or ""
+    else:
+        # Fallback на settings, если компания не выбрана
+        company_inn = getattr(settings, "COMPANY_INN", "")
+        company_kpp = getattr(settings, "COMPANY_KPP", "")
+        company_name = getattr(settings, "COMPANY_FULL_NAME", "") or getattr(settings, "COMPANY_NAME", "")
+        company_address = getattr(settings, "COMPANY_ADDRESS", "")
     
     # Парсим адрес компании
-    company_addr_parsed = parse_address(company_address)
+    company_addr_parsed = parse_address(company_address) if company_address else {}
     
     # Данные покупателя
     if not obj.counterparty:
@@ -1691,9 +1719,9 @@ def request_upd_xml(request, pk: int, shipment_id: int = None):
             "РеквНаимДок": "Заявка"
         })
     
-    # Добавляем информацию о подписанте
-    director_name = getattr(settings, "COMPANY_DIRECTOR_NAME", "")
-    if director_name:
+    # Добавляем информацию о подписанте (из модели Company или из settings как fallback)
+    if obj.company and obj.company.director_name:
+        director_name = obj.company.director_name
         name_parts = director_name.split()
         if len(name_parts) >= 3:
             upd_seller["ФИО"] = {
@@ -1701,7 +1729,19 @@ def request_upd_xml(request, pk: int, shipment_id: int = None):
                 "Имя": name_parts[1],
                 "Отчество": name_parts[2]
             }
-        upd_seller["Должн"] = getattr(settings, "COMPANY_DIRECTOR_POSITION", "Генеральный директор")
+        upd_seller["Должн"] = obj.company.director_position or "Генеральный директор"
+    else:
+        # Fallback на settings
+        director_name = getattr(settings, "COMPANY_DIRECTOR_NAME", "")
+        if director_name:
+            name_parts = director_name.split()
+            if len(name_parts) >= 3:
+                upd_seller["ФИО"] = {
+                    "Фамилия": name_parts[0],
+                    "Имя": name_parts[1],
+                    "Отчество": name_parts[2]
+                }
+            upd_seller["Должн"] = getattr(settings, "COMPANY_DIRECTOR_POSITION", "Генеральный директор")
     
     # Генерируем XML
     upd = Upd970(upd_head, upd_buyer, upd_seller, items, upd_docs, delivery_addr_parsed if obj.delivery_address else None)

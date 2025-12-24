@@ -5,7 +5,7 @@ from django.conf import settings
 from django.db.models import ForeignKey
 
 from .models_requests import Request, RequestItem, RequestQuote, RequestQuoteItem, RequestShipment, RequestShipmentItem
-from .models import Counterparty, CounterpartyAddress, CounterpartyContact
+from .models import Counterparty, CounterpartyAddress, CounterpartyContact, Company
 from django.forms import formset_factory
 
 
@@ -27,6 +27,12 @@ def _counterparty_manager_is_user_fk() -> bool:
 
 
 class RequestForm(forms.ModelForm):
+    company = forms.ModelChoiceField(
+        queryset=Company.objects.filter(is_active=True), 
+        required=False, 
+        label="Ваша компания",
+        help_text="Компания, от имени которой оформляется заявка"
+    )
     counterparty = forms.ModelChoiceField(
         queryset=Counterparty.objects.none(), required=False, label="Контрагент"
     )
@@ -39,7 +45,7 @@ class RequestForm(forms.ModelForm):
 
     class Meta:
         model = Request
-        fields = ("title", "counterparty", "delivery_date", "delivery_address", "delivery_contact", "comment_internal")
+        fields = ("title", "company", "counterparty", "delivery_date", "delivery_address", "delivery_contact", "comment_internal")
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Например: заказ канцтоваров"}),
             "delivery_date": forms.DateInput(attrs={"type": "date", "class": "date-input"}),
@@ -58,6 +64,9 @@ class RequestForm(forms.ModelForm):
                 qs = qs.filter(manager=user)
 
         self.fields["counterparty"].queryset = qs.order_by("name")
+        
+        # Компании - только активные
+        self.fields["company"].queryset = Company.objects.filter(is_active=True).order_by("name")
         
         # Инициализируем значения скрытых полей при редактировании
         if self.instance and self.instance.pk:

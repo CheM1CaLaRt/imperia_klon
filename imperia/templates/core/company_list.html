@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Компании — IndigoFlow{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h1 class="card-title">Управление компаниями</h1>
+      <p class="card-subtitle">Список всех компаний для оформления документов</p>
+    </div>
+    <a href="{% url 'core:company_create' %}" class="btn btn-primary">
+      + Создать компанию
+    </a>
+  </div>
+
+  <!-- Поиск и фильтры -->
+  <div style="padding:20px;border-bottom:1px solid var(--border)">
+    <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+      <div style="flex:1;min-width:200px">
+        <label class="field label">Поиск</label>
+        <input 
+          type="text" 
+          name="q" 
+          value="{{ search_query }}" 
+          placeholder="Название, ИНН..."
+          class="input w-full"
+        >
+      </div>
+      <div style="min-width:180px">
+        <label class="field label">Статус</label>
+        <select name="active" class="input w-full">
+          <option value="">Все</option>
+          <option value="1" {% if active_filter == "1" %}selected{% endif %}>Активные</option>
+          <option value="0" {% if active_filter == "0" %}selected{% endif %}>Неактивные</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary">Искать</button>
+      {% if search_query or active_filter %}
+        <a href="{% url 'core:company_list' %}" class="btn">Сбросить</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Список компаний -->
+  <div style="padding:20px">
+    {% if companies %}
+      <div style="display:grid;gap:12px">
+        {% for company in companies %}
+          <div style="padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <h3 style="margin:0;font-size:16px;font-weight:600">{{ company.name }}</h3>
+                {% if not company.is_active %}
+                  <span style="padding:2px 8px;background:#fee2e2;border:1px solid #fecaca;border-radius:4px;font-size:11px;color:#7f1d1d">Неактивна</span>
+                {% endif %}
+              </div>
+              {% if company.full_name %}
+                <div style="font-size:13px;color:var(--muted);margin-bottom:4px">{{ company.full_name }}</div>
+              {% endif %}
+              <div style="font-size:12px;color:var(--muted);font-family:monospace">
+                ИНН: {{ company.inn }}{% if company.kpp %} / КПП: {{ company.kpp }}{% endif %}
+              </div>
+              {% if company.address %}
+                <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ company.address|truncatewords:10 }}</div>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <a href="{% url 'core:company_edit' company.pk %}" class="btn btn-secondary" style="padding:8px 16px;font-size:13px">
+                Редактировать
+              </a>
+              <form method="post" action="{% url 'core:company_delete' company.pk %}" style="display:inline" onsubmit="return confirm('Вы уверены, что хотите удалить компанию {{ company.name }}?');">
+                {% csrf_token %}
+                <button type="submit" class="btn" style="padding:8px 16px;font-size:13px;background:#fee2e2;border-color:#fecaca;color:#7f1d1d">
+                  Удалить
+                </button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Пагинация -->
+      {% if companies.has_other_pages %}
+        <div style="margin-top:24px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+          {% if companies.has_previous %}
+            <a href="?page={{ companies.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_filter %}&active={{ active_filter }}{% endif %}" class="btn btn-secondary">← Назад</a>
+          {% endif %}
+          <span style="padding:8px 16px;display:flex;align-items:center;color:var(--muted)">
+            Страница {{ companies.number }} из {{ companies.paginator.num_pages }}
+          </span>
+          {% if companies.has_next %}
+            <a href="?page={{ companies.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if active_filter %}&active={{ active_filter }}{% endif %}" class="btn btn-secondary">Вперед →</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div style="padding:40px;text-align:center;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:16px">🏢</div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:8px">Компаний не найдено</div>
+        <div style="font-size:14px">
+          {% if search_query or active_filter %}
+            Попробуйте изменить параметры поиска
+          {% else %}
+            Создайте первую компанию для оформления документов
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
