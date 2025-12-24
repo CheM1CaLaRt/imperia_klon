@@ -91,11 +91,16 @@
                   {{ form.quantity }}
                   {% if form.quantity.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.quantity.errors }}</div>{% endif %}
                 </td>
-                <td style="padding: 16px 12px; vertical-align: top;">
-                  <div style="position: relative;">
-                    {{ form.price }}
-                    <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none;">₽</span>
-                  </div>
+                <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
+                  {{ form.price }} {# Скрытое поле для отправки данных #}
+                  <span class="price-display" style="font-size: 14px; font-weight: 500; color: var(--text);">
+                    {% if form.price.value %}
+                      {{ form.price.value|floatformat:2 }}
+                    {% else %}
+                      0.00
+                    {% endif %}
+                  </span>
+                  <span style="color: var(--muted); font-size: 14px; margin-left: 4px;">₽</span>
                   {% if form.price.errors %}<div style="color: #ef4444; font-size: 12px; margin-top: 4px;">{{ form.price.errors }}</div>{% endif %}
                 </td>
                 {% if is_operator|default:False or is_director|default:False %}
@@ -557,10 +562,14 @@ body.modal-open {
       
       // Если есть purchase_price, проставляем цену закупки как константу
       const priceInput = row.querySelector('[name$="-price"]');
+      const priceDisplay = row.querySelector('.price-display');
       const purchasePrice = product.purchase_price ? parseFloat(product.purchase_price) : null;
       if (priceInput && purchasePrice && purchasePrice > 0) {
         // Проставляем цену закупки как константу (не меняется при изменении наценки)
         priceInput.value = purchasePrice.toFixed(2);
+        if (priceDisplay) {
+          priceDisplay.textContent = purchasePrice.toFixed(2);
+        }
       }
       
       const qtyEl = row.querySelector('[name$="-quantity"]');
@@ -683,8 +692,13 @@ body.modal-open {
             
             // Если есть purchase_price, проставляем цену закупки как константу
             const priceInput = row.querySelector('[name$="-price"]');
+            const priceDisplay = row.querySelector('.price-display');
             if (priceInput && data.purchase_price && parseFloat(data.purchase_price) > 0) {
-              priceInput.value = parseFloat(data.purchase_price).toFixed(2);
+              const price = parseFloat(data.purchase_price).toFixed(2);
+              priceInput.value = price;
+              if (priceDisplay) {
+                priceDisplay.textContent = price;
+              }
             }
             
             const qtyEl = row.querySelector('[name$="-quantity"]');
@@ -741,8 +755,13 @@ body.modal-open {
               
               // Если есть purchase_price, проставляем цену закупки как константу
               const priceInput = row.querySelector('[name$="-price"]');
+              const priceDisplay = row.querySelector('.price-display');
               if (priceInput && data.purchase_price && parseFloat(data.purchase_price) > 0) {
-                priceInput.value = parseFloat(data.purchase_price).toFixed(2);
+                const price = parseFloat(data.purchase_price).toFixed(2);
+                priceInput.value = price;
+                if (priceDisplay) {
+                  priceDisplay.textContent = price;
+                }
               }
               
               const qtyEl = row.querySelector('[name$="-quantity"]');
@@ -860,11 +879,10 @@ body.modal-open {
         <td style="padding: 16px 12px; vertical-align: top;">
           <input type="number" name="quote_items-${rowIndex}-quantity" class="input" step="0.001" min="0" placeholder="Количество">
         </td>
-        <td style="padding: 16px 12px; vertical-align: top;">
-          <div style="position: relative;">
-            <input type="number" name="quote_items-${rowIndex}-price" class="input" step="0.01" min="0" placeholder="Цена за единицу" required>
-            <span style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none;">₽</span>
-          </div>
+        <td style="padding: 16px 12px; text-align: right; vertical-align: top; padding-top: 20px;">
+          <input type="hidden" name="quote_items-${rowIndex}-price" value="0">
+          <span class="price-display" style="font-size: 14px; font-weight: 500; color: var(--text);">0.00</span>
+          <span style="color: var(--muted); font-size: 14px; margin-left: 4px;">₽</span>
         </td>
         {% if is_operator|default:False or is_director|default:False %}
         <td style="padding: 16px 12px; vertical-align: top;">
@@ -1061,6 +1079,7 @@ body.modal-open {
       existingRows.forEach(row => {
         // Заполняем цену из каталога, если поле пустое
         const priceInput = row.querySelector('input[name*="-price"]');
+        const priceDisplay = row.querySelector('.price-display');
         const productIdInput = row.querySelector('input[name*="-product_id"]');
         
         if (priceInput && productIdInput) {
@@ -1071,8 +1090,15 @@ body.modal-open {
           if (currentPrice === 0 && productId && productsDataMap[productId]) {
             const purchasePrice = productsDataMap[productId].purchase_price;
             if (purchasePrice && purchasePrice > 0) {
-              priceInput.value = purchasePrice.toFixed(2);
+              const price = purchasePrice.toFixed(2);
+              priceInput.value = price;
+              if (priceDisplay) {
+                priceDisplay.textContent = price;
+              }
             }
+          } else if (currentPrice > 0 && priceDisplay) {
+            // Обновляем отображение, если цена уже есть
+            priceDisplay.textContent = currentPrice.toFixed(2);
           }
         }
         

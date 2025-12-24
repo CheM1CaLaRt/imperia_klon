@@ -320,12 +320,7 @@ class RequestQuoteItemForm(forms.Form):
         max_digits=12,
         decimal_places=2,
         required=True,
-        widget=forms.NumberInput(attrs={
-            "class": "input",
-            "step": "0.01",
-            "min": "0",
-            "placeholder": "Цена за единицу",
-        })
+        widget=forms.HiddenInput()  # Скрытое поле, так как цена отображается как текст
     )
     markup_percent = forms.DecimalField(
         required=False,
