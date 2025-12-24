@@ -372,4 +372,124 @@
     });
   })();
 </script>
+
+<script>
+// Автодополнение банков для заявки на контрагента
+(function() {
+  const bankNameInput = document.querySelector('input[name="bank_name"]');
+  const bankBikInput = document.querySelector('input[name="bank_bik"]');
+  
+  if (!bankNameInput || !bankBikInput) return;
+  
+  let autocompleteList = null;
+  let searchTimeout = null;
+  let selectedBank = null;
+  
+  function createAutocompleteList() {
+    if (autocompleteList) {
+      autocompleteList.remove();
+    }
+    
+    const list = document.createElement('div');
+    list.style.cssText = 'position:absolute;z-index:1000;background:white;border:1px solid #ccc;border-radius:8px;max-height:300px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:4px;width:100%;';
+    
+    const wrapper = bankNameInput.closest('div') || bankNameInput.parentElement;
+    if (wrapper) {
+      wrapper.style.position = 'relative';
+      wrapper.appendChild(list);
+    }
+    
+    autocompleteList = list;
+    return list;
+  }
+  
+  function hideAutocomplete() {
+    if (autocompleteList) {
+      autocompleteList.remove();
+      autocompleteList = null;
+    }
+  }
+  
+  function selectBank(bank) {
+    selectedBank = bank;
+    bankNameInput.value = bank.name;
+    bankBikInput.value = bank.bik;
+    hideAutocomplete();
+  }
+  
+  async function searchBanks(query) {
+    if (query.length < 3) {
+      hideAutocomplete();
+      return;
+    }
+    
+    try {
+      const response = await fetch(`{% url 'core:bank_search' %}?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      
+      if (!data.ok || !data.banks || data.banks.length === 0) {
+        hideAutocomplete();
+        return;
+      }
+      
+      if (!autocompleteList) {
+        createAutocompleteList();
+      }
+      
+      autocompleteList.innerHTML = '';
+      
+      data.banks.forEach(bank => {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;transition:background-color 0.15s;';
+        item.innerHTML = `
+          <div style="font-weight:500;font-size:14px">${bank.name}</div>
+          <div style="font-size:12px;color:#666;font-family:monospace;margin-top:2px">БИК: ${bank.bik}</div>
+        `;
+        item.onmouseover = () => item.style.backgroundColor = '#f5f5f5';
+        item.onmouseout = () => item.style.backgroundColor = '';
+        item.onclick = () => selectBank(bank);
+        autocompleteList.appendChild(item);
+      });
+      
+    } catch (error) {
+      console.error('Ошибка поиска банков:', error);
+      hideAutocomplete();
+    }
+  }
+  
+  bankNameInput.addEventListener('input', function(e) {
+    const query = e.target.value.trim();
+    
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Если значение изменилось после выбора банка, сбрасываем БИК
+    if (selectedBank && query !== selectedBank.name) {
+      selectedBank = null;
+      bankBikInput.value = '';
+    }
+    
+    if (query.length >= 3) {
+      searchTimeout = setTimeout(() => searchBanks(query), 300);
+    } else {
+      hideAutocomplete();
+    }
+  });
+  
+  // Закрытие при клике вне списка
+  document.addEventListener('click', function(e) {
+    if (autocompleteList && !autocompleteList.contains(e.target) && e.target !== bankNameInput) {
+      hideAutocomplete();
+    }
+  });
+  
+  // Закрытие по Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && autocompleteList) {
+      hideAutocomplete();
+    }
+  });
+})();
+</script>
 {% endblock %}

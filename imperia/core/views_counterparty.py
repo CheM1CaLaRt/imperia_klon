@@ -19,6 +19,7 @@ from .services.egrul import (
     fetch_finance_by_inn,
     parse_counterparty_payload,
 )
+from .services.bank_search import search_banks, get_bank_by_bik
 
 from .models import (
     Counterparty,
@@ -975,3 +976,49 @@ def geocode_address(request):
         "success": False,
         "error": "Адрес не найден"
     })
+
+
+@login_required
+@require_GET
+def bank_search(request):
+    """API для поиска банков по названию"""
+    query = request.GET.get("q", "").strip()
+    
+    if len(query) < 3:
+        return JsonResponse({
+            "ok": False,
+            "error": "Минимум 3 символа для поиска"
+        })
+    
+    banks = search_banks(query, limit=20)
+    
+    return JsonResponse({
+        "ok": True,
+        "banks": banks
+    })
+
+
+@login_required
+@require_GET
+def bank_get_by_bik(request):
+    """API для получения банка по БИК"""
+    bik = request.GET.get("bik", "").strip()
+    
+    if not bik or len(bik) != 9:
+        return JsonResponse({
+            "ok": False,
+            "error": "БИК должен содержать 9 цифр"
+        })
+    
+    bank = get_bank_by_bik(bik)
+    
+    if bank:
+        return JsonResponse({
+            "ok": True,
+            "bank": bank
+        })
+    else:
+        return JsonResponse({
+            "ok": False,
+            "error": "Банк не найден"
+        })
