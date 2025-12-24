@@ -360,6 +360,7 @@ class Counterparty(models.Model):
     bank_name = models.CharField("Банк (наименование)", max_length=255, blank=True)
     bank_bik = models.CharField("БИК", max_length=20, blank=True)
     bank_account = models.CharField("Номер счёта", max_length=34, blank=True)
+    bank_corr_account = models.CharField("Корреспондентский счет", max_length=20, blank=True, validators=[RegexValidator(regex=r'^\d{20}$', message='Корреспондентский счет должен содержать 20 цифр')])
 
     website = models.URLField("Сайт", blank=True, null=True)
 
@@ -534,6 +535,7 @@ class CounterpartyCreateRequest(models.Model):
     bank_name = models.CharField("Банк (наименование)", max_length=255, blank=True)
     bank_bik = models.CharField("БИК", max_length=20, blank=True)
     bank_account = models.CharField("Номер счёта", max_length=34, blank=True)
+    bank_corr_account = models.CharField("Корреспондентский счет", max_length=20, blank=True, validators=[RegexValidator(regex=r'^\d{20}$', message='Корреспондентский счет должен содержать 20 цифр')])
 
     website = models.URLField("Сайт", blank=True, null=True)
 
@@ -613,7 +615,7 @@ class CounterpartyCreateRequest(models.Model):
         if not created:
             fields_to_sync = [
                 "kpp", "ogrn", "name", "full_name", "registration_country",
-                "address", "actual_address", "bank_name", "bank_bik", "bank_account", "website",
+                "address", "actual_address", "bank_name", "bank_bik", "bank_account", "bank_corr_account", "website",
             ]
             changed = False
             for f in fields_to_sync:

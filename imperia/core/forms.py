@@ -376,7 +376,7 @@ class CounterpartyCreateForm(forms.ModelForm):
         fields = [
             "inn", "name", "full_name", "kpp", "ogrn",
             "registration_country", "address",
-            "bank_name", "bank_bik", "bank_account",
+            "bank_name", "bank_bik", "bank_account", "bank_corr_account",
             "website", "managers",
         ]
         widgets = {
@@ -390,6 +390,7 @@ class CounterpartyCreateForm(forms.ModelForm):
             "bank_name": forms.TextInput(attrs={"class": "input", "placeholder": "Наименование банка"}),
             "bank_bik": forms.TextInput(attrs={"class": "input", "placeholder": "9 цифр"}),
             "bank_account": forms.TextInput(attrs={"class": "input", "placeholder": "Номер счёта (20 цифр)"}),
+            "bank_corr_account": forms.TextInput(attrs={"class": "input", "placeholder": "Корреспондентский счет (20 цифр)"}),
             "website": forms.URLInput(attrs={"class": "input", "placeholder": "https://"}),
             "managers": forms.SelectMultiple(attrs={"class": "w-full h-36 rounded-lg border px-3 py-2"}),
         }
@@ -481,7 +482,7 @@ class CounterpartyCreateRequestForm(forms.ModelForm):
             "name", "full_name",
             "registration_country",
             "address", "actual_address",
-            "bank_name", "bank_bik", "bank_account",
+            "bank_name", "bank_bik", "bank_account", "bank_corr_account",
             "website",
         ]
         widgets = {
@@ -496,6 +497,7 @@ class CounterpartyCreateRequestForm(forms.ModelForm):
             "bank_name": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
             "bank_bik": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
             "bank_account": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
+            "bank_corr_account": forms.TextInput(attrs={"class": "w-full rounded-xl border px-3 py-2", "placeholder": "Корреспондентский счет (20 цифр)"}),
             "website": forms.URLInput(attrs={"class": "w-full rounded-xl border px-3 py-2"}),
         }
 

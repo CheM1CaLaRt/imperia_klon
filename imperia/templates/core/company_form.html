@@ -290,6 +290,13 @@
     selectedBank = bank;
     bankNameInput.value = bank.name;
     bankBikInput.value = bank.bik;
+    
+    // Заполняем корреспондентский счет, если он есть
+    const bankCorrAccountInput = document.querySelector('input[name="bank_corr_account"]');
+    if (bankCorrAccountInput && bank.ks) {
+      bankCorrAccountInput.value = bank.ks;
+    }
+    
     hideAutocomplete();
   }
   
@@ -317,9 +324,10 @@
       data.banks.forEach(bank => {
         const item = document.createElement('div');
         item.className = 'bank-autocomplete-item';
+        const ksInfo = bank.ks ? ` / К/С: ${bank.ks}` : '';
         item.innerHTML = `
           <div class="bank-autocomplete-item__name">${bank.name}</div>
-          <div class="bank-autocomplete-item__bik">БИК: ${bank.bik}</div>
+          <div class="bank-autocomplete-item__bik">БИК: ${bank.bik}${ksInfo}</div>
         `;
         item.onclick = () => selectBank(bank);
         autocompleteList.appendChild(item);
