@@ -90,6 +90,64 @@
       </div>
     </div>
 
+    <!-- Адреса компании -->
+    {% if address_formset %}
+    <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
+      <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Дополнительные адреса</h2>
+      <p style="margin:0;font-size:13px;color:var(--muted)">Вы можете добавить несколько адресов каждого типа: фактический адрес, адрес доставки, почтовый адрес</p>
+      
+      <div id="address-formset-container" style="display:flex;flex-direction:column;gap:16px">
+        {{ address_formset.management_form }}
+        {% for addr_form in address_formset %}
+          <div class="address-form-row" style="padding:20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;position:relative;transition:all 0.2s">
+            {% if addr_form.DELETE %}
+              <div style="position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:6px">
+                {{ addr_form.DELETE }}
+                <label for="{{ addr_form.DELETE.id_for_label }}" style="cursor:pointer;color:#dc2626;font-size:13px;font-weight:500;user-select:none">Удалить</label>
+              </div>
+            {% else %}
+              {# Для новых форм кнопка удаления будет скрыта через JavaScript #}
+              <div style="position:absolute;top:16px;right:16px;display:none">
+                <span style="color:#dc2626;font-size:13px;font-weight:500">Новый адрес</span>
+              </div>
+            {% endif %}
+            {% for hidden in addr_form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
+            <div style="display:flex;flex-direction:column;gap:12px;padding-right:100px">
+              <div class="grid grid-2" style="gap:12px">
+                <div class="field">
+                  <label class="field label">{{ addr_form.address_type.label }}</label>
+                  {{ addr_form.address_type }}
+                  {% if addr_form.address_type.errors %}
+                    <div style="color:#ef4444;font-size:13px;margin-top:4px">{{ addr_form.address_type.errors }}</div>
+                  {% endif %}
+                </div>
+                <div class="field" style="display:flex;align-items:center;gap:8px;padding-top:24px">
+                  {{ addr_form.is_default }}
+                  <label for="{{ addr_form.is_default.id_for_label }}" style="cursor:pointer;font-size:14px;font-weight:500">
+                    {{ addr_form.is_default.label }}
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <label class="field label">{{ addr_form.address.label }}</label>
+                {{ addr_form.address }}
+                {% if addr_form.address.errors %}
+                  <div style="color:#ef4444;font-size:13px;margin-top:4px">{{ addr_form.address.errors }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      
+      <button type="button" id="add-address-btn" class="btn" style="background:var(--card);border-color:var(--border);color:var(--text);width:100%;justify-content:center">
+        + Добавить адрес
+      </button>
+    </div>
+    {% endif %}
+
     <!-- Контактная информация -->
     <div style="display:grid;gap:20px;padding:20px;background:var(--bg);border-radius:16px;border:1px solid var(--border)">
       <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--text)">Контактная информация</h2>
@@ -453,6 +511,94 @@
     if (e.key === 'Enter') {
       e.preventDefault();
       performLookup();
+    }
+  });
+})();
+</script>
+
+<script>
+// Управление формсетом адресов
+(function() {
+  const container = document.getElementById('address-formset-container');
+  const addBtn = document.getElementById('add-address-btn');
+  
+  if (!container || !addBtn) return;
+  
+  const totalFormsInput = container.querySelector('input[name$="-TOTAL_FORMS"]');
+  if (!totalFormsInput) return;
+  
+  const prefix = totalFormsInput.name.replace(/-TOTAL_FORMS$/, '');
+  
+  addBtn.addEventListener('click', function() {
+    const currentCount = parseInt(totalFormsInput.value) || 0;
+    const newIndex = currentCount;
+    
+    // Находим последнюю форму как шаблон
+    const lastForm = container.querySelector('.address-form-row:last-of-type');
+    if (!lastForm) return;
+    
+    // Клонируем последнюю форму
+    const newForm = lastForm.cloneNode(true);
+    
+    // Обновляем индексы в именах полей
+    const inputs = newForm.querySelectorAll('input, select, label');
+    inputs.forEach(el => {
+      if (el.name) {
+        el.name = el.name.replace(/-(\d+)-/, `-${newIndex}-`);
+      }
+      if (el.id) {
+        el.id = el.id.replace(/-(\d+)-/, `-${newIndex}-`);
+      }
+      if (el.htmlFor) {
+        el.htmlFor = el.htmlFor.replace(/-(\d+)-/, `-${newIndex}-`);
+      }
+    });
+    
+    // Очищаем значения
+    newForm.querySelectorAll('input[type="text"], select').forEach(input => {
+      if (input.name && !input.name.includes('address_type')) {
+        input.value = '';
+      } else if (input.name && input.name.includes('address_type')) {
+        input.value = 'actual'; // Значение по умолчанию
+      }
+    });
+    
+    // Сбрасываем чекбоксы
+    newForm.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = false;
+    });
+    
+    // Убираем скрытые поля ID и DELETE для новой формы
+    const hiddenId = newForm.querySelector('input[name$="-id"]');
+    if (hiddenId) {
+      hiddenId.value = '';
+    }
+    
+    // Показываем кнопку удаления для новой формы
+    const deleteContainer = newForm.querySelector('div[style*="position:absolute"]');
+    if (deleteContainer) {
+      deleteContainer.style.display = 'none'; // Скрываем для новых форм
+    }
+    
+    // Вставляем новую форму перед кнопкой добавления
+    const addBtnParent = addBtn.parentElement;
+    addBtnParent.insertBefore(newForm, addBtn);
+    
+    // Увеличиваем счетчик
+    totalFormsInput.value = newIndex + 1;
+  });
+  
+  // Обработка удаления форм
+  container.addEventListener('change', function(e) {
+    if (e.target.type === 'checkbox' && e.target.name && e.target.name.includes('-DELETE')) {
+      const formRow = e.target.closest('.address-form-row');
+      if (formRow && e.target.checked) {
+        formRow.style.opacity = '0.5';
+        formRow.style.pointerEvents = 'none';
+      } else if (formRow) {
+        formRow.style.opacity = '1';
+        formRow.style.pointerEvents = 'auto';
+      }
     }
   });
 })();

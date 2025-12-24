@@ -697,7 +697,7 @@ class Company(models.Model):
     inn = models.CharField("ИНН", max_length=12, validators=[RegexValidator(regex=r'^\d{10,12}$', message='ИНН должен содержать 10 или 12 цифр')])
     kpp = models.CharField("КПП", max_length=9, blank=True, validators=[RegexValidator(regex=r'^\d{9}$', message='КПП должен содержать 9 цифр')])
     ogrn = models.CharField("ОГРН", max_length=15, blank=True, validators=[RegexValidator(regex=r'^\d{13,15}$', message='ОГРН должен содержать 13 или 15 цифр')])
-    address = models.TextField("Адрес", help_text='Например: г. Москва, ул. Примерная, д. 1')
+    address = models.TextField("Юридический адрес", help_text='Например: г. Москва, ул. Примерная, д. 1')
     phone = models.CharField("Телефон", max_length=50, blank=True)
     email = models.EmailField("Email", max_length=255, blank=True)
     
@@ -724,5 +724,48 @@ class Company(models.Model):
     
     def __str__(self):
         return self.name
+
+
+class CompanyAddress(models.Model):
+    """Адреса компании: фактический, доставки, почтовый"""
+    ADDRESS_TYPE_CHOICES = [
+        ("actual", "Фактический адрес"),
+        ("delivery", "Адрес доставки"),
+        ("postal", "Почтовый адрес"),
+    ]
+    
+    company = models.ForeignKey(
+        "Company",
+        on_delete=models.CASCADE,
+        related_name="addresses",
+        verbose_name="Компания",
+    )
+    address_type = models.CharField(
+        "Тип адреса",
+        max_length=20,
+        choices=ADDRESS_TYPE_CHOICES,
+        default="actual",
+    )
+    address = models.CharField(
+        "Адрес",
+        max_length=1024,
+        blank=False,
+    )
+    is_default = models.BooleanField(
+        "Адрес по умолчанию",
+        default=False,
+        help_text="Использовать как основной адрес данного типа",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["address_type", "-is_default", "created_at"]
+        verbose_name = "Адрес компании"
+        verbose_name_plural = "Адреса компании"
+
+    def __str__(self):
+        type_label = dict(self.ADDRESS_TYPE_CHOICES).get(self.address_type, self.address_type)
+        return f"{type_label}: {self.address[:50]}{'...' if len(self.address) > 50 else ''}"
 
 

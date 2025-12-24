@@ -1,6 +1,6 @@
 # core/forms_companies.py
 from django import forms
-from .models import Company
+from .models import Company, CompanyAddress
 
 
 class CompanyForm(forms.ModelForm):
@@ -100,4 +100,41 @@ class CompanyForm(forms.ModelForm):
         self.fields["full_name"].required = True
         self.fields["inn"].required = True
         self.fields["address"].required = True
+
+
+class CompanyAddressForm(forms.ModelForm):
+    """Форма для адреса компании"""
+    class Meta:
+        model = CompanyAddress
+        fields = ["address_type", "address", "is_default"]
+        widgets = {
+            "address_type": forms.Select(attrs={
+                "class": "input w-full",
+                "style": "width:100%;padding:10px 14px;font-size:14px"
+            }),
+            "address": forms.TextInput(attrs={
+                "class": "input w-full",
+                "placeholder": "Введите адрес",
+                "style": "width:100%;padding:10px 14px;font-size:14px"
+            }),
+            "is_default": forms.CheckboxInput(attrs={
+                "class": "checkbox",
+                "style": "width:18px;height:18px;cursor:pointer"
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["address"].required = False
+
+
+CompanyAddressFormSet = forms.inlineformset_factory(
+    Company,
+    CompanyAddress,
+    form=CompanyAddressForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
 

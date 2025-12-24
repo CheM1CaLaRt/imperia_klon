@@ -7,7 +7,7 @@ from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from .forms_companies import CompanyForm
+from .forms_companies import CompanyForm, CompanyAddressFormSet
 from .models import Company
 from .services.egrul import EgrulError, fetch_by_inn, parse_counterparty_payload
 
@@ -63,20 +63,30 @@ def company_create(request):
         if form.is_valid():
             try:
                 company = form.save()
-                messages.success(
-                    request,
-                    f"Компания {company.name} успешно создана."
+                address_formset = CompanyAddressFormSet(
+                    data=request.POST, instance=company
                 )
-                return redirect("core:company_list")
+                if address_formset.is_valid():
+                    address_formset.save()
+                    messages.success(
+                        request,
+                        f"Компания {company.name} успешно создана."
+                    )
+                    return redirect("core:company_list")
+                else:
+                    messages.error(request, "Проверьте блок «Адреса компании».")
             except Exception as e:
                 messages.error(request, f"Ошибка при создании компании: {str(e)}")
         else:
             messages.error(request, "Пожалуйста, исправьте ошибки в форме.")
+            address_formset = CompanyAddressFormSet(instance=Company())
     else:
         form = CompanyForm()
+        address_formset = CompanyAddressFormSet(instance=Company())
     
     return render(request, "core/company_form.html", {
         "form": form,
+        "address_formset": address_formset,
         "title": "Создать компанию",
         "action": "create"
     })
@@ -91,9 +101,13 @@ def company_edit(request, pk):
     
     if request.method == "POST":
         form = CompanyForm(request.POST, instance=company)
-        if form.is_valid():
+        address_formset = CompanyAddressFormSet(
+            data=request.POST, instance=company
+        )
+        if form.is_valid() and address_formset.is_valid():
             try:
                 company = form.save()
+                address_formset.save()
                 messages.success(
                     request,
                     f"Данные компании {company.name} обновлены."
@@ -102,12 +116,17 @@ def company_edit(request, pk):
             except Exception as e:
                 messages.error(request, f"Ошибка при обновлении компании: {str(e)}")
         else:
-            messages.error(request, "Пожалуйста, исправьте ошибки в форме.")
+            if not form.is_valid():
+                messages.error(request, "Проверьте форму.")
+            if not address_formset.is_valid():
+                messages.error(request, "Проверьте блок «Адреса компании».")
     else:
         form = CompanyForm(instance=company)
+        address_formset = CompanyAddressFormSet(instance=company)
     
     return render(request, "core/company_form.html", {
         "form": form,
+        "address_formset": address_formset,
         "company": company,
         "title": "Редактировать компанию",
         "action": "edit"
