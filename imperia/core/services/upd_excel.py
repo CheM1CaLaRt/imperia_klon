@@ -88,154 +88,179 @@ def fill_upd_excel(
     def safe_set_cell(worksheet, row, col, value):
         """Безопасно устанавливает значение ячейки, обрабатывая объединенные ячейки"""
         try:
-            # Проверяем, является ли ячейка частью объединенного диапазона
-            for merged_range in worksheet.merged_cells.ranges:
+            # Сначала проверяем, является ли ячейка частью объединенного диапазона
+            cell_coordinate = f"{utils.get_column_letter(col)}{row}"
+            
+            # Проверяем все объединенные диапазоны
+            for merged_range in list(worksheet.merged_cells.ranges):
                 if row >= merged_range.min_row and row <= merged_range.max_row and \
                    col >= merged_range.min_col and col <= merged_range.max_col:
                     # Если ячейка в объединенном диапазоне, устанавливаем значение в верхнюю левую ячейку
-                    top_left = worksheet.cell(row=merged_range.min_row, column=merged_range.min_col)
-                    top_left.value = value
+                    top_left_coord = f"{utils.get_column_letter(merged_range.min_col)}{merged_range.min_row}"
+                    top_left_cell = worksheet[top_left_coord]
+                    top_left_cell.value = value
                     return
             
-            # Обычная ячейка - просто устанавливаем значение
-            cell = worksheet.cell(row=row, column=col)
+            # Обычная ячейка - устанавливаем значение напрямую
+            cell = worksheet[cell_coordinate]
             cell.value = value
-        except Exception:
-            # Если не удалось установить, пробуем альтернативный способ
+        except Exception as e:
+            # Если не удалось установить через координаты, пробуем через row/column
             try:
-                cell_coordinate = f"{utils.get_column_letter(col)}{row}"
-                worksheet[cell_coordinate] = value
+                # Проверяем объединенные ячейки еще раз
+                for merged_range in list(worksheet.merged_cells.ranges):
+                    if row >= merged_range.min_row and row <= merged_range.max_row and \
+                       col >= merged_range.min_col and col <= merged_range.max_col:
+                        top_left = worksheet.cell(row=merged_range.min_row, column=merged_range.min_col)
+                        top_left.value = value
+                        return
+                
+                # Обычная ячейка
+                cell = worksheet.cell(row=row, column=col)
+                cell.value = value
             except Exception:
                 # В крайнем случае просто игнорируем ошибку
                 pass
     
     # --- Заполнение шапки УПД ---
     # Номер и дата УПД (поле (1))
-    # Согласно стандарту: "Счет-фактура N" в I2, номер в O2, "от" в W2, дата в Y2
-    # Но также ищем динамически для совместимости с разными шаблонами
+    # Ищем ячейки с текстом "Счет-фактура", "УПД" или номером документа
+    doc_number_set = False
+    doc_date_set = False
     
-    # Сначала пробуем стандартные координаты из примера
-    try:
-        # I2: "Счет-фактура N"
-        if ws["I2"].value and ("Счет-фактура" in str(ws["I2"].value) or "УПД" in str(ws["I2"].value)):
-            safe_set_cell(ws, 2, 15, doc_number)  # O2
-            safe_set_cell(ws, 2, 23, doc_date.strftime("%d.%m.%Y"))  # Y2 (W2 обычно "от")
-    except:
-        pass
-    
-    # Также ищем динамически
-    for row in range(1, 11):
-        for col in range(1, 30):
+    for row in range(1, 6):
+        for col in range(1, 35):
             try:
                 cell = ws.cell(row=row, column=col)
-                if cell.value and isinstance(cell.value, str):
-                    val = str(cell.value).strip()
-                    if "Счет-фактура" in val or ("УПД" in val and "универсальный" not in val.lower()):
-                        # Ищем номер справа (обычно через 1-3 колонки)
-                        for offset in [1, 2, 3, 4, 5]:
-                            try:
-                                next_cell = ws.cell(row=row, column=col + offset)
-                                if next_cell.value is None or str(next_cell.value).strip() == "":
-                                    safe_set_cell(ws, row, col + offset, doc_number)
-                                    # Ищем дату дальше
-                                    for date_offset in [offset + 1, offset + 2, offset + 3]:
+                if not cell.value:
+                    continue
+                    
+                val = str(cell.value).strip()
+                
+                # Ищем заголовок документа
+                if not doc_number_set and ("Счет-фактура" in val or ("УПД" in val and "универсальный" not in val.lower())):
+                    # Ищем номер документа справа от заголовка
+                    for offset in range(1, 10):
+                        try:
+                            next_cell = ws.cell(row=row, column=col + offset)
+                            next_val = str(next_cell.value).strip() if next_cell.value else ""
+                            
+                            # Если ячейка пустая или содержит только номер, заполняем
+                            if not next_val or next_val in ["0", "N", "№"]:
+                                safe_set_cell(ws, row, col + offset, doc_number)
+                                doc_number_set = True
+                                
+                                # Ищем дату дальше
+                                for date_offset in range(offset + 1, offset + 8):
+                                    try:
                                         date_cell = ws.cell(row=row, column=col + date_offset)
                                         prev_cell = ws.cell(row=row, column=col + date_offset - 1)
-                                        if (date_cell.value is None or str(date_cell.value).strip() == "") or \
-                                           (prev_cell.value and "от" in str(prev_cell.value).lower()):
+                                        
+                                        prev_val = str(prev_cell.value).strip().lower() if prev_cell.value else ""
+                                        date_val = str(date_cell.value).strip() if date_cell.value else ""
+                                        
+                                        # Если есть "от" перед ячейкой или ячейка пустая
+                                        if "от" in prev_val or (not date_val or date_val in ["0", "00.00.0000"]):
                                             safe_set_cell(ws, row, col + date_offset, doc_date.strftime("%d.%m.%Y"))
+                                            doc_date_set = True
                                             break
-                                    break
-                            except:
-                                continue
+                                    except:
+                                        continue
+                                break
+                        except:
+                            continue
+                    if doc_number_set:
                         break
             except:
                 continue
+        if doc_number_set:
+            break
     
-    # Продавец (2) - согласно стандарту: H5 (наименование), H6 (адрес), H8 (ИНН/КПП)
-    # Но также ищем динамически
+    # Продавец (2) - ищем метку "Продавец" или "Грузоотправитель"
     seller_found = False
     
-    # Пробуем стандартные координаты
-    try:
-        if ws["H4"].value and ("Продавец" in str(ws["H4"].value) or "Грузоотправитель" in str(ws["H4"].value)):
-            safe_set_cell(ws, 5, 8, seller_full_name or seller_name)  # H5
-            safe_set_cell(ws, 6, 8, seller_address)  # H6
-            inn_kpp = seller_inn
-            if seller_kpp:
-                inn_kpp += f" / {seller_kpp}"
-            safe_set_cell(ws, 8, 8, inn_kpp)  # H8
-            seller_found = True
-    except:
-        pass
-    
-    # Динамический поиск
-    if not seller_found:
-        for row in range(1, 25):
-            for col in range(1, 15):
-                try:
-                    cell = ws.cell(row=row, column=col)
-                    if cell.value and isinstance(cell.value, str):
-                        val = str(cell.value).strip()
-                        if "Продавец" in val or "Грузоотправитель" in val:
-                            seller_row = row
-                            seller_col = col
-                            # Заполняем данные продавца в соседних ячейках (обычно ниже)
-                            safe_set_cell(ws, seller_row + 1, seller_col, seller_full_name or seller_name)
-                            safe_set_cell(ws, seller_row + 2, seller_col, seller_address)
-                            inn_kpp = seller_inn
-                            if seller_kpp:
-                                inn_kpp += f" / {seller_kpp}"
-                            # ИНН/КПП может быть через строку
-                            safe_set_cell(ws, seller_row + 3, seller_col, inn_kpp)
-                            safe_set_cell(ws, seller_row + 4, seller_col, inn_kpp)  # На случай если через строку
-                            seller_found = True
-                            break
-                except:
+    for row in range(1, 25):
+        for col in range(1, 15):
+            try:
+                cell = ws.cell(row=row, column=col)
+                if not cell.value:
                     continue
-            if seller_found:
-                break
+                    
+                val = str(cell.value).strip()
+                if "Продавец" in val or "Грузоотправитель" in val:
+                    seller_row = row
+                    seller_col = col
+                    
+                    # Заполняем наименование (обычно следующая строка)
+                    safe_set_cell(ws, seller_row + 1, seller_col, seller_full_name or seller_name)
+                    
+                    # Заполняем адрес (обычно через строку)
+                    safe_set_cell(ws, seller_row + 2, seller_col, seller_address)
+                    
+                    # ИНН/КПП (может быть через 1-2 строки)
+                    inn_kpp = seller_inn
+                    if seller_kpp:
+                        inn_kpp += f" / {seller_kpp}"
+                    
+                    # Пробуем несколько строк ниже
+                    for offset in [3, 4, 5]:
+                        try:
+                            test_cell = ws.cell(row=seller_row + offset, column=seller_col)
+                            if not test_cell.value or str(test_cell.value).strip() in ["", "0"]:
+                                safe_set_cell(ws, seller_row + offset, seller_col, inn_kpp)
+                                break
+                        except:
+                            continue
+                    
+                    seller_found = True
+                    break
+            except:
+                continue
+        if seller_found:
+            break
     
-    # Покупатель (6) - согласно стандарту: H12 (наименование), H13 (адрес), H14 (ИНН/КПП)
+    # Покупатель (6) - ищем метку "Покупатель" или "Грузополучатель"
     buyer_found = False
     
-    # Пробуем стандартные координаты
-    try:
-        if ws["H11"].value and ("Покупатель" in str(ws["H11"].value) or "Грузополучатель" in str(ws["H11"].value)):
-            safe_set_cell(ws, 12, 8, buyer_full_name or buyer_name)  # H12
-            safe_set_cell(ws, 13, 8, buyer_address)  # H13
-            buyer_inn_kpp = buyer_inn
-            if buyer_kpp:
-                buyer_inn_kpp += f" / {buyer_kpp}"
-            safe_set_cell(ws, 14, 8, buyer_inn_kpp)  # H14
-            buyer_found = True
-    except:
-        pass
-    
-    # Динамический поиск
-    if not buyer_found:
-        for row in range(1, 35):
-            for col in range(1, 15):
-                try:
-                    cell = ws.cell(row=row, column=col)
-                    if cell.value and isinstance(cell.value, str):
-                        val = str(cell.value).strip()
-                        if "Покупатель" in val or "Грузополучатель" in val:
-                            buyer_row = row
-                            buyer_col = col
-                            # Заполняем данные покупателя
-                            safe_set_cell(ws, buyer_row + 1, buyer_col, buyer_full_name or buyer_name)
-                            safe_set_cell(ws, buyer_row + 2, buyer_col, buyer_address)
-                            buyer_inn_kpp = buyer_inn
-                            if buyer_kpp:
-                                buyer_inn_kpp += f" / {buyer_kpp}"
-                            safe_set_cell(ws, buyer_row + 3, buyer_col, buyer_inn_kpp)
-                            buyer_found = True
-                            break
-                except:
+    for row in range(1, 35):
+        for col in range(1, 15):
+            try:
+                cell = ws.cell(row=row, column=col)
+                if not cell.value:
                     continue
-            if buyer_found:
-                break
+                    
+                val = str(cell.value).strip()
+                if "Покупатель" in val or "Грузополучатель" in val:
+                    buyer_row = row
+                    buyer_col = col
+                    
+                    # Заполняем наименование
+                    safe_set_cell(ws, buyer_row + 1, buyer_col, buyer_full_name or buyer_name)
+                    
+                    # Заполняем адрес
+                    safe_set_cell(ws, buyer_row + 2, buyer_col, buyer_address)
+                    
+                    # ИНН/КПП
+                    buyer_inn_kpp = buyer_inn
+                    if buyer_kpp:
+                        buyer_inn_kpp += f" / {buyer_kpp}"
+                    
+                    # Пробуем несколько строк ниже
+                    for offset in [3, 4, 5]:
+                        try:
+                            test_cell = ws.cell(row=buyer_row + offset, column=buyer_col)
+                            if not test_cell.value or str(test_cell.value).strip() in ["", "0"]:
+                                safe_set_cell(ws, buyer_row + offset, buyer_col, buyer_inn_kpp)
+                                break
+                        except:
+                            continue
+                    
+                    buyer_found = True
+                    break
+            except:
+                continue
+        if buyer_found:
+            break
     
     # Валюта (7) - согласно стандарту: H15
     currency_found = False
@@ -387,15 +412,41 @@ def fill_upd_excel(
         total_with_vat += amount_with_vat
         
         # Заполняем ячейки (используем safe_set_cell для обработки объединенных ячеек)
-        safe_set_cell(ws, current_row, col_num, idx)
-        safe_set_cell(ws, current_row, col_name, name)
-        safe_set_cell(ws, current_row, col_unit, unit)
-        safe_set_cell(ws, current_row, col_qty, qty)
-        safe_set_cell(ws, current_row, col_price, price)
-        safe_set_cell(ws, current_row, col_total_no_vat, float(amount_without_vat))
-        safe_set_cell(ws, current_row, col_vat_rate, vat_rate_str)
-        safe_set_cell(ws, current_row, col_vat_amount, float(vat_amount))
-        safe_set_cell(ws, current_row, col_total_with_vat, float(amount_with_vat))
+        # Номер п/п
+        if col_num:
+            safe_set_cell(ws, current_row, col_num, idx)
+        
+        # Наименование товара
+        if col_name:
+            safe_set_cell(ws, current_row, col_name, name)
+        
+        # Единица измерения
+        if col_unit:
+            safe_set_cell(ws, current_row, col_unit, unit)
+        
+        # Количество
+        if col_qty:
+            safe_set_cell(ws, current_row, col_qty, qty)
+        
+        # Цена за единицу
+        if col_price:
+            safe_set_cell(ws, current_row, col_price, price)
+        
+        # Стоимость без НДС
+        if col_total_no_vat:
+            safe_set_cell(ws, current_row, col_total_no_vat, float(amount_without_vat))
+        
+        # Ставка НДС
+        if col_vat_rate:
+            safe_set_cell(ws, current_row, col_vat_rate, vat_rate_str)
+        
+        # Сумма НДС
+        if col_vat_amount:
+            safe_set_cell(ws, current_row, col_vat_amount, float(vat_amount))
+        
+        # Стоимость с НДС
+        if col_total_with_vat:
+            safe_set_cell(ws, current_row, col_total_with_vat, float(amount_with_vat))
         
         current_row += 1
     
