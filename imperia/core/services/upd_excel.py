@@ -88,39 +88,54 @@ def fill_upd_excel(
     def safe_set_cell(worksheet, row, col, value):
         """Безопасно устанавливает значение ячейки, обрабатывая объединенные ячейки"""
         try:
-            # Сначала проверяем, является ли ячейка частью объединенного диапазона
-            cell_coordinate = f"{utils.get_column_letter(col)}{row}"
-            
-            # Проверяем все объединенные диапазоны
+            # Проверяем, является ли ячейка частью объединенного диапазона
+            # Если да, записываем в верхнюю левую ячейку объединенного диапазона
             for merged_range in list(worksheet.merged_cells.ranges):
                 if row >= merged_range.min_row and row <= merged_range.max_row and \
                    col >= merged_range.min_col and col <= merged_range.max_col:
-                    # Если ячейка в объединенном диапазоне, устанавливаем значение в верхнюю левую ячейку
+                    # Ячейка в объединенном диапазоне - записываем в верхнюю левую
                     top_left_coord = f"{utils.get_column_letter(merged_range.min_col)}{merged_range.min_row}"
-                    top_left_cell = worksheet[top_left_coord]
-                    top_left_cell.value = value
-                    return
-            
-            # Обычная ячейка - устанавливаем значение напрямую
-            cell = worksheet[cell_coordinate]
-            cell.value = value
-        except Exception as e:
-            # Если не удалось установить через координаты, пробуем через row/column
-            try:
-                # Проверяем объединенные ячейки еще раз
-                for merged_range in list(worksheet.merged_cells.ranges):
-                    if row >= merged_range.min_row and row <= merged_range.max_row and \
-                       col >= merged_range.min_col and col <= merged_range.max_col:
+                    try:
+                        top_left_cell = worksheet[top_left_coord]
+                        top_left_cell.value = value
+                        return
+                    except:
+                        # Пробуем через row/column
                         top_left = worksheet.cell(row=merged_range.min_row, column=merged_range.min_col)
                         top_left.value = value
                         return
-                
-                # Обычная ячейка
+            
+            # Обычная ячейка - устанавливаем значение напрямую
+            cell_coordinate = f"{utils.get_column_letter(col)}{row}"
+            try:
+                cell = worksheet[cell_coordinate]
+                cell.value = value
+            except:
+                # Если не получилось через координаты, пробуем через row/column
                 cell = worksheet.cell(row=row, column=col)
                 cell.value = value
-            except Exception:
-                # В крайнем случае просто игнорируем ошибку
-                pass
+        except Exception:
+            # В крайнем случае просто игнорируем ошибку
+            pass
+    
+    def find_merged_cell_for_column(worksheet, row, col):
+        """
+        Находит правильную ячейку для записи данных с учетом объединенных ячеек.
+        Если колонка объединена, возвращает верхнюю левую ячейку объединенного диапазона.
+        Если строка попадает в объединенный диапазон, использует верхнюю строку диапазона.
+        """
+        # Проверяем все объединенные диапазоны
+        for merged_range in list(worksheet.merged_cells.ranges):
+            # Проверяем, попадает ли наша ячейка в объединенный диапазон
+            if row >= merged_range.min_row and row <= merged_range.max_row and \
+               col >= merged_range.min_col and col <= merged_range.max_col:
+                # Возвращаем верхнюю левую ячейку объединенного диапазона
+                # Используем исходную строку, если она в пределах диапазона
+                # Но колонку берем из начала диапазона
+                return row, merged_range.min_col
+        
+        # Если не найдено объединение, возвращаем исходные координаты
+        return row, col
     
     # --- Заполнение шапки УПД ---
     # Номер и дата УПД (поле (1))
@@ -334,34 +349,39 @@ def fill_upd_excel(
             for idx, cell in enumerate(header_row, start=1):
                 if not cell.value:
                     continue
+                
+                # Проверяем, является ли ячейка частью объединенного диапазона
+                # Если да, используем колонку объединенного диапазона
+                actual_row, actual_col = find_merged_cell_for_column(ws, check_row, idx)
+                
                 cell_value = str(cell.value).lower().strip()
                 # Номер п/п
                 if col_num is None and ("п/п" in cell_value or "номер" in cell_value or "№" in cell_value):
-                    col_num = idx
+                    col_num = actual_col
                 # Наименование
                 elif col_name is None and ("наименование" in cell_value or "товар" in cell_value or "наимен" in cell_value):
-                    col_name = idx
+                    col_name = actual_col
                 # Единица измерения (не код!)
                 elif col_unit is None and "единица" in cell_value and "код" not in cell_value:
-                    col_unit = idx
+                    col_unit = actual_col
                 # Количество
                 elif col_qty is None and "количество" in cell_value:
-                    col_qty = idx
+                    col_qty = actual_col
                 # Цена
-                elif col_price is None and "цена" in cell_value and "стоимость" not in cell_value and "за единицу" in cell_value:
-                    col_price = idx
+                elif col_price is None and "цена" in cell_value and "стоимость" not in cell_value:
+                    col_price = actual_col
                 # Стоимость без НДС
                 elif col_total_no_vat is None and ("без ндс" in cell_value or ("стоимость" in cell_value and "без" in cell_value)):
-                    col_total_no_vat = idx
+                    col_total_no_vat = actual_col
                 # Ставка НДС
                 elif col_vat_rate is None and "ставка" in cell_value and "ндс" in cell_value:
-                    col_vat_rate = idx
+                    col_vat_rate = actual_col
                 # Сумма НДС
                 elif col_vat_amount is None and "сумма" in cell_value and "ндс" in cell_value:
-                    col_vat_amount = idx
+                    col_vat_amount = actual_col
                 # Стоимость с НДС
                 elif col_total_with_vat is None and ("с ндс" in cell_value or ("всего" in cell_value and "стоимость" in cell_value)):
-                    col_total_with_vat = idx
+                    col_total_with_vat = actual_col
         except:
             continue
     
@@ -412,41 +432,51 @@ def fill_upd_excel(
         total_with_vat += amount_with_vat
         
         # Заполняем ячейки (используем safe_set_cell для обработки объединенных ячеек)
+        # Для каждой колонки находим правильную ячейку с учетом объединенных диапазонов
         # Номер п/п
         if col_num:
-            safe_set_cell(ws, current_row, col_num, idx)
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_num)
+            safe_set_cell(ws, actual_row, actual_col, idx)
         
         # Наименование товара
         if col_name:
-            safe_set_cell(ws, current_row, col_name, name)
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_name)
+            safe_set_cell(ws, actual_row, actual_col, name)
         
         # Единица измерения
         if col_unit:
-            safe_set_cell(ws, current_row, col_unit, unit)
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_unit)
+            safe_set_cell(ws, actual_row, actual_col, unit)
         
         # Количество
         if col_qty:
-            safe_set_cell(ws, current_row, col_qty, qty)
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_qty)
+            safe_set_cell(ws, actual_row, actual_col, qty)
         
         # Цена за единицу
         if col_price:
-            safe_set_cell(ws, current_row, col_price, price)
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_price)
+            safe_set_cell(ws, actual_row, actual_col, price)
         
         # Стоимость без НДС
         if col_total_no_vat:
-            safe_set_cell(ws, current_row, col_total_no_vat, float(amount_without_vat))
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_total_no_vat)
+            safe_set_cell(ws, actual_row, actual_col, float(amount_without_vat))
         
         # Ставка НДС
         if col_vat_rate:
-            safe_set_cell(ws, current_row, col_vat_rate, vat_rate_str)
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_vat_rate)
+            safe_set_cell(ws, actual_row, actual_col, vat_rate_str)
         
         # Сумма НДС
         if col_vat_amount:
-            safe_set_cell(ws, current_row, col_vat_amount, float(vat_amount))
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_vat_amount)
+            safe_set_cell(ws, actual_row, actual_col, float(vat_amount))
         
         # Стоимость с НДС
         if col_total_with_vat:
-            safe_set_cell(ws, current_row, col_total_with_vat, float(amount_with_vat))
+            actual_row, actual_col = find_merged_cell_for_column(ws, current_row, col_total_with_vat)
+            safe_set_cell(ws, actual_row, actual_col, float(amount_with_vat))
         
         current_row += 1
     
@@ -463,10 +493,16 @@ def fill_upd_excel(
     if total_row is None:
         total_row = current_row + 1
     
-    # Заполняем итоговые значения
-    safe_set_cell(ws, total_row, col_total_no_vat, float(total_without_vat))
-    safe_set_cell(ws, total_row, col_vat_amount, float(total_vat))
-    safe_set_cell(ws, total_row, col_total_with_vat, float(total_with_vat))
+    # Заполняем итоговые значения (с учетом объединенных ячеек)
+    if col_total_no_vat:
+        actual_row, actual_col = find_merged_cell_for_column(ws, total_row, col_total_no_vat)
+        safe_set_cell(ws, actual_row, actual_col, float(total_without_vat))
+    if col_vat_amount:
+        actual_row, actual_col = find_merged_cell_for_column(ws, total_row, col_vat_amount)
+        safe_set_cell(ws, actual_row, actual_col, float(total_vat))
+    if col_total_with_vat:
+        actual_row, actual_col = find_merged_cell_for_column(ws, total_row, col_total_with_vat)
+        safe_set_cell(ws, actual_row, actual_col, float(total_with_vat))
     
     # Сохраняем файл
     if output_path:
