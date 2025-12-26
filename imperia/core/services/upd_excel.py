@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import List, Dict, Optional
 
 import openpyxl
+from openpyxl import utils
 from openpyxl.styles import Font, Alignment, Border, Side
 from django.conf import settings
 
@@ -84,6 +85,30 @@ def fill_upd_excel(
     if ws is None:
         ws = wb.active
     
+    def safe_set_cell(worksheet, row, col, value):
+        """Безопасно устанавливает значение ячейки, обрабатывая объединенные ячейки"""
+        try:
+            # Проверяем, является ли ячейка частью объединенного диапазона
+            for merged_range in worksheet.merged_cells.ranges:
+                if row >= merged_range.min_row and row <= merged_range.max_row and \
+                   col >= merged_range.min_col and col <= merged_range.max_col:
+                    # Если ячейка в объединенном диапазоне, устанавливаем значение в верхнюю левую ячейку
+                    top_left = worksheet.cell(row=merged_range.min_row, column=merged_range.min_col)
+                    top_left.value = value
+                    return
+            
+            # Обычная ячейка - просто устанавливаем значение
+            cell = worksheet.cell(row=row, column=col)
+            cell.value = value
+        except Exception:
+            # Если не удалось установить, пробуем альтернативный способ
+            try:
+                cell_coordinate = f"{utils.get_column_letter(col)}{row}"
+                worksheet[cell_coordinate] = value
+            except Exception:
+                # В крайнем случае просто игнорируем ошибку
+                pass
+    
     # --- Заполнение шапки УПД ---
     # Номер и дата УПД (поле (1))
     # Ищем ячейки с текстом "Счет-фактура" или "УПД"
@@ -94,12 +119,15 @@ def fill_upd_excel(
                     # Пытаемся найти соседние ячейки для номера и даты
                     col = cell.column
                     # Номер документа обычно справа
-                    if ws.cell(row=cell.row, column=col + 1).value is None or ws.cell(row=cell.row, column=col + 1).value == "":
-                        ws.cell(row=cell.row, column=col + 1).value = doc_number
+                    current_value = ws.cell(row=cell.row, column=col + 1).value
+                    if current_value is None or current_value == "":
+                        safe_set_cell(ws, cell.row, col + 1, doc_number)
                     # Дата обычно еще правее
                     date_col = col + 3
-                    if ws.cell(row=cell.row, column=date_col).value is None or "от" in str(ws.cell(row=cell.row, column=date_col - 1).value or ""):
-                        ws.cell(row=cell.row, column=date_col).value = doc_date.strftime("%d.%m.%Y")
+                    date_cell_value = ws.cell(row=cell.row, column=date_col).value
+                    prev_cell_value = ws.cell(row=cell.row, column=date_col - 1).value
+                    if date_cell_value is None or (prev_cell_value and "от" in str(prev_cell_value)):
+                        safe_set_cell(ws, cell.row, date_col, doc_date.strftime("%d.%m.%Y"))
                     break
     
     # Продавец (2) - ищем ячейки с метками "Продавец" или "Грузоотправитель"
@@ -111,12 +139,12 @@ def fill_upd_excel(
                     seller_row = cell.row
                     seller_col = cell.column
                     # Заполняем данные продавца в соседних ячейках
-                    ws.cell(row=seller_row + 1, column=seller_col).value = seller_full_name or seller_name
-                    ws.cell(row=seller_row + 2, column=seller_col).value = seller_address
+                    safe_set_cell(ws, seller_row + 1, seller_col, seller_full_name or seller_name)
+                    safe_set_cell(ws, seller_row + 2, seller_col, seller_address)
                     inn_kpp = seller_inn
                     if seller_kpp:
                         inn_kpp += f" / {seller_kpp}"
-                    ws.cell(row=seller_row + 3, column=seller_col).value = inn_kpp
+                    safe_set_cell(ws, seller_row + 3, seller_col, inn_kpp)
                     seller_found = True
                     break
         if seller_found:
@@ -131,12 +159,12 @@ def fill_upd_excel(
                     buyer_row = cell.row
                     buyer_col = cell.column
                     # Заполняем данные покупателя
-                    ws.cell(row=buyer_row + 1, column=buyer_col).value = buyer_full_name or buyer_name
-                    ws.cell(row=buyer_row + 2, column=buyer_col).value = buyer_address
+                    safe_set_cell(ws, buyer_row + 1, buyer_col, buyer_full_name or buyer_name)
+                    safe_set_cell(ws, buyer_row + 2, buyer_col, buyer_address)
                     buyer_inn_kpp = buyer_inn
                     if buyer_kpp:
                         buyer_inn_kpp += f" / {buyer_kpp}"
-                    ws.cell(row=buyer_row + 3, column=buyer_col).value = buyer_inn_kpp
+                    safe_set_cell(ws, buyer_row + 3, buyer_col, buyer_inn_kpp)
                     buyer_found = True
                     break
         if buyer_found:
@@ -148,7 +176,7 @@ def fill_upd_excel(
         for cell in row:
             if cell.value and isinstance(cell.value, str):
                 if "Валюта" in cell.value or "Денежная единица" in cell.value:
-                    ws.cell(row=cell.row, column=cell.column + 1).value = currency_name_code
+                    safe_set_cell(ws, cell.row, cell.column + 1, currency_name_code)
                     currency_found = True
                     break
         if currency_found:
@@ -256,16 +284,16 @@ def fill_upd_excel(
         total_vat += vat_amount
         total_with_vat += amount_with_vat
         
-        # Заполняем ячейки
-        ws.cell(row=current_row, column=col_num).value = idx
-        ws.cell(row=current_row, column=col_name).value = name
-        ws.cell(row=current_row, column=col_unit).value = unit
-        ws.cell(row=current_row, column=col_qty).value = qty
-        ws.cell(row=current_row, column=col_price).value = price
-        ws.cell(row=current_row, column=col_total_no_vat).value = float(amount_without_vat)
-        ws.cell(row=current_row, column=col_vat_rate).value = vat_rate_str
-        ws.cell(row=current_row, column=col_vat_amount).value = float(vat_amount)
-        ws.cell(row=current_row, column=col_total_with_vat).value = float(amount_with_vat)
+        # Заполняем ячейки (используем safe_set_cell для обработки объединенных ячеек)
+        safe_set_cell(ws, current_row, col_num, idx)
+        safe_set_cell(ws, current_row, col_name, name)
+        safe_set_cell(ws, current_row, col_unit, unit)
+        safe_set_cell(ws, current_row, col_qty, qty)
+        safe_set_cell(ws, current_row, col_price, price)
+        safe_set_cell(ws, current_row, col_total_no_vat, float(amount_without_vat))
+        safe_set_cell(ws, current_row, col_vat_rate, vat_rate_str)
+        safe_set_cell(ws, current_row, col_vat_amount, float(vat_amount))
+        safe_set_cell(ws, current_row, col_total_with_vat, float(amount_with_vat))
         
         current_row += 1
     
@@ -283,9 +311,9 @@ def fill_upd_excel(
         total_row = current_row + 1
     
     # Заполняем итоговые значения
-    ws.cell(row=total_row, column=col_total_no_vat).value = float(total_without_vat)
-    ws.cell(row=total_row, column=col_vat_amount).value = float(total_vat)
-    ws.cell(row=total_row, column=col_total_with_vat).value = float(total_with_vat)
+    safe_set_cell(ws, total_row, col_total_no_vat, float(total_without_vat))
+    safe_set_cell(ws, total_row, col_vat_amount, float(total_vat))
+    safe_set_cell(ws, total_row, col_total_with_vat, float(total_with_vat))
     
     # Сохраняем файл
     if output_path:
