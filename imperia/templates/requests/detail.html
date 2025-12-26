@@ -489,6 +489,9 @@
         <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
           📄 УПД (HTML)
         </a>
+        <a href="{% url 'core:request_upd' obj.pk %}?format=excel" class="btn btn-ghost">
+          📊 УПД (Excel)
+        </a>
         <a href="{% url 'core:request_upd_xml' obj.pk %}" class="btn btn-ghost">
           📥 УПД (XML)
         </a>
@@ -682,6 +685,9 @@
             <a href="{% url 'core:request_upd' obj.pk %}" target="_blank" class="btn btn-ghost">
               📄 УПД (HTML)
             </a>
+            <a href="{% url 'core:request_upd' obj.pk %}?format=excel" class="btn btn-ghost">
+              📊 УПД (Excel)
+            </a>
             <a href="{% url 'core:request_upd_xml' obj.pk %}" class="btn btn-ghost">
               📥 УПД (XML)
             </a>
@@ -748,6 +754,9 @@
             <div style="margin-top: 12px; display: flex; gap: 8px;">
               <a href="{% url 'core:request_upd_shipment' obj.pk shipment.pk %}" target="_blank" class="btn btn-ghost" style="font-size: 13px;">
                 📄 УПД (HTML)
+              </a>
+              <a href="{% url 'core:request_upd_shipment' obj.pk shipment.pk %}?format=excel" class="btn btn-ghost" style="font-size: 13px;">
+                📊 УПД (Excel)
               </a>
               <a href="{% url 'core:request_upd_xml_shipment' obj.pk shipment.pk %}" class="btn btn-ghost" style="font-size: 13px;">
                 📥 УПД (XML)

@@ -1,6 +1,7 @@
 # core/views_requests.py
 from decimal import Decimal, InvalidOperation
 import re
+from datetime import date
 from mimetypes import guess_type
 from django.urls import reverse
 from django.contrib import messages
@@ -15,6 +16,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.exceptions import FieldDoesNotExist
 from django.conf import settings
 from .services.upd_xml import Upd970, parse_address
+from .services.upd_excel import fill_upd_excel
 import uuid
 import os
 from django.http import HttpResponse
@@ -1526,6 +1528,9 @@ def request_route_sheet(request, pk: int):
 @require_groups("operator", "director")
 def request_upd(request, pk: int, shipment_id: int = None):
     """Генерация УПД для заявки или конкретной отгрузки"""
+    # Проверяем, запрошен ли Excel формат
+    format_type = request.GET.get("format", "html")
+    
     obj = get_object_or_404(
         Request.objects.select_related("counterparty", "delivery_address", "delivery_contact", "company"),
         pk=pk
@@ -1540,6 +1545,9 @@ def request_upd(request, pk: int, shipment_id: int = None):
         # УПД для конкретной отгрузки
         shipment = get_object_or_404(RequestShipment, pk=shipment_id, request=obj)
         shipment_items = shipment.items.select_related("product", "quote_item").all()
+        doc_date = shipment.shipped_at.date() if shipment.shipped_at else date.today()
+        doc_number = shipment.shipment_number or f"SHIP-{shipment.pk}"
+        
         for item in shipment_items:
             item_total = item.quantity * (item.price or Decimal("0"))
             item_vat = item_total * vat_rate / Decimal("100")
@@ -1553,26 +1561,38 @@ def request_upd(request, pk: int, shipment_id: int = None):
                 "total": item_total,
                 "vat_amount": item_vat,
                 "total_with_vat": item_total_with_vat,
+                "name": item.title,  # Для Excel
+                "qty": float(item.quantity),
+                "vat_rate": "20%",
             })
     else:
         # УПД для всей заявки (по активному КП)
         active_quote = obj.active_quote
-        if active_quote:
-            quote_items = active_quote.items.select_related("product").all()
-            for item in quote_items:
-                item_total = item.total
-                item_vat = item_total * vat_rate / Decimal("100")
-                item_total_with_vat = item_total + item_vat
-                total_amount += item_total
-                items.append({
-                    "title": item.title,
-                    "quantity": item.quantity,
-                    "unit": "шт",
-                    "price": item.price,
-                    "total": item_total,
-                    "vat_amount": item_vat,
-                    "total_with_vat": item_total_with_vat,
-                })
+        if not active_quote:
+            messages.error(request, "Нет активного коммерческого предложения для генерации УПД")
+            return redirect("core:request_detail", pk=obj.pk)
+        
+        doc_date = active_quote.created_at.date()
+        doc_number = obj.number or f"QUOTE-{active_quote.pk}"
+        quote_items = active_quote.items.select_related("product").all()
+        
+        for item in quote_items:
+            item_total = item.total
+            item_vat = item_total * vat_rate / Decimal("100")
+            item_total_with_vat = item_total + item_vat
+            total_amount += item_total
+            items.append({
+                "title": item.title,
+                "quantity": item.quantity,
+                "unit": "шт",
+                "price": item.price,
+                "total": item_total,
+                "vat_amount": item_vat,
+                "total_with_vat": item_total_with_vat,
+                "name": item.title,  # Для Excel
+                "qty": float(item.quantity),
+                "vat_rate": "20%",
+            })
     
     # Данные компании-продавца (из модели Company или из settings как fallback)
     if obj.company:
@@ -1615,7 +1635,49 @@ def request_upd(request, pk: int, shipment_id: int = None):
             "accountant_position": getattr(settings, "COMPANY_ACCOUNTANT_POSITION", "Главный бухгалтер"),
         }
     
-    # Расчет итогового НДС
+    # Данные покупателя (контрагента)
+    buyer_data = {
+        "name": obj.counterparty.name if obj.counterparty else "",
+        "full_name": obj.counterparty.full_name if obj.counterparty else "",
+        "address": obj.counterparty.address if obj.counterparty else "",
+        "inn": obj.counterparty.inn if obj.counterparty else "",
+        "kpp": obj.counterparty.kpp if obj.counterparty else "",
+    }
+    
+    # Если запрошен Excel формат
+    if format_type == "excel":
+        try:
+            excel_bytes = fill_upd_excel(
+                seller_name=company_data["name"],
+                seller_full_name=company_data["full_name"],
+                seller_address=company_data["address"],
+                seller_inn=company_data["inn"],
+                seller_kpp=company_data.get("kpp", ""),
+                buyer_name=buyer_data["name"],
+                buyer_full_name=buyer_data["full_name"],
+                buyer_address=buyer_data["address"],
+                buyer_inn=buyer_data["inn"],
+                buyer_kpp=buyer_data.get("kpp", ""),
+                doc_number=doc_number,
+                doc_date=doc_date,
+                items=items,
+            )
+            
+            response = HttpResponse(
+                excel_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            filename = f"UPD_{doc_number}_{doc_date.strftime('%Y%m%d')}.xlsx"
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return response
+        except FileNotFoundError as e:
+            messages.error(request, f"Шаблон УПД не найден. Пожалуйста, разместите файл Blank-UPD.xlsx в корне проекта imperia/")
+            return redirect("core:request_detail", pk=obj.pk)
+        except Exception as e:
+            messages.error(request, f"Ошибка при генерации УПД: {str(e)}")
+            return redirect("core:request_detail", pk=obj.pk)
+    
+    # Расчет итогового НДС для HTML версии
     total_without_vat = total_amount
     vat_amount = total_without_vat * vat_rate / Decimal("100")
     total_with_vat = total_without_vat + vat_amount
