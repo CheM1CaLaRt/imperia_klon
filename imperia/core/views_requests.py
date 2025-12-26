@@ -16,9 +16,10 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.exceptions import FieldDoesNotExist
 from django.conf import settings
 from .services.upd_xml import Upd970, parse_address
-from .services.upd_excel import fill_upd_excel
+from .services.upd_excel_fixed import fill_upd
 import uuid
 import os
+import tempfile
 from django.http import HttpResponse
 
 from .permissions import require_groups
@@ -1647,21 +1648,40 @@ def request_upd(request, pk: int, shipment_id: int = None):
     # Если запрошен Excel формат
     if format_type == "excel":
         try:
-            excel_bytes = fill_upd_excel(
-                seller_name=company_data["name"],
-                seller_full_name=company_data["full_name"],
+            # Формируем ИНН/КПП для продавца и покупателя
+            seller_inn_kpp = company_data["inn"]
+            if company_data.get("kpp"):
+                seller_inn_kpp += f" / {company_data['kpp']}"
+            
+            buyer_inn_kpp = buyer_data["inn"]
+            if buyer_data.get("kpp"):
+                buyer_inn_kpp += f" / {buyer_data['kpp']}"
+            
+            # Создаем временный файл
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+                output_path = tmp_file.name
+            
+            # Заполняем УПД
+            fill_upd(
+                seller_name=company_data["full_name"] or company_data["name"],
                 seller_address=company_data["address"],
-                seller_inn=company_data["inn"],
-                seller_kpp=company_data.get("kpp", ""),
-                buyer_name=buyer_data["name"],
-                buyer_full_name=buyer_data["full_name"],
+                seller_inn_kpp=seller_inn_kpp,
+                buyer_name=buyer_data["full_name"] or buyer_data["name"],
                 buyer_address=buyer_data["address"],
-                buyer_inn=buyer_data["inn"],
-                buyer_kpp=buyer_data.get("kpp", ""),
+                buyer_inn_kpp=buyer_inn_kpp,
                 doc_number=doc_number,
                 doc_date=doc_date,
                 items=items,
+                output_path=output_path,
             )
+            
+            # Читаем созданный файл и отправляем как ответ
+            with open(output_path, "rb") as f:
+                excel_bytes = f.read()
+            
+            # Удаляем временный файл
+            os.unlink(output_path)
             
             response = HttpResponse(
                 excel_bytes,
