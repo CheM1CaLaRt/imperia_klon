@@ -131,6 +131,7 @@ def fill_upd(
     doc_date: date,
     items: List[Dict],
     currency_name_code: str = "Российский рубль, 643",
+    delivery_address: Optional[str] = None,
     output_path: Optional[str] = None,
 ) -> str:
     """
@@ -152,6 +153,7 @@ def fill_upd(
             - price: цена за единицу
             - vat_rate: ставка НДС ("20%", "0%", "без НДС")
         currency_name_code: Валюта (по умолчанию "Российский рубль, 643")
+        delivery_address: Адрес доставки (если не указан, используется адрес покупателя)
         output_path: Путь для сохранения файла (если None, создается UPD-filled.xlsx)
     
     Returns:
@@ -180,6 +182,13 @@ def fill_upd(
     safe_set_cell(ws, CELLS["seller_name"], seller_name)
     safe_set_cell(ws, CELLS["seller_address"], seller_address)
     safe_set_cell(ws, CELLS["seller_inn_kpp"], seller_inn_kpp)
+    
+    # Грузоотправитель (Y8) - адрес продавца
+    safe_set_cell(ws, CELLS["seller_shipper"], seller_address)
+    
+    # Грузополучатель (Y9) - адрес доставки или адрес покупателя
+    consignee_address = delivery_address if delivery_address else buyer_address
+    safe_set_cell(ws, CELLS["seller_consignee"], consignee_address)
     
     # Покупатель (поля (6), (6а), (6б))
     safe_set_cell(ws, CELLS["buyer_name"], buyer_name)

@@ -1662,6 +1662,11 @@ def request_upd(request, pk: int, shipment_id: int = None):
             with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
                 output_path = tmp_file.name
             
+            # Получаем адрес доставки
+            delivery_address = None
+            if obj.delivery_address and obj.delivery_address.address:
+                delivery_address = obj.delivery_address.address
+            
             # Заполняем УПД
             fill_upd(
                 seller_name=company_data["full_name"] or company_data["name"],
@@ -1673,6 +1678,7 @@ def request_upd(request, pk: int, shipment_id: int = None):
                 doc_number=doc_number,
                 doc_date=doc_date,
                 items=items,
+                delivery_address=delivery_address,
                 output_path=output_path,
             )
             
