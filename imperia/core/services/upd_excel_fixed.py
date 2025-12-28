@@ -18,41 +18,48 @@ TEMPLATE_PATH = os.path.join(
 )
 
 # Константы с адресами ячеек в шаблоне УПД
-# Эти адреса нужно определить, открыв Blank-UPD.xlsx и посмотрев структуру
+# Адреса определены на основе анализа шаблона Blank-UPD.xlsx
 CELLS = {
     # Номер и дата документа (поле (1))
-    "doc_number": "O2",  # Номер документа
-    "doc_date": "Y2",    # Дата документа (обычно после "от")
+    "doc_number": "AM1",      # Номер счета-фактуры
+    "doc_date": "BD1",        # Дата счета-фактуры
     
     # Продавец (поля (2), (2а), (2б))
-    "seller_name": "H5",      # Наименование продавца
-    "seller_address": "H6",   # Адрес продавца
-    "seller_inn_kpp": "H8",   # ИНН/КПП продавца
+    "seller_name": "BA4",      # Продавец (наименование)
+    "seller_address": "BA5",  # Адрес продавца
+    "seller_inn_kpp": "BA6",  # ИНН/КПП продавца
+    "seller_shipper": "BA7",  # Грузоотправитель (опционально)
+    "seller_consignee": "BA8", # Грузополучатель (опционально)
     
     # Покупатель (поля (6), (6а), (6б))
-    "buyer_name": "H12",      # Наименование покупателя
-    "buyer_address": "H13",   # Адрес покупателя
-    "buyer_inn_kpp": "H14",   # ИНН/КПП покупателя
+    "buyer_name": "BA11",     # Покупатель (наименование)
+    "buyer_address": "BA12", # Адрес покупателя
+    "buyer_inn_kpp": "BA13",  # ИНН/КПП покупателя
     
     # Валюта (поле (7))
-    "currency": "H15",        # Валюта
+    "currency": "BA14",       # Валюта
     
-    # Таблица товаров - начало первой строки данных (где стоят нули)
-    "table_start_row": 24,    # Номер строки, с которой начинаются данные товаров
+    # Таблица товаров - начало первой строки данных
+    "table_start_row": 20,    # Строка 20 - первая строка данных товаров
     
-    # Колонки таблицы товаров
-    "col_num": 2,             # B - Номер п/п
-    "col_name": 5,            # E - Наименование товара
-    "col_unit": 14,           # N - Единица измерения (условное обозначение)
-    "col_qty": 18,            # R - Количество
-    "col_price": 23,          # W - Цена за единицу
-    "col_total_no_vat": 27,   # AA - Стоимость без НДС
-    "col_vat_rate": 37,       # AK - Ставка НДС
-    "col_vat_amount": 41,     # AO - Сумма НДС
-    "col_total_with_vat": 45, # AS - Стоимость с НДС
+    # Колонки таблицы товаров (определены на основе анализа строки 18-20)
+    "col_num": 9,             # I - Номер п/п
+    "col_name": 12,           # L - Наименование товара
+    "col_qty": 18,            # R - Количество (Код вида товара)
+    "col_unit_code": 21,      # U - Код единицы измерения
+    "col_unit": 23,           # W - Условное обозначение единицы измерения
+    "col_price_unit": 30,     # AD - Цена (единицы)
+    "col_price": 34,          # AH - Цена (единицы) на единицу измерения
+    "col_total_no_vat": 39,   # AM - Стоимость товаров (без НДС)
+    "col_vat_rate": 50,       # AX - Ставка НДС
+    "col_vat_amount": 54,     # BB - Сумма НДС, начисленная покупателю
+    "col_total_with_vat": 61, # BH - Стоимость товаров (с НДС)
     
     # Итоговая строка "Всего к оплате (9)"
-    "total_row_offset": 1,    # Смещение от последней строки товаров до строки итогов
+    "total_row": 26,          # Строка 26 - итоги
+    "total_col_no_vat": 41,   # AO - Сумма без НДС (в формуле =SUM(AM21:AS25))
+    "total_col_vat": 56,      # BD - Сумма НДС (в формуле =SUM(BB21:BG25))
+    "total_col_with_vat": 62, # BJ - Сумма с НДС (в формуле =SUM(BH21:BN25))
 }
 
 
@@ -60,32 +67,35 @@ def safe_set_cell(worksheet, cell_address: str, value):
     """
     Безопасно устанавливает значение ячейки, обрабатывая объединенные ячейки.
     
+    Если ячейка является частью объединенного диапазона, значение записывается
+    в верхнюю левую ячейку этого диапазона.
+    
     Args:
         worksheet: Рабочий лист openpyxl
-        cell_address: Адрес ячейки (например, "H5")
+        cell_address: Адрес ячейки (например, "BA4")
         value: Значение для установки
     """
     try:
         cell = worksheet[cell_address]
+        row = cell.row
+        col = cell.column
+        
+        # Проверяем, является ли ячейка частью объединенного диапазона
+        for merged_range in list(worksheet.merged_cells.ranges):
+            if (row >= merged_range.min_row and row <= merged_range.max_row and
+                col >= merged_range.min_col and col <= merged_range.max_col):
+                # Находим верхнюю левую ячейку объединенного диапазона
+                top_left_coord = f"{utils.get_column_letter(merged_range.min_col)}{merged_range.min_row}"
+                top_left_cell = worksheet[top_left_coord]
+                top_left_cell.value = value
+                return
+        
+        # Если ячейка не объединена, устанавливаем значение напрямую
         cell.value = value
-    except Exception:
-        # Если ячейка объединена, пробуем найти верхнюю левую ячейку
+    except Exception as e:
+        # В случае ошибки пробуем установить значение напрямую
         try:
-            row = worksheet[cell_address].row
-            col = worksheet[cell_address].column
-            
-            # Проверяем объединенные диапазоны
-            for merged_range in list(worksheet.merged_cells.ranges):
-                if row >= merged_range.min_row and row <= merged_range.max_row and \
-                   col >= merged_range.min_col and col <= merged_range.max_col:
-                    # Находим верхнюю левую ячейку
-                    top_left_coord = f"{utils.get_column_letter(merged_range.min_col)}{merged_range.min_row}"
-                    top_left_cell = worksheet[top_left_coord]
-                    top_left_cell.value = value
-                    return
-            
-            # Если не объединена, устанавливаем напрямую
-            cell.value = value
+            worksheet[cell_address].value = value
         except Exception:
             pass
 
@@ -189,13 +199,43 @@ def fill_upd(
     total_vat = Decimal("0")
     total_with_vat = Decimal("0")
     
+    # Словарь для кодов единиц измерения (ОКЕИ)
+    # Стандартные коды: 796 - штука, 778 - условная единица, 383 - рубль и т.д.
+    # Если единица не найдена, используется код 796 (штука)
+    unit_codes = {
+        "шт": "796",
+        "штука": "796",
+        "штуки": "796",
+        "усл": "778",
+        "услуга": "778",
+        "услуги": "778",
+        "мес": "мес",
+        "месяц": "мес",
+        "час": "час",
+        "часы": "час",
+        "кг": "166",
+        "килограмм": "166",
+        "т": "168",
+        "тонна": "168",
+        "м": "006",
+        "метр": "006",
+        "м2": "055",
+        "м²": "055",
+        "м3": "113",
+        "м³": "113",
+    }
+    
     # Заполняем строки товаров
     for idx, item in enumerate(items, start=1):
-        name = item.get("name", "")
-        unit = item.get("unit", "шт")
-        qty = float(item.get("qty", 0))
-        price = float(item.get("price", 0))
-        vat_rate_str = item.get("vat_rate", "20%")
+        name = item.get("name", "") or item.get("title", "")  # Поддержка обоих полей
+        unit = item.get("unit", "шт") or "шт"  # По умолчанию штука
+        qty = float(item.get("qty", 0) or item.get("quantity", 0) or 0)  # Поддержка обоих полей
+        price = float(item.get("price", 0) or 0)
+        vat_rate_str = item.get("vat_rate", "20%") or "20%"
+        
+        # Получаем код единицы измерения
+        unit_lower = str(unit).lower().strip()
+        unit_code = unit_codes.get(unit_lower, "796")  # По умолчанию штука (796)
         
         # Вычисляем суммы
         amount_without_vat = Decimal(str(qty * price))
@@ -219,27 +259,30 @@ def fill_upd(
         total_vat += vat_amount
         total_with_vat += amount_with_vat
         
-        # Заполняем ячейки строки товара
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_num"], idx)  # Номер п/п
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_name"], name)  # Наименование
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_unit"], unit)  # Единица измерения
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_qty"], qty)  # Количество
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_price"], price)  # Цена за единицу
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_total_no_vat"], float(amount_without_vat))  # Стоимость без НДС
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_vat_rate"], vat_rate_str)  # Ставка НДС
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_vat_amount"], float(vat_amount))  # Сумма НДС
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_total_with_vat"], float(amount_with_vat))  # Стоимость с НДС
+        # Заполняем ячейки строки товара согласно структуре шаблона
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_num"], idx)  # I - Номер п/п
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_name"], name)  # L - Наименование товара
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_qty"], qty)  # R - Количество
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_unit_code"], unit_code)  # U - Код единицы измерения
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_unit"], unit)  # W - Условное обозначение единицы измерения
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_price_unit"], price)  # AD - Цена (единицы)
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_price"], price)  # AH - Цена (единицы) на единицу измерения
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_total_no_vat"], float(amount_without_vat))  # AM - Стоимость без НДС
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_vat_rate"], vat_rate_str)  # AX - Ставка НДС
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_vat_amount"], float(vat_amount))  # BB - Сумма НДС
+        safe_set_cell_by_coords(ws, current_row, CELLS["col_total_with_vat"], float(amount_with_vat))  # BH - Стоимость с НДС
         
         current_row += 1
     
     # --- Заполнение итоговой строки "Всего к оплате (9)" ---
+    # Строка 26 содержит итоги в колонках AO (без НДС), BD (НДС), BJ (с НДС)
     
-    total_row = current_row + CELLS["total_row_offset"]
+    total_row = CELLS["total_row"]
     
-    # Заполняем итоговые значения
-    safe_set_cell_by_coords(ws, total_row, CELLS["col_total_no_vat"], float(total_without_vat))
-    safe_set_cell_by_coords(ws, total_row, CELLS["col_vat_amount"], float(total_vat))
-    safe_set_cell_by_coords(ws, total_row, CELLS["col_total_with_vat"], float(total_with_vat))
+    # Заполняем итоговые значения в правильных колонках
+    safe_set_cell_by_coords(ws, total_row, CELLS["total_col_no_vat"], float(total_without_vat))  # AO26 - Сумма без НДС
+    safe_set_cell_by_coords(ws, total_row, CELLS["total_col_vat"], float(total_vat))  # BD26 - Сумма НДС
+    safe_set_cell_by_coords(ws, total_row, CELLS["total_col_with_vat"], float(total_with_vat))  # BJ26 - Сумма с НДС
     
     # --- Сохранение файла ---
     
