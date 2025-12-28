@@ -1703,22 +1703,113 @@ def request_upd(request, pk: int, shipment_id: int = None):
             messages.error(request, f"Ошибка при генерации УПД: {str(e)}")
             return redirect("core:request_detail", pk=obj.pk)
     
-    # Расчет итогового НДС для HTML версии
-    total_without_vat = total_amount
-    vat_amount = total_without_vat * vat_rate / Decimal("100")
-    total_with_vat = total_without_vat + vat_amount
-    
-    return render(request, "requests/upd.html", {
-        "obj": obj,
-        "shipment": shipment,
-        "items": items,
-        "total_amount": total_amount,
-        "total_without_vat": total_without_vat,
-        "vat_rate": vat_rate,
-        "vat_amount": vat_amount,
-        "total_with_vat": total_with_vat,
-        "company": company_data,
-    })
+    # Для HTML версии генерируем Excel и конвертируем в PDF
+    try:
+        # Формируем ИНН/КПП для продавца и покупателя
+        seller_inn_kpp = company_data["inn"]
+        if company_data.get("kpp"):
+            seller_inn_kpp += f" / {company_data['kpp']}"
+        
+        buyer_inn_kpp = buyer_data["inn"]
+        if buyer_data.get("kpp"):
+            buyer_inn_kpp += f" / {buyer_data['kpp']}"
+        
+        # Получаем адрес доставки
+        delivery_address = None
+        if obj.delivery_address and obj.delivery_address.address:
+            delivery_address = obj.delivery_address.address
+        
+        # Создаем временный Excel файл
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_excel:
+            excel_path = tmp_excel.name
+        
+        # Заполняем УПД в Excel
+        fill_upd(
+            seller_name=company_data["full_name"] or company_data["name"],
+            seller_address=company_data["address"],
+            seller_inn_kpp=seller_inn_kpp,
+            buyer_name=buyer_data["full_name"] or buyer_data["name"],
+            buyer_address=buyer_data["address"],
+            buyer_inn_kpp=buyer_inn_kpp,
+            doc_number=doc_number,
+            doc_date=doc_date,
+            items=items,
+            delivery_address=delivery_address,
+            output_path=excel_path,
+        )
+        
+        # Конвертируем Excel в PDF
+        pdf_path = excel_path.replace('.xlsx', '.pdf')
+        pdf_generated = False
+        
+        try:
+            # Пробуем использовать win32com для конвертации (только Windows, требует установленный Excel)
+            import win32com.client
+            excel_app = win32com.client.Dispatch("Excel.Application")
+            excel_app.Visible = False
+            excel_app.DisplayAlerts = False
+            workbook = excel_app.Workbooks.Open(os.path.abspath(excel_path))
+            workbook.ExportAsFixedFormat(0, os.path.abspath(pdf_path), 1, 0, False, False, False, False, False)
+            workbook.Close(False)
+            excel_app.Quit()
+            if os.path.exists(pdf_path):
+                pdf_generated = True
+        except (ImportError, Exception):
+            # win32com не доступен или произошла ошибка конвертации
+            pdf_generated = False
+        
+        # Если PDF создан, отправляем его
+        if pdf_generated:
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+            
+            # Удаляем временные файлы
+            try:
+                os.unlink(excel_path)
+                os.unlink(pdf_path)
+            except:
+                pass
+            
+            # Отправляем PDF как ответ
+            response = HttpResponse(pdf_bytes, content_type="application/pdf")
+            filename = f"UPD_{doc_number}_{doc_date.strftime('%Y%m%d')}.pdf"
+            response["Content-Disposition"] = f'inline; filename="{filename}"'
+            return response
+        else:
+            # Если PDF не создан, отправляем Excel файл напрямую
+            with open(excel_path, "rb") as f:
+                excel_bytes = f.read()
+            
+            # Удаляем временный Excel файл
+            try:
+                os.unlink(excel_path)
+            except:
+                pass
+            
+            # Отправляем Excel как ответ (браузер может показать его через встроенный просмотрщик)
+            response = HttpResponse(excel_bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            filename = f"UPD_{doc_number}_{doc_date.strftime('%Y%m%d')}.xlsx"
+            response["Content-Disposition"] = f'inline; filename="{filename}"'
+            return response
+        
+    except Exception as e:
+        # В случае ошибки возвращаем обычную HTML версию
+        total_without_vat = total_amount
+        vat_amount = total_without_vat * vat_rate / Decimal("100")
+        total_with_vat = total_without_vat + vat_amount
+        
+        return render(request, "requests/upd.html", {
+            "obj": obj,
+            "shipment": shipment,
+            "items": items,
+            "total_amount": total_amount,
+            "total_without_vat": total_without_vat,
+            "vat_rate": vat_rate,
+            "vat_amount": vat_amount,
+            "total_with_vat": total_with_vat,
+            "company": company_data,
+        })
 
 
 # ---------- УПД XML (Универсальный передаточный документ в формате XML) ----------
