@@ -21,23 +21,23 @@ TEMPLATE_PATH = os.path.join(
 # Адреса определены на основе анализа шаблона Blank-UPD.xlsx
 CELLS = {
     # Номер и дата документа (поле (1))
-    "doc_number": "AM1",      # Номер счета-фактуры
-    "doc_date": "BD1",        # Дата счета-фактуры
+    "doc_number": "R2",       # Номер счета-фактуры
+    "doc_date": "AA2",        # Дата счета-фактуры
     
     # Продавец (поля (2), (2а), (2б))
-    "seller_name": "BA4",      # Продавец (наименование)
-    "seller_address": "BA5",  # Адрес продавца
-    "seller_inn_kpp": "BA6",  # ИНН/КПП продавца
-    "seller_shipper": "BA7",  # Грузоотправитель (опционально)
-    "seller_consignee": "BA8", # Грузополучатель (опционально)
+    "seller_name": "Y5",       # Продавец (наименование)
+    "seller_address": "Y6",   # Адрес продавца
+    "seller_inn_kpp": "Y7",   # ИНН/КПП продавца
+    "seller_shipper": "Y8",   # Грузоотправитель (опционально)
+    "seller_consignee": "Y9", # Грузополучатель (опционально)
     
     # Покупатель (поля (6), (6а), (6б))
-    "buyer_name": "BA11",     # Покупатель (наименование)
-    "buyer_address": "BA12", # Адрес покупателя
-    "buyer_inn_kpp": "BA13",  # ИНН/КПП покупателя
+    "buyer_name": "Y12",      # Покупатель (наименование)
+    "buyer_address": "Y13",   # Адрес покупателя
+    "buyer_inn_kpp": "Y14",   # ИНН/КПП покупателя
     
     # Валюта (поле (7))
-    "currency": "BA14",       # Валюта
+    "currency": "Y15",        # Валюта
     
     # Таблица товаров - начало первой строки данных
     "table_start_row": 20,    # Строка 20 - первая строка данных товаров
@@ -45,9 +45,8 @@ CELLS = {
     # Колонки таблицы товаров (определены на основе анализа строки 18-20)
     "col_num": 9,             # I - Номер п/п
     "col_name": 12,           # L - Наименование товара
-    "col_qty": 18,            # R - Количество (Код вида товара)
     "col_unit_code": 21,      # U - Код единицы измерения
-    "col_unit": 23,           # W - Условное обозначение единицы измерения
+    "col_unit": 23,           # W - Условное обозначение единицы измерения (национальное)
     "col_price_unit": 30,     # AD - Цена (единицы)
     "col_price": 34,          # AH - Цена (единицы) на единицу измерения
     "col_total_no_vat": 39,   # AM - Стоимость товаров (без НДС)
@@ -262,7 +261,6 @@ def fill_upd(
         # Заполняем ячейки строки товара согласно структуре шаблона
         safe_set_cell_by_coords(ws, current_row, CELLS["col_num"], idx)  # I - Номер п/п
         safe_set_cell_by_coords(ws, current_row, CELLS["col_name"], name)  # L - Наименование товара
-        safe_set_cell_by_coords(ws, current_row, CELLS["col_qty"], qty)  # R - Количество
         safe_set_cell_by_coords(ws, current_row, CELLS["col_unit_code"], unit_code)  # U - Код единицы измерения
         safe_set_cell_by_coords(ws, current_row, CELLS["col_unit"], unit)  # W - Условное обозначение единицы измерения
         safe_set_cell_by_coords(ws, current_row, CELLS["col_price_unit"], price)  # AD - Цена (единицы)
